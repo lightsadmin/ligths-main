@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "lights-main",
-    "slug": "lights-main",
+    "name": "Ligths",
+    "slug": "ligths",
+    "scheme": "ligths",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,17 +14,29 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.subiksha17.ligths"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.subiksha17.ligths"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "debugOAuth": true,
+      "eas": {
+        "projectId": "abe4059f-a617-4108-a738-ad0050f3cdc9"
+      }
+    },
+    "owner": "subiksha17",
+    "sdkVersion": "53.0.0",
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }
