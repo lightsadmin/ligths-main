@@ -1117,7 +1117,7 @@ export default function GoalCalculator() {
                       backgroundColor: "#ffffff",
                       backgroundGradientFrom: "#ffffff",
                       backgroundGradientTo: "#ffffff",
-                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Corrected line
+                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
                     }}
                     accessor={"population"}
                     backgroundColor={"transparent"}
