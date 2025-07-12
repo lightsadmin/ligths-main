@@ -17,7 +17,7 @@ import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = "https://ligths.onrender.com";
+const API_URL = "https://ligths-backend.onrender.com";
 
 const FireNumber = () => {
   // User input states

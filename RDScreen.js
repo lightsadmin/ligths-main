@@ -17,7 +17,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = "https://ligths.onrender.com";
+const API_URL = "https://ligths-backend.onrender.com";
 
 export default function RDScreen({ navigation }) {
   const [investments, setInvestments] = useState([]);

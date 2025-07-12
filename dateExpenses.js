@@ -21,7 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AntDesign, Feather, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
-const API_URL = "https://ligths.onrender.com";
+const API_URL = "https://ligths-backend.onrender.com";
 
 const formatDate = (dateString) => {
   const [year, month, day] = dateString.split("-");

@@ -21,7 +21,7 @@ import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
-const API_URL = "https://ligths.onrender.com";
+const API_URL = "https://ligths-backend.onrender.com";
 
 const ProfilePage = ({ navigation }) => {
   const [profile, setProfile] = useState(null);

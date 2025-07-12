@@ -141,7 +141,7 @@ const handleGoogleSignIn = async (token) => {
     
     // Proceed with your existing backend call
     const response = await axios.post(
-      "https://ligths.onrender.com/api/google-auth",
+      "https://ligths-backend.onrender.com/api/google-auth",
       {
         googleId: userInfo.sub || userInfo.id,
         email: userInfo.email,
@@ -183,7 +183,7 @@ const handleGoogleSignIn = async (token) => {
 
     try {
       const response = await axios.post(
-        "https://ligths.onrender.com/api/login",
+        "https://ligths-backend.onrender.com/api/login",
         {
           userName: username,
           password: password,

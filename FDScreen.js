@@ -18,7 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 
-const API_URL = "https://ligths.onrender.com";
+const API_URL = "https://ligths-backend.onrender.com";
 
 export default function FDScreen({ navigation }) {
   const [investments, setInvestments] = useState([]);

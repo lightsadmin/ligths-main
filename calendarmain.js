@@ -169,7 +169,7 @@ const CalendarMain = () => {
       console.log(`Fetching transactions for ${username}`);
       
       const response = await fetch(
-        `https://ligths.onrender.com/transactions/${username}`
+        `https://ligths-backend.onrender.com/transactions/${username}`
       );
       
       if (!response.ok) {

@@ -37,7 +37,7 @@ const COUNTRIES = [
 
 export default function RegisterScreenView() {
   const navigation = useNavigation();
-  const NGROK_URL = "https://ligths.onrender.com";
+  const NGROK_URL = "https://ligths-backend.onrender.com";
 
   const [isNextLoading, setIsNextLoading] = useState(false);
   const timeoutRefs = useRef({});

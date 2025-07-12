@@ -14,13 +14,13 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
 import { PieChart } from "react-native-chart-kit";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 
 const screenWidth = Dimensions.get("window").width;
 
 // Replace with your backend URL
-const API_BASE_URL = "https://ligths.onrender.com"; // Update this to your actual backend URL
+const API_BASE_URL = "https://ligths-backend.onrender.com"; // Update this to your actual backend URL
 
 // Default inflation is now 7.5
 const GOAL_TEMPLATES = {
@@ -84,7 +84,7 @@ const INVESTMENT_TYPES = [
 
 export default function GoalCalculator() {
   const navigation = useNavigation();
-  
+
   const [selectedGoal, setSelectedGoal] = useState("B Education");
   const [goalData, setGoalData] = useState({
     ...GOAL_TEMPLATES["B Education"],
@@ -117,29 +117,29 @@ export default function GoalCalculator() {
   const getUserName = async () => {
     try {
       // Check multiple possible storage keys for username
-      let storedUserName = await AsyncStorage.getItem('userName');
-      
+      let storedUserName = await AsyncStorage.getItem("userName");
+
       // If not found, try checking for userInfo object which might contain the username
       if (!storedUserName) {
-        const userInfoString = await AsyncStorage.getItem('userInfo');
+        const userInfoString = await AsyncStorage.getItem("userInfo");
         if (userInfoString) {
           const userInfo = JSON.parse(userInfoString);
           storedUserName = userInfo.username || userInfo.userName;
         }
       }
-      
+
       if (storedUserName) {
         console.log("Found username:", storedUserName);
         setUserName(storedUserName);
       } else {
         console.log("Username not found in AsyncStorage");
-        
+
         // Use a default username for testing or show an error message
         // For development only - remove in production
         const defaultUsername = "testuser";
         console.log("Using default username for testing:", defaultUsername);
         setUserName(defaultUsername);
-        
+
         // Comment this in production and uncomment the Alert
         // Alert.alert("Error", "User not found. Please login again.");
       }
@@ -151,15 +151,15 @@ export default function GoalCalculator() {
 
   const fetchGoals = async () => {
     if (!userName) return;
-    
+
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/goals/${userName}`);
-      
+
       if (response.ok) {
         const goals = await response.json();
         setGoalResults(goals);
-        
+
         // Initialize tabs for each goal
         const initialTabs = {};
         goals.forEach((goal) => {
@@ -179,7 +179,7 @@ export default function GoalCalculator() {
 
   const fetchInvestmentsByGoal = async () => {
     if (!userName) return;
-    
+
     try {
       // This is a placeholder for when your investment module is ready
       const mockInvestments = {};
@@ -238,13 +238,18 @@ export default function GoalCalculator() {
           style: "destructive",
           onPress: async () => {
             try {
-              const response = await fetch(`${API_BASE_URL}/goals/${userName}/${goalId}`, {
-                method: 'DELETE',
-              });
+              const response = await fetch(
+                `${API_BASE_URL}/goals/${userName}/${goalId}`,
+                {
+                  method: "DELETE",
+                }
+              );
 
               if (response.ok) {
                 // Remove from local state
-                setGoalResults(prevGoals => prevGoals.filter(goal => goal._id !== goalId));
+                setGoalResults((prevGoals) =>
+                  prevGoals.filter((goal) => goal._id !== goalId)
+                );
                 setActiveTabs((prev) => {
                   const newTabs = { ...prev };
                   delete newTabs[goalId];
@@ -284,42 +289,150 @@ export default function GoalCalculator() {
     const ret = parseFloat(g.returnRate);
     const inHandValue = parseFloat(g.currentSip) || 0;
 
-    // --- Validation ---
-    const requiredFields = [
-      { key: "presentCost", value: cost },
-      { key: "inflation", value: inf },
-    ];
+    // --- Enhanced Validation ---
+    const requiredFields = [];
 
+    // Always required fields
+    requiredFields.push({
+      key: "presentCost",
+      value: cost,
+      fieldValue: g.presentCost,
+    });
+    requiredFields.push({
+      key: "inflation",
+      value: inf,
+      fieldValue: g.inflation,
+    });
+
+    // Goal-specific required fields
     if (g.name === "B Education" || g.name === "B Marriage") {
-      requiredFields.push({ key: "goalAge", value: parseFloat(g.goalAge) });
+      requiredFields.push({
+        key: "goalAge",
+        value: parseFloat(g.goalAge),
+        fieldValue: g.goalAge,
+      });
       requiredFields.push({
         key: "childCurrentAge",
         value: parseFloat(g.childCurrentAge),
+        fieldValue: g.childCurrentAge,
       });
     } else if (g.name === "Wealth Creation") {
-      requiredFields.push({ key: "goalAge", value: parseFloat(g.goalAge) });
+      requiredFields.push({
+        key: "goalAge",
+        value: parseFloat(g.goalAge),
+        fieldValue: g.goalAge,
+      });
       requiredFields.push({
         key: "currentAge",
         value: parseFloat(g.currentAge),
+        fieldValue: g.currentAge,
       });
-    } else if (g.name === "Dream Home" || g.name === "Custom Goal") {
-      requiredFields.push({ key: "years", value: y });
-    }
-    if (g.investmentType !== "Savings" && g.investmentType !== "FD") {
-      requiredFields.push({ key: "returnRate", value: ret });
+    } else if (g.name === "Dream Home") {
+      requiredFields.push({
+        key: "years",
+        value: parseFloat(g.years),
+        fieldValue: g.years,
+      });
+    } else if (g.name === "Custom Goal") {
+      requiredFields.push({
+        key: "years",
+        value: parseFloat(g.years),
+        fieldValue: g.years,
+      });
+      requiredFields.push({
+        key: "customName",
+        value: g.customName,
+        fieldValue: g.customName,
+      });
     }
 
-    const invalidFields = requiredFields.filter(
-      (field) => isNaN(field.value) || field.value <= 0 || !g[field.key]
-    );
+    // Return rate validation (only if not Savings or FD)
+    if (g.investmentType !== "Savings" && g.investmentType !== "FD") {
+      requiredFields.push({
+        key: "returnRate",
+        value: ret,
+        fieldValue: g.returnRate,
+      });
+    }
+
+    // Check for invalid fields
+    const invalidFields = requiredFields.filter((field) => {
+      if (field.key === "customName") {
+        // For custom name, just check if it exists and is not empty
+        return !field.fieldValue || field.fieldValue.trim() === "";
+      } else {
+        // For numeric fields, check if the value is valid and the field is not empty
+        return (
+          isNaN(field.value) ||
+          field.value <= 0 ||
+          !field.fieldValue ||
+          field.fieldValue.trim() === ""
+        );
+      }
+    });
+
+    console.log("Validation Debug:");
+    console.log("Goal Data:", g);
+    console.log("Required Fields:", requiredFields);
+    console.log("Invalid Fields:", invalidFields);
+
     if (invalidFields.length > 0) {
-      setErrorFields(invalidFields.map((field) => field.key));
+      const invalidFieldNames = invalidFields.map((field) => field.key);
+      setErrorFields(invalidFieldNames);
+
+      console.log("Setting error fields:", invalidFieldNames);
+
       Alert.alert(
-        "Error",
-        "Please fill all required fields with valid positive numbers."
+        "Validation Error",
+        `Please fill the following required fields with valid values:\n${invalidFieldNames
+          .map((field) => {
+            switch (field) {
+              case "presentCost":
+                return "• Present Cost";
+              case "goalAge":
+                return "• Goal Age";
+              case "childCurrentAge":
+                return "• Current Age of Child";
+              case "currentAge":
+                return "• Current Age";
+              case "years":
+                return "• Years to Goal";
+              case "returnRate":
+                return "• Expected Return Rate";
+              case "customName":
+                return "• Custom Goal Name";
+              default:
+                return `• ${field}`;
+            }
+          })
+          .join("\n")}`
       );
       return;
     }
+
+    // Additional logical validation
+    if (g.name === "B Education" || g.name === "B Marriage") {
+      if (parseFloat(g.goalAge) <= parseFloat(g.childCurrentAge)) {
+        setErrorFields(["goalAge", "childCurrentAge"]);
+        Alert.alert(
+          "Validation Error",
+          "Goal age must be greater than current age of child."
+        );
+        return;
+      }
+    } else if (g.name === "Wealth Creation") {
+      if (parseFloat(g.goalAge) <= parseFloat(g.currentAge)) {
+        setErrorFields(["goalAge", "currentAge"]);
+        Alert.alert(
+          "Validation Error",
+          "Goal age must be greater than current age."
+        );
+        return;
+      }
+    }
+
+    // Clear error fields if validation passes
+    setErrorFields([]);
 
     // --- Calculations ---
     const futureCost = cost * Math.pow(1 + inf / 100, y);
@@ -379,43 +492,56 @@ export default function GoalCalculator() {
       monthlySIP: netNewMonthlySip > 0 ? netNewMonthlySip : 0,
     };
 
+    console.log("Saving goal for user:", userName);
+    console.log("Goal data being sent:", result);
+    console.log("API endpoint:", `${API_BASE_URL}/goals/${userName}`);
+
     try {
       setLoading(true);
       let response;
-      
+
       if (editingGoalId) {
         // Update existing goal
-        response = await fetch(`${API_BASE_URL}/goals/${userName}/${editingGoalId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(result),
-        });
+        console.log("Updating goal with ID:", editingGoalId);
+        response = await fetch(
+          `${API_BASE_URL}/goals/${userName}/${editingGoalId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(result),
+          }
+        );
       } else {
         // Create new goal
+        console.log("Creating new goal");
         response = await fetch(`${API_BASE_URL}/goals/${userName}`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(result),
         });
       }
 
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
       if (response.ok) {
         const savedGoal = await response.json();
-        
+        console.log("Goal saved successfully:", savedGoal);
+
         if (editingGoalId) {
           // Update existing goal in state
-          setGoalResults(prevGoals => 
-            prevGoals.map(goal => 
+          setGoalResults((prevGoals) =>
+            prevGoals.map((goal) =>
               goal._id === editingGoalId ? savedGoal : goal
             )
           );
         } else {
           // Add new goal to state
-          setGoalResults(prevGoals => [...prevGoals, savedGoal]);
+          setGoalResults((prevGoals) => [...prevGoals, savedGoal]);
           setActiveTabs((prev) => ({
             ...prev,
             [savedGoal._id]: "SIP Calculation",
@@ -426,14 +552,27 @@ export default function GoalCalculator() {
         setGoalData({ ...GOAL_TEMPLATES[selectedGoal] });
         setEditingGoalId(null);
         setErrorFields([]);
-        
-        Alert.alert("Success", editingGoalId ? "Goal updated successfully!" : "Goal created successfully!");
+
+        Alert.alert(
+          "Success",
+          editingGoalId
+            ? "Goal updated successfully!"
+            : "Goal created successfully!"
+        );
       } else {
-        Alert.alert("Error", "Failed to save goal.");
+        const errorText = await response.text();
+        console.error("Server response error:", errorText);
+        Alert.alert(
+          "Error",
+          `Failed to save goal. Server responded with: ${response.status} - ${errorText}`
+        );
       }
     } catch (error) {
-      console.error("Error saving goal:", error);
-      Alert.alert("Error", "Failed to save goal.");
+      console.error("Network error saving goal:", error);
+      Alert.alert(
+        "Error",
+        `Network error: ${error.message}. Please check your internet connection and try again.`
+      );
     } finally {
       setLoading(false);
     }
@@ -480,7 +619,7 @@ export default function GoalCalculator() {
     >
       {/* Custom Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -489,7 +628,7 @@ export default function GoalCalculator() {
         <Text style={styles.headerTitle}>Goal Calculator</Text>
         <View style={styles.backButton} /> {/* Empty view for balance */}
       </View>
-      
+
       <ScrollView contentContainerStyle={styles.container}>
         {/* Goal Selection Card */}
         <View style={styles.card}>
@@ -543,8 +682,8 @@ export default function GoalCalculator() {
           {selectedGoal === "Custom" && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                <Ionicons name="create" size={16} color="#666" /> Custom Goal
-                Name
+                <Ionicons name="create" size={16} color="#666" />
+                <Text> Custom Goal Name</Text>
               </Text>
               <TextInput
                 style={styles.input}
@@ -559,7 +698,8 @@ export default function GoalCalculator() {
           {/* Present Cost */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              <Ionicons name="cash" size={16} color="#666" /> Present Cost (₹)
+              <Ionicons name="cash" size={16} color="#666" />
+              <Text> Present Cost (₹)</Text>
             </Text>
             <TextInput
               style={[
@@ -575,11 +715,11 @@ export default function GoalCalculator() {
           </View>
 
           {/* Years to Goal */}
-          {selectedGoal === "Dream Home" && (
+          {(selectedGoal === "Dream Home" || selectedGoal === "Custom") && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                <Ionicons name="calendar-outline" size={16} color="#666" />{" "}
-                Years to Goal
+                <Ionicons name="calendar-outline" size={16} color="#666" />
+                <Text> Years to Goal</Text>
               </Text>
               <TextInput
                 style={[
@@ -601,8 +741,8 @@ export default function GoalCalculator() {
             <>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" /> Current Age
-                  of Child
+                  <Ionicons name="person" size={16} color="#666" />
+                  <Text> Current Age of Child</Text>
                 </Text>
                 <TextInput
                   style={[
@@ -619,7 +759,8 @@ export default function GoalCalculator() {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" /> Goal Age
+                  <Ionicons name="person" size={16} color="#666" />
+                  <Text> Goal Age</Text>
                 </Text>
                 <TextInput
                   style={[
@@ -641,7 +782,8 @@ export default function GoalCalculator() {
             <>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" /> Current Age
+                  <Ionicons name="person" size={16} color="#666" />
+                  <Text> Current Age</Text>
                 </Text>
                 <TextInput
                   style={[
@@ -657,7 +799,8 @@ export default function GoalCalculator() {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" /> Goal Age
+                  <Ionicons name="person" size={16} color="#666" />
+                  <Text> Goal Age</Text>
                 </Text>
                 <TextInput
                   style={[
@@ -677,8 +820,8 @@ export default function GoalCalculator() {
           {/* Inflation Rate (Non-Editable) */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              <Ionicons name="trending-up" size={16} color="#666" /> Inflation
-              Rate (%)
+              <Ionicons name="trending-up" size={16} color="#666" />
+              <Text> Inflation Rate (%)</Text>
             </Text>
             <TextInput
               style={[styles.input, styles.disabledInput]}
@@ -690,8 +833,8 @@ export default function GoalCalculator() {
           {/* In-hand Value */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              <Ionicons name="wallet" size={16} color="#666" /> In-hand Value
-              (₹)
+              <Ionicons name="wallet" size={16} color="#666" />
+              <Text> In-hand Value (₹)</Text>
             </Text>
             <TextInput
               style={styles.input}
@@ -706,8 +849,8 @@ export default function GoalCalculator() {
           {/* Investment Type */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>
-              <Ionicons name="trending-up" size={16} color="#666" /> Investment
-              Type
+              <Ionicons name="trending-up" size={16} color="#666" />
+              <Text> Investment Type</Text>
             </Text>
             <View style={styles.pickerContainer}>
               <Picker
@@ -771,10 +914,11 @@ export default function GoalCalculator() {
               color="#fff"
             />
             <Text style={styles.calculateButtonText}>
-              {loading 
-                ? "Processing..." 
-                : (editingGoalId ? "Update Goal" : "Calculate Goal")
-              }
+              {loading
+                ? "Processing..."
+                : editingGoalId
+                ? "Update Goal"
+                : "Calculate Goal"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -973,7 +1117,7 @@ export default function GoalCalculator() {
                       backgroundColor: "#ffffff",
                       backgroundGradientFrom: "#ffffff",
                       backgroundGradientTo: "#ffffff",
-                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Corrected line
                     }}
                     accessor={"population"}
                     backgroundColor={"transparent"}
@@ -1362,25 +1506,25 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: "#E2E8F0",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#1E293B",
+    textAlign: "center",
   },
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
