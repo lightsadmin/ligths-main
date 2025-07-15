@@ -263,6 +263,11 @@ const App = () => {
             component={MainApp}
             options={{ gestureEnabled: false }} // Prevent swiping back to Auth stack
           />
+          <MainStack.Screen
+            name="InvestmentNavigation"
+            component={InvestmentNavigation}
+            options={{ headerShown: false }}
+          />
         </MainStack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

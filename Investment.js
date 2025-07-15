@@ -20,90 +20,76 @@ const { width } = Dimensions.get("window");
 const Investment = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Investments</Text>
-        <TouchableOpacity style={styles.infoButton}>
-          <Ionicons
-            name="information-circle-outline"
-            size={24}
-            color="#64748B"
-          />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.banner}>
-          <View style={styles.bannerContent}>
-            <Text style={styles.bannerTitle}>Build Wealth</Text>
-            <Text style={styles.bannerDescription}>
-              Track your investments and grow your portfolio for a secure
-              financial future
+        {/* FD/RD Cards - InvestmentNavigation style */}
+        <View style={{ padding: 16, paddingTop: 32 }}>
+          <TouchableOpacity
+            style={[styles.fdRdCard, styles.fdCardBg]}
+            onPress={() => navigation.navigate("FDScreen")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.fdRdIconCircle}>
+              <Ionicons name="business" size={28} color="#2563eb" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fdRdTitle}>Fixed Deposit</Text>
+              <Text style={styles.fdRdSubtitle}>
+                Track your FD investments and calculate returns
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color="#94a3b8"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.fdRdCard, styles.rdCardBg]}
+            onPress={() => navigation.navigate("RDScreen")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.fdRdIconCircle}>
+              <Ionicons name="trending-up" size={28} color="#16a34a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fdRdTitle}>Recurring Deposit</Text>
+              <Text style={styles.fdRdSubtitle}>
+                Manage your RD investments and monitor growth
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color="#94a3b8"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Info box - InvestmentNavigation style */}
+        <View style={styles.infoBoxNav}>
+          <View style={styles.infoBoxIconCircle}>
+            <Ionicons name="information-circle" size={22} color="#64748b" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoBoxTitle}>
+              Track and manage your fixed deposits and recurring deposits in one
+              place.
+            </Text>
+            <Text style={styles.infoBoxSubtitle}>
+              Calculate returns and monitor growth over time.
             </Text>
           </View>
-          <View style={styles.bannerIconContainer}>
-            <MaterialCommunityIcons
-              name="chart-timeline-variant"
-              size={42}
-              color="#FFFFFF"
-            />
-          </View>
         </View>
 
-        <View style={styles.featuredSection}>
-          <Text style={styles.sectionTitle}>Coming Soon</Text>
-          <Text style={styles.sectionSubtitle}>
-            We're building powerful investment tracking tools to help grow your
-            wealth
-          </Text>
-
-          <View style={styles.timeline}>
-            <View style={styles.timelineItem}>
-              <View style={[styles.timelineDot, styles.activeTimelineDot]}>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-              </View>
-              <View style={styles.timelineConnector} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineTitle}>Initial Development</Text>
-                <Text style={styles.timelineDescription}>
-                  Basic tracking and portfolio views
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.timelineItem}>
-              <View style={[styles.timelineDot, styles.currentTimelineDot]}>
-                <Text style={styles.timelineDotText}>2</Text>
-              </View>
-              <View style={styles.timelineConnector} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineTitle}>In Progress</Text>
-                <Text style={styles.timelineDescription}>
-                  Portfolio analytics and performance tracking
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.timelineItem}>
-              <View style={styles.timelineDot}>
-                <Text style={styles.timelineDotText}>3</Text>
-              </View>
-              <View style={[styles.timelineConnector, styles.lastConnector]} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineTitle}>Coming Next</Text>
-                <Text style={styles.timelineDescription}>
-                  Asset allocation and rebalancing tools
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
+        {/* Featured Investment Types */}
         <View style={styles.cardSection}>
           <Text style={styles.sectionTitle}>Featured Investment Types</Text>
-
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -126,23 +112,9 @@ const Investment = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        <View style={styles.notifySection}>
-          <MaterialCommunityIcons
-            name="bell-ring-outline"
-            size={24}
-            color="#2563EB"
-          />
-          <Text style={styles.notifyText}>
-            Get notified when investment tracking becomes available
-          </Text>
-          <TouchableOpacity style={styles.notifyButton}>
-            <Text style={styles.notifyButtonText}>Notify Me</Text>
-          </TouchableOpacity>
-        </View>
-
+        {/* Investment Tips */}
         <View style={styles.tipsSection}>
           <Text style={styles.sectionTitle}>Investment Tips</Text>
-
           <View style={styles.tipCard}>
             <View style={styles.tipHeader}>
               <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
@@ -153,7 +125,6 @@ const Investment = ({ navigation }) => {
               early, even with small amounts, can lead to significant growth.
             </Text>
           </View>
-
           <View style={styles.tipCard}>
             <View style={styles.tipHeader}>
               <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
@@ -164,7 +135,6 @@ const Investment = ({ navigation }) => {
               across different asset classes to reduce risk.
             </Text>
           </View>
-
           <View style={styles.tipCard}>
             <View style={styles.tipHeader}>
               <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
@@ -176,55 +146,11 @@ const Investment = ({ navigation }) => {
             </Text>
           </View>
         </View>
-
-        {/* FD and RD cards component */}
-        <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Bank Deposits</Text>
-          <View>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => navigation.navigate("FDScreen")}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.cardIconContainer,
-                  { backgroundColor: "#2563eb20" },
-                ]}
-              >
-                <Ionicons name="business" size={28} color={"#2563eb"} />
-              </View>
-              <Text style={styles.cardTitle}>Fixed Deposit</Text>
-              <Text style={styles.cardDescription}>
-                Track your FD investments and calculate returns
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => navigation.navigate("RDScreen")}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.cardIconContainer,
-                  { backgroundColor: "#16a34a20" },
-                ]}
-              >
-                <Ionicons name="trending-up" size={28} color={"#16a34a"} />
-              </View>
-              <Text style={styles.cardTitle}>Recurring Deposit</Text>
-              <Text style={styles.cardDescription}>
-                Manage your RD investments and monitor growth
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-// Sample data for investment types
 const investmentTypes = [
   {
     title: "Equity",
@@ -255,6 +181,77 @@ const investmentTypes = [
 export default Investment;
 
 const styles = StyleSheet.create({
+  infoBoxNav: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  infoBoxIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#e5e7eb",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    marginTop: 2,
+  },
+  infoBoxTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  infoBoxSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  fdRdCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: "#fff",
+    shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fdCardBg: {
+    backgroundColor: "#e3eafd",
+  },
+  rdCardBg: {
+    backgroundColor: "#e6f4ec",
+  },
+  fdRdIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  fdRdTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  fdRdSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 2,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#F8FAFC",

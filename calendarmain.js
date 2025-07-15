@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { EventRegister } from "react-native-event-listeners";
 
 const CalendarMain = () => {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -177,6 +178,9 @@ const CalendarMain = () => {
       const parsedInfo = JSON.parse(userInfo);
       const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
 
+      // Format month with leading zero
+      const formattedMonth = searchMonth.padStart(2, "0");
+
       console.log(`Fetching transactions for ${username}`);
 
       const response = await fetch(
@@ -192,16 +196,10 @@ const CalendarMain = () => {
       const data = JSON.parse(text);
 
       const transactionsArray = data.transactions || [];
-      console.log(`Total transactions from API: ${transactionsArray.length}`);
-
-      if (!Array.isArray(transactionsArray)) {
-        console.warn("Transactions data is not an array");
-        setTransactions([]);
-        return;
-      }
-
-      // Filter by month/year, handling both date formats
-      const formattedMonth = searchMonth.padStart(2, "0");
+      console.log(
+        "Investment transactions:",
+        transactionsArray.filter((t) => t.type === "Investment")
+      );
 
       const filteredData = transactionsArray.filter((item) => {
         if (!item.date) return false;
@@ -305,21 +303,36 @@ const CalendarMain = () => {
   const generateMarkedDates = (transactions) => {
     const marked = {};
 
-    // Process each transaction
     transactions.forEach((item) => {
       if (!item || !item.date) return;
 
       // Normalize date format
       let normalizedDate;
       if (item.date.includes("/")) {
-        // Convert from DD/MM/YYYY to YYYY-MM-DD
         const [day, month, year] = item.date.split("/");
         normalizedDate = `${year}-${month}-${day}`;
       } else {
-        normalizedDate = item.date; // Already in YYYY-MM-DD format
+        normalizedDate = item.date;
       }
 
-      // Initialize if this date doesn't exist yet
+      // Check both subType and investmentType for FD/RD
+      if (
+        item.type === "Investment" &&
+        (item.subType === "FD" ||
+          item.subType === "RD" ||
+          item.investmentType === "Fixed Deposit" ||
+          item.investmentType === "Recurring Deposit")
+      ) {
+        marked[normalizedDate] = {
+          selected: true,
+          selectedColor: "#3B82F6", // Blue color
+          marked: true,
+          dotColor: "#3B82F6",
+        };
+        return;
+      }
+
+      // Default logic for other types
       if (!marked[normalizedDate]) {
         marked[normalizedDate] = {
           income: 0,
@@ -328,7 +341,6 @@ const CalendarMain = () => {
         };
       }
 
-      // Add amount to corresponding category
       if (item.type === "Income") {
         marked[normalizedDate].income += item.amount;
       } else if (item.type === "Expense") {
@@ -342,9 +354,13 @@ const CalendarMain = () => {
     const formattedMarkedDates = {};
 
     Object.keys(marked).forEach((date) => {
-      const { income, expense, investment } = marked[date];
+      // If already set for FD/RD, keep that color
+      if (marked[date].selectedColor) {
+        formattedMarkedDates[date] = marked[date];
+        return;
+      }
 
-      // Determine the dominant transaction type for the date color
+      const { income, expense, investment } = marked[date];
       let selectedColor = "#64748B"; // Default gray
 
       if (income > expense && income > investment) {
@@ -432,6 +448,22 @@ const CalendarMain = () => {
       </View>
     );
   };
+
+  useEffect(() => {
+    // Add listener for new investments
+    const listener = EventRegister.addEventListener(
+      "investmentAdded",
+      (newInvestment) => {
+        // Fetch updated transactions or add the new one locally
+        fetchTransactions();
+      }
+    );
+
+    return () => {
+      // Clean up listener
+      EventRegister.removeEventListener(listener);
+    };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>

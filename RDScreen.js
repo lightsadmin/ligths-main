@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { 
-  View, 
-  Text, 
-  FlatList, 
-  TextInput, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -12,10 +12,12 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   StatusBar,
-  Platform
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
+import { EventRegister } from "react-native-event-listeners"; // Import EventRegister
 
 const API_URL = "https://ligths-backend.onrender.com";
 
@@ -25,15 +27,19 @@ export default function RDScreen({ navigation }) {
   const [interestRate, setInterestRate] = useState("");
   const [duration, setDuration] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [goals, setGoals] = useState([]);
+  const [linkedGoal, setLinkedGoal] = useState(null);
 
   useEffect(() => {
     fetchInvestments();
+    fetchGoals();
   }, []);
 
   const fetchInvestments = async () => {
     try {
       setLoading(true);
-      
+
       // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
@@ -41,39 +47,60 @@ export default function RDScreen({ navigation }) {
         setLoading(false);
         return;
       }
-      
+
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-      
+
       if (!token) {
-        Alert.alert("Error", "Authentication token not found. Please log in again.");
+        Alert.alert(
+          "Error",
+          "Authentication token not found. Please log in again."
+        );
         setLoading(false);
         return;
       }
 
       // Call the API with token
       const response = await fetch(`${API_URL}/investments`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
-      
+
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
-      
+
       const data = await response.json();
       // Filter RD investments
-      const rdInvestments = data.filter(item => item.investmentType === "Recurring Deposit");
+      const rdInvestments = data.filter(
+        (item) => item.investmentType === "Recurring Deposit"
+      );
       setInvestments(rdInvestments);
       setLoading(false);
-      
     } catch (error) {
       console.error("Error fetching investments:", error);
       Alert.alert("Error", "Failed to fetch investments. Please try again.");
       setLoading(false);
+    }
+  };
+
+  const fetchGoals = async () => {
+    try {
+      const userInfo = await AsyncStorage.getItem("userInfo");
+      const parsedInfo = JSON.parse(userInfo);
+      const username = parsedInfo?.user?.username;
+
+      const response = await fetch(`${API_URL}/goals/${username}`);
+      if (response.ok) {
+        const goalsData = await response.json();
+        setGoals(goalsData);
+        console.log("Fetched goals:", goalsData);
+      }
+    } catch (error) {
+      console.error("Error fetching goals:", error);
     }
   };
 
@@ -82,10 +109,10 @@ export default function RDScreen({ navigation }) {
       Alert.alert("Error", "Please enter all required fields");
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
@@ -93,63 +120,77 @@ export default function RDScreen({ navigation }) {
         setLoading(false);
         return;
       }
-      
+
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-      
+
       if (!token) {
-        Alert.alert("Error", "Authentication token not found. Please log in again.");
+        Alert.alert(
+          "Error",
+          "Authentication token not found. Please log in again."
+        );
         setLoading(false);
         return;
       }
-      
+
       // Calculate maturity date (current date + duration in months)
       const maturityDate = new Date();
       maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
-      
+      const startDate = new Date(); // Define startDate here
+
       // Create new RD investment object
-      const newRD = { 
+      const newRD = {
         name: `RD - ${monthlyDeposit}/month for ${duration} months`,
         amount: parseFloat(monthlyDeposit), // Monthly amount
         currentAmount: parseFloat(monthlyDeposit), // Initially just the first deposit
-        interestRate: parseFloat(interestRate), 
+        interestRate: parseFloat(interestRate),
+        goalId: selectedGoal, // Add the selected goal ID
         investmentType: "Recurring Deposit",
-        startDate: new Date().toISOString(),
+        startDate: startDate.toISOString(), // Use defined startDate
         maturityDate: maturityDate.toISOString(),
         compoundingFrequency: "quarterly", // Most RDs compound quarterly
-        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`
+        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`,
       };
-      
+
       // Add custom fields for RD
       newRD.monthlyDeposit = parseFloat(monthlyDeposit);
       newRD.duration = parseInt(duration);
-      
+
       const response = await fetch(`${API_URL}/investment`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(newRD)
+        body: JSON.stringify(newRD),
       });
-      
+
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
-      
-      // Reset form
+
+      // Reset form including goal selection
       setMonthlyDeposit("");
       setInterestRate("");
       setDuration("");
-      
+      setSelectedGoal(null);
+
       Alert.alert("Success", "Recurring deposit added successfully");
-      
+
+      // Emit the event for calendar update
+      EventRegister.emit("investmentAdded", {
+        type: "Investment",
+        subType: "RD",
+        date: startDate.toISOString().split("T")[0], // Use YYYY-MM-DD format for calendar
+        amount: parseFloat(monthlyDeposit),
+      });
+
       // Refresh investments list
       fetchInvestments();
-      
     } catch (error) {
       console.error("Error adding investment:", error);
       Alert.alert("Error", "Failed to add investment. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -159,30 +200,31 @@ export default function RDScreen({ navigation }) {
     const d = parseFloat(deposit);
     const r = parseFloat(rate) / 100 / 12; // monthly interest rate
     const n = parseInt(months);
-    
+
     // RD maturity calculation formula: P × (((1 + r)^n - 1) / r)
     return d * ((Math.pow(1 + r, n) - 1) / r);
   };
-  
+
   // Calculate current value of RD
   const calculateCurrentValue = (deposit, rate, startDate, duration) => {
     const d = parseFloat(deposit);
     const r = parseFloat(rate) / 100 / 12; // monthly interest rate
     const totalMonths = parseInt(duration);
-    
+
     // Calculate elapsed months since start date
     const start = new Date(startDate);
     const now = new Date();
-    const elapsedMonths = (now.getFullYear() - start.getFullYear()) * 12 + 
-                         (now.getMonth() - start.getMonth());
-    
+    const elapsedMonths =
+      (now.getFullYear() - start.getFullYear()) * 12 +
+      (now.getMonth() - start.getMonth());
+
     // Limit to actual duration or elapsed time, whichever is smaller
     const n = Math.min(Math.max(elapsedMonths, 1), totalMonths);
-    
+
     // Calculate current value using same formula but with elapsed months
     return d * ((Math.pow(1 + r, n) - 1) / r);
   };
-  
+
   // Delete investment
   const deleteInvestment = async (id) => {
     try {
@@ -192,42 +234,45 @@ export default function RDScreen({ navigation }) {
         Alert.alert("Error", "User not logged in. Please log in again.");
         return;
       }
-      
+
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-      
+
       if (!token) {
-        Alert.alert("Error", "Authentication token not found. Please log in again.");
+        Alert.alert(
+          "Error",
+          "Authentication token not found. Please log in again."
+        );
         return;
       }
-      
+
       // Confirmation dialog
       Alert.alert(
         "Delete Investment",
         "Are you sure you want to delete this recurring deposit?",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Delete", 
+          {
+            text: "Delete",
             style: "destructive",
             onPress: async () => {
               try {
                 setLoading(true);
-                
+
                 const response = await fetch(`${API_URL}/investment/${id}`, {
-                  method: 'DELETE',
+                  method: "DELETE",
                   headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                  }
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                  },
                 });
-                
+
                 if (!response.ok) {
                   throw new Error(`API Error: ${response.status}`);
                 }
-                
+
                 // Update local state
-                setInvestments(investments.filter(item => item._id !== id));
+                setInvestments(investments.filter((item) => item._id !== id));
                 Alert.alert("Success", "Investment deleted successfully");
                 setLoading(false);
               } catch (error) {
@@ -235,8 +280,8 @@ export default function RDScreen({ navigation }) {
                 Alert.alert("Error", "Failed to delete investment");
                 setLoading(false);
               }
-            }
-          }
+            },
+          },
         ]
       );
     } catch (error) {
@@ -257,10 +302,10 @@ export default function RDScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
-      {/* Add a custom header */}
+
+      {/* Add a custom header
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -268,8 +313,8 @@ export default function RDScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Recurring Deposit</Text>
         <View style={styles.backButton} />
-      </View>
-      
+      </View> */}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidContainer}
@@ -280,7 +325,7 @@ export default function RDScreen({ navigation }) {
         >
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Add Recurring Deposit</Text>
-            
+
             <Text style={styles.inputLabel}>Monthly Deposit (₹)</Text>
             <TextInput
               style={styles.input}
@@ -290,7 +335,7 @@ export default function RDScreen({ navigation }) {
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
-            
+
             <Text style={styles.inputLabel}>Interest Rate (%)</Text>
             <TextInput
               style={styles.input}
@@ -300,7 +345,7 @@ export default function RDScreen({ navigation }) {
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
-            
+
             <Text style={styles.inputLabel}>Duration (months)</Text>
             <TextInput
               style={styles.input}
@@ -310,14 +355,41 @@ export default function RDScreen({ navigation }) {
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
-            
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Link to Goal (Optional)</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedGoal}
+                  onValueChange={(value) => setSelectedGoal(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select a goal" value={null} />
+                  {goals.map((goal) => (
+                    <Picker.Item
+                      key={goal._id}
+                      label={
+                        goal.name === "Custom Goal"
+                          ? goal.customName
+                          : goal.name
+                      }
+                      value={goal._id}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
             <TouchableOpacity
               style={[
                 styles.addButton,
-                (!monthlyDeposit || !interestRate || !duration) && styles.disabledButton
+                (!monthlyDeposit || !interestRate || !duration) &&
+                  styles.disabledButton,
               ]}
               onPress={addRD}
-              disabled={loading || !monthlyDeposit || !interestRate || !duration}
+              disabled={
+                loading || !monthlyDeposit || !interestRate || !duration
+              }
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -328,12 +400,14 @@ export default function RDScreen({ navigation }) {
           </View>
 
           <Text style={styles.sectionTitle}>Your Recurring Deposits</Text>
-          
+
           {investments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="wallet-outline" size={64} color="#cbd5e1" />
               <Text style={styles.emptyText}>No recurring deposits found</Text>
-              <Text style={styles.emptySubtext}>Add your first RD using the form above</Text>
+              <Text style={styles.emptySubtext}>
+                Add your first RD using the form above
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -344,14 +418,14 @@ export default function RDScreen({ navigation }) {
                 // Get the monthly deposit, duration from item properties or from description
                 const monthlyDeposit = item.monthlyDeposit || item.amount;
                 const duration = item.duration || 12; // Default to 12 if not specified
-                
+
                 // Calculate maturity amount
                 const maturityAmount = calculateMaturityAmount(
                   monthlyDeposit,
                   item.interestRate,
                   duration
                 );
-                
+
                 // Calculate current value
                 const currentValue = calculateCurrentValue(
                   monthlyDeposit,
@@ -359,51 +433,72 @@ export default function RDScreen({ navigation }) {
                   item.startDate,
                   duration
                 );
-                
+
                 return (
                   <View style={styles.rdCard}>
                     <View style={styles.rdHeader}>
                       <Text style={styles.depositAmount}>
-                        ₹{parseFloat(monthlyDeposit).toLocaleString('en-IN')}/month
+                        ₹{parseFloat(monthlyDeposit).toLocaleString("en-IN")}
+                        /month
                       </Text>
                       <View style={styles.durationBadge}>
-                        <Text style={styles.durationText}>{duration} months</Text>
+                        <Text style={styles.durationText}>
+                          {duration} months
+                        </Text>
                       </View>
                     </View>
-                    
+
                     <View style={styles.rdDetails}>
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Interest Rate:</Text>
-                        <Text style={styles.detailValue}>{item.interestRate}%</Text>
+                        <Text style={styles.detailValue}>
+                          {item.interestRate}%
+                        </Text>
                       </View>
-                      
+
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Current Value:</Text>
                         <Text style={styles.currentValue}>
-                          ₹{Math.round(currentValue).toLocaleString('en-IN')}
+                          ₹{Math.round(currentValue).toLocaleString("en-IN")}
                         </Text>
                       </View>
-                      
+
                       <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Total Investment:</Text>
+                        <Text style={styles.detailLabel}>
+                          Total Investment:
+                        </Text>
                         <Text style={styles.detailValue}>
-                          ₹{(monthlyDeposit * duration).toLocaleString('en-IN')}
+                          ₹{(monthlyDeposit * duration).toLocaleString("en-IN")}
                         </Text>
                       </View>
-                      
+
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Maturity Value:</Text>
                         <Text style={styles.maturityValue}>
-                          ₹{Math.round(maturityAmount).toLocaleString('en-IN')}
+                          ₹{Math.round(maturityAmount).toLocaleString("en-IN")}
                         </Text>
                       </View>
                     </View>
-                    
-                    <TouchableOpacity 
+
+                    {item.goalId && (
+                      <View style={styles.goalLink}>
+                        <Text style={styles.goalLabel}>Linked Goal:</Text>
+                        <Text style={styles.goalValue}>
+                          {goals.find((g) => g._id === item.goalId)?.name ||
+                            "Unknown Goal"}
+                        </Text>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => deleteInvestment(item._id)}
                     >
-                      <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+                      <Ionicons
+                        name="trash-outline"
+                        size={20}
+                        color="#FFFFFF"
+                      />
                       <Text style={styles.deleteButtonText}>Delete</Text>
                     </TouchableOpacity>
                   </View>
@@ -421,7 +516,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    marginBottom: 80
+    marginBottom: 80,
   },
   keyboardAvoidContainer: {
     flex: 1,
@@ -589,7 +684,7 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontWeight: "500",
     fontSize: 14,
     marginLeft: 8,
   },
@@ -616,5 +711,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#1e293b",
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+    color: "#475569",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  picker: {
+    height: 50,
+  },
+  goalLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f9ff",
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  goalLabel: {
+    fontSize: 14,
+    color: "#0369a1",
+    fontWeight: "500",
+    marginRight: 8,
+  },
+  goalValue: {
+    fontSize: 14,
+    color: "#0284c7",
+    fontWeight: "600",
   },
 });

@@ -15,10 +15,15 @@ import {
   StatusBar,
   TouchableWithoutFeedback,
   Keyboard,
-  ScrollView
+  ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AntDesign, Feather, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  AntDesign,
+  Feather,
+  MaterialIcons,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
 const API_URL = "https://ligths-backend.onrender.com";
@@ -33,7 +38,7 @@ const TransactionsPage = ({ route, navigation }) => {
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState("All");
   const [modalVisible, setModalVisible] = useState(false);
-  const [actionMenuVisible, setActionMenuVisible] = useState(false); 
+  const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [newTransaction, setNewTransaction] = useState({
     name: "",
@@ -47,33 +52,33 @@ const TransactionsPage = ({ route, navigation }) => {
   useEffect(() => {
     fetchTransactions();
   }, [selectedDate]);
-  
+
   const fetchTransactions = async () => {
     try {
       setLoading(true);
       const userInfo = await AsyncStorage.getItem("userInfo");
-      
+
       if (!userInfo) {
         Alert.alert("Session Expired", "Please log in again to continue.");
         return;
       }
-  
+
       const parsedInfo = JSON.parse(userInfo);
       const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-  
+
       if (!username) {
         Alert.alert("Error", "Username not found. Please log in again.");
         return;
       }
-  
+
       const response = await fetch(`${API_URL}/transactions/${username}`);
       const data = await response.json();
-  
+
       if (!response.ok) {
         Alert.alert("Error", data.error || "Error fetching transactions.");
         return;
       }
-  
+
       if (data.transactions && Array.isArray(data.transactions)) {
         const filteredData = data.transactions.filter(
           (transaction) => transaction.date === selectedDate
@@ -90,7 +95,7 @@ const TransactionsPage = ({ route, navigation }) => {
       setLoading(false);
     }
   };
-  
+
   // Add Transaction
   const addTransaction = async () => {
     if (
@@ -99,7 +104,10 @@ const TransactionsPage = ({ route, navigation }) => {
       !newTransaction.type ||
       !newTransaction.method
     ) {
-      Alert.alert("Missing Information", "Please fill out all required fields.");
+      Alert.alert(
+        "Missing Information",
+        "Please fill out all required fields."
+      );
       return;
     }
 
@@ -158,26 +166,35 @@ const TransactionsPage = ({ route, navigation }) => {
               setLoading(true);
               const userInfo = await AsyncStorage.getItem("userInfo");
               if (!userInfo) {
-                Alert.alert("Session Expired", "Please log in again to continue.");
+                Alert.alert(
+                  "Session Expired",
+                  "Please log in again to continue."
+                );
                 return;
               }
-  
+
               const parsedInfo = JSON.parse(userInfo);
-              const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-  
+              const username =
+                parsedInfo?.user?.username || parsedInfo?.user?.userName;
+
               const url = `${API_URL}/transactions/${username}/${id}`;
-              
+
               const response = await fetch(url, {
                 method: "DELETE",
               });
-  
+
               const result = await response.json();
-  
+
               if (response.ok && result.success) {
-                setTransactions(transactions.filter((transaction) => transaction._id !== id));
+                setTransactions(
+                  transactions.filter((transaction) => transaction._id !== id)
+                );
                 Alert.alert("Success", "Transaction deleted successfully.");
               } else {
-                Alert.alert("Error", result.error || "Error deleting transaction.");
+                Alert.alert(
+                  "Error",
+                  result.error || "Error deleting transaction."
+                );
               }
             } catch (error) {
               console.error("Error deleting transaction:", error);
@@ -190,21 +207,31 @@ const TransactionsPage = ({ route, navigation }) => {
       ]
     );
   };
-  
+
   // Filter Transactions
-  const filteredTransactions = transactions.filter(
-    (transaction) => filter === "All" || transaction.type === filter
-  );
+  const filteredTransactions = transactions.filter((transaction) => {
+    if (filter === "All") return true;
+    if (filter === "Investment") return transaction.type === "Investment";
+    if (filter === "Income") return transaction.type === "Income";
+    if (filter === "Expense") return transaction.type === "Expense";
+    return false;
+  });
 
   // Get icon based on transaction type
   const getTransactionIcon = (type) => {
-    switch(type) {
-      case 'Income':
-        return <MaterialIcons name="arrow-circle-down" size={24} color="#10B981" />;
-      case 'Expense':
-        return <MaterialIcons name="arrow-circle-up" size={24} color="#EF4444" />;
-      case 'Investment':
-        return <MaterialCommunityIcons name="chart-line" size={24} color="#3B82F6" />;
+    switch (type) {
+      case "Income":
+        return (
+          <MaterialIcons name="arrow-circle-down" size={24} color="#10B981" />
+        );
+      case "Expense":
+        return (
+          <MaterialIcons name="arrow-circle-up" size={24} color="#EF4444" />
+        );
+      case "Investment":
+        return (
+          <MaterialCommunityIcons name="chart-line" size={24} color="#3B82F6" />
+        );
       default:
         return <MaterialIcons name="attach-money" size={24} color="#64748B" />;
     }
@@ -212,15 +239,17 @@ const TransactionsPage = ({ route, navigation }) => {
 
   // Get method icon
   const getMethodIcon = (method) => {
-    switch(method) {
-      case 'Cash':
+    switch (method) {
+      case "Cash":
         return <MaterialIcons name="money" size={18} color="#64748B" />;
-      case 'Credit Card':
+      case "Credit Card":
         return <AntDesign name="creditcard" size={18} color="#64748B" />;
-      case 'Debit Card':
+      case "Debit Card":
         return <AntDesign name="creditcard" size={18} color="#64748B" />;
-      case 'UPI':
-        return <MaterialCommunityIcons name="cellphone" size={18} color="#64748B" />;
+      case "UPI":
+        return (
+          <MaterialCommunityIcons name="cellphone" size={18} color="#64748B" />
+        );
       default:
         return <MaterialIcons name="payment" size={18} color="#64748B" />;
     }
@@ -229,9 +258,9 @@ const TransactionsPage = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#F8FAFC" barStyle="dark-content" />
-      
+
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -244,32 +273,40 @@ const TransactionsPage = ({ route, navigation }) => {
       </View>
 
       <View style={styles.filterContainer}>
-      {[
-        { id: "All", label: "All" }, 
-        { id: "Income", label: "Income" }, 
-        { id: "Investment", label: "Invest." }, 
-        { id: "Expense", label: "Expense" }
-      ].map((type) => (
-        <TouchableOpacity
-          key={type.id}
-          style={[
-            styles.filterButton, 
-            filter === type.id && styles.activeFilter,
-            type.id === "Income" && filter === type.id && styles.activeIncomeFilter,
-            type.id === "Investment" && filter === type.id && styles.activeInvestmentFilter,
-            type.id === "Expense" && filter === type.id && styles.activeExpenseFilter,
-          ]}
-          onPress={() => setFilter(type.id)}
-        >
-          <Text style={[
-            styles.filterText,
-            filter === type.id && styles.activeFilterText
-          ]}>
-            {type.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View> 
+        {[
+          { id: "All", label: "All" },
+          { id: "Income", label: "Income" },
+          { id: "Investment", label: "Invest." },
+          { id: "Expense", label: "Expense" },
+        ].map((type) => (
+          <TouchableOpacity
+            key={type.id}
+            style={[
+              styles.filterButton,
+              filter === type.id && styles.activeFilter,
+              type.id === "Income" &&
+                filter === type.id &&
+                styles.activeIncomeFilter,
+              type.id === "Investment" &&
+                filter === type.id &&
+                styles.activeInvestmentFilter,
+              type.id === "Expense" &&
+                filter === type.id &&
+                styles.activeExpenseFilter,
+            ]}
+            onPress={() => setFilter(type.id)}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                filter === type.id && styles.activeFilterText,
+              ]}
+            >
+              {type.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -278,33 +315,124 @@ const TransactionsPage = ({ route, navigation }) => {
         </View>
       ) : filteredTransactions.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="cash-remove" size={64} color="#CBD5E1" />
+          <MaterialCommunityIcons
+            name="cash-remove"
+            size={64}
+            color="#CBD5E1"
+          />
           <Text style={styles.emptyText}>No transactions found</Text>
           <Text style={styles.emptySubtext}>
-            {filter === "All" 
-              ? "Add your first transaction for this day" 
+            {filter === "All"
+              ? "Add your first transaction for this day"
               : `No ${filter.toLowerCase()} transactions found`}
           </Text>
-          <TouchableOpacity 
-          style={styles.emptyButton}
-          onPress={() => setActionMenuVisible(true)}
-        >
-          <Text style={styles.emptyButtonText}>Add Transaction</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => setActionMenuVisible(true)}
+          >
+            <Text style={styles.emptyButtonText}>Add Transaction</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={filteredTransactions}
-          keyExtractor={(item, index) => (item && item._id ? item._id : index.toString())}
+          keyExtractor={(item, index) =>
+            item && item._id ? item._id : index.toString()
+          }
           contentContainerStyle={styles.listContainer}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#E2E8F0' }} />}
-          renderItem={({ item }) => (
-            item ? (
-              <TouchableOpacity 
+          removeClippedSubviews={Platform.OS === "android"}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: 1, backgroundColor: "#E2E8F0" }} />
+          )}
+          renderItem={({ item }) => {
+            if (!item) return null;
+            // FD/RD Investment Card (displayed like Income)
+            if (
+              item.type === "Investment" &&
+              (item.subType === "FD" ||
+                item.subType === "RD" ||
+                item.investmentType === "Fixed Deposit" ||
+                item.investmentType === "Recurring Deposit")
+            ) {
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.fdRdCard,
+                    item.subType === "FD" ||
+                    item.investmentType === "Fixed Deposit"
+                      ? styles.fdCardBg
+                      : styles.rdCardBg,
+                  ]}
+                  onPress={() => {}}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.fdRdIconCircle}>
+                    <MaterialCommunityIcons
+                      name={
+                        item.subType === "FD" ||
+                        item.investmentType === "Fixed Deposit"
+                          ? "bank"
+                          : "trending-up"
+                      }
+                      size={28}
+                      color={
+                        item.subType === "FD" ||
+                        item.investmentType === "Fixed Deposit"
+                          ? "#2563eb"
+                          : "#16a34a"
+                      }
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fdRdTitle} numberOfLines={1}>
+                      {item.investmentType ||
+                        (item.subType === "FD"
+                          ? "Fixed Deposit"
+                          : item.subType === "RD"
+                          ? "Recurring Deposit"
+                          : item.subType)}
+                    </Text>
+                    <Text style={styles.fdRdSubtitle} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text
+                        style={styles.fdRdMeta}
+                      >{`Amount: ₹${item.amount}`}</Text>
+                      {item.interestRate && (
+                        <Text
+                          style={styles.fdRdMeta}
+                        >{`Rate: ${item.interestRate}%`}</Text>
+                      )}
+                      {item.duration && (
+                        <Text
+                          style={styles.fdRdMeta}
+                        >{`Tenure: ${item.duration} mo`}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.deleteIconContainer}
+                    onPress={() => deleteTransaction(item._id, item.name)}
+                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  >
+                    <Feather name="trash-2" size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            }
+            // Other investment types
+            return (
+              <TouchableOpacity
                 style={styles.transactionItem}
                 onPress={() => {}}
                 activeOpacity={0.9}
@@ -313,19 +441,24 @@ const TransactionsPage = ({ route, navigation }) => {
                   {getTransactionIcon(item.type)}
                 </View>
                 <View style={styles.transactionMiddleContent}>
-                  <Text style={styles.transactionName} numberOfLines={1}>{item.name}</Text>
-                <View style={styles.transactionMetaContainer}>
-                  {getMethodIcon(item.method)}
-                  <Text style={styles.transactionMeta} numberOfLines={1}>{item.method}</Text>
-                  {item.subType && (
-                    <>
-                      <View style={styles.metaDot} />
-                      <Text style={styles.transactionMeta} numberOfLines={1}>{item.subType}</Text>
-                    </>
-                  )}
+                  <Text style={styles.transactionName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <View style={styles.transactionMetaContainer}>
+                    {getMethodIcon(item.method)}
+                    <Text style={styles.transactionMeta} numberOfLines={1}>
+                      {item.method}
+                    </Text>
+                    {item.subType && (
+                      <>
+                        <View style={styles.metaDot} />
+                        <Text style={styles.transactionMeta} numberOfLines={1}>
+                          {item.subType}
+                        </Text>
+                      </>
+                    )}
+                  </View>
                 </View>
-                </View>
-
                 <View style={styles.transactionRightContent}>
                   <Text
                     style={[
@@ -335,9 +468,9 @@ const TransactionsPage = ({ route, navigation }) => {
                       item.type === "Investment" && styles.investmentAmount,
                     ]}
                   >
-                    {item.type === "Expense" ? `-₹${item.amount}` : `₹${item.amount}`}
+                    {`₹${item.amount}`}
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.deleteIconContainer}
                     onPress={() => deleteTransaction(item._id, item.name)}
                     hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
@@ -346,14 +479,14 @@ const TransactionsPage = ({ route, navigation }) => {
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
-            ) : null
-          )}
+            );
+          }}
         />
       )}
 
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => setActionMenuVisible(true)} 
+        onPress={() => setActionMenuVisible(true)}
       >
         <AntDesign name="plus" size={24} color="white" />
       </TouchableOpacity>
@@ -373,15 +506,15 @@ const TransactionsPage = ({ route, navigation }) => {
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Transaction</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modalCloseButton}
                   onPress={() => setModalVisible(false)}
                 >
                   <AntDesign name="close" size={24} color="#64748B" />
                 </TouchableOpacity>
               </View>
-              
-              <ScrollView 
+
+              <ScrollView
                 style={styles.formScrollView}
                 contentContainerStyle={styles.formScrollContent}
                 showsVerticalScrollIndicator={true}
@@ -394,10 +527,12 @@ const TransactionsPage = ({ route, navigation }) => {
                     placeholder="E.g., Groceries, Salary, etc."
                     placeholderTextColor="#94A3B8"
                     value={newTransaction.name}
-                    onChangeText={(text) => setNewTransaction({ ...newTransaction, name: text })}
+                    onChangeText={(text) =>
+                      setNewTransaction({ ...newTransaction, name: text })
+                    }
                   />
                 </View>
-                
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Amount (₹)</Text>
                   <TextInput
@@ -411,7 +546,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     }
                   />
                 </View>
-  
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Transaction Type</Text>
                   <View style={styles.pickerContainer}>
@@ -433,22 +568,25 @@ const TransactionsPage = ({ route, navigation }) => {
                     </Picker>
                   </View>
                 </View>
-  
+
                 {newTransaction.type && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>
-                      {newTransaction.type === "Income" 
-                        ? "Income Type" 
-                        : newTransaction.type === "Expense" 
-                          ? "Expense Category" 
-                          : "Investment Type"}
+                      {newTransaction.type === "Income"
+                        ? "Income Type"
+                        : newTransaction.type === "Expense"
+                        ? "Expense Category"
+                        : "Investment Type"}
                     </Text>
                     <View style={styles.pickerContainer}>
                       {newTransaction.type === "Income" && (
                         <Picker
                           selectedValue={newTransaction.subType}
                           onValueChange={(itemValue) =>
-                            setNewTransaction({ ...newTransaction, subType: itemValue })
+                            setNewTransaction({
+                              ...newTransaction,
+                              subType: itemValue,
+                            })
                           }
                           style={styles.picker}
                         >
@@ -457,48 +595,69 @@ const TransactionsPage = ({ route, navigation }) => {
                           <Picker.Item label="Passive" value="Passive" />
                         </Picker>
                       )}
-  
+
                       {newTransaction.type === "Expense" && (
                         <Picker
                           selectedValue={newTransaction.subType}
                           onValueChange={(itemValue) =>
-                            setNewTransaction({ ...newTransaction, subType: itemValue })
+                            setNewTransaction({
+                              ...newTransaction,
+                              subType: itemValue,
+                            })
                           }
                           style={styles.picker}
                         >
-                          <Picker.Item label="Select Expense Category" value="" />
-                          <Picker.Item label="Discretionary" value="Discretionary" />
+                          <Picker.Item
+                            label="Select Expense Category"
+                            value=""
+                          />
+                          <Picker.Item
+                            label="Discretionary"
+                            value="Discretionary"
+                          />
                           <Picker.Item label="Essential" value="Essential" />
                           <Picker.Item label="Mandatory" value="Mandatory" />
                         </Picker>
                       )}
-                      
+
                       {newTransaction.type === "Investment" && (
                         <Picker
                           selectedValue={newTransaction.subType}
                           onValueChange={(itemValue) =>
-                            setNewTransaction({ ...newTransaction, subType: itemValue })
+                            setNewTransaction({
+                              ...newTransaction,
+                              subType: itemValue,
+                            })
                           }
                           style={styles.picker}
                         >
-                          <Picker.Item label="Select Investment Type" value="" />
+                          <Picker.Item
+                            label="Select Investment Type"
+                            value=""
+                          />
                           <Picker.Item label="Equity" value="Equity" />
                           <Picker.Item label="Debt" value="Debt" />
                           <Picker.Item label="Gold" value="Gold" />
-                          <Picker.Item label="Real Estate" value="Real Estate" />
+                          <Picker.Item
+                            label="Real Estate"
+                            value="Real Estate"
+                          />
                         </Picker>
                       )}
                     </View>
                   </View>
                 )}
-  
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Payment Method</Text>
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={newTransaction.method}
                       onValueChange={(itemValue) =>
-                        setNewTransaction({ ...newTransaction, method: itemValue })
+                        setNewTransaction({
+                          ...newTransaction,
+                          method: itemValue,
+                        })
                       }
                       style={styles.picker}
                     >
@@ -515,14 +674,14 @@ const TransactionsPage = ({ route, navigation }) => {
               </ScrollView>
 
               <View style={styles.buttonContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() => setModalVisible(false)}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.saveButton}
                   onPress={addTransaction}
                   disabled={loading}
@@ -553,40 +712,48 @@ const TransactionsPage = ({ route, navigation }) => {
         >
           <View style={styles.actionMenuContainer}>
             <Text style={styles.actionMenuTitle}>Add Transaction</Text>
-            
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
-                navigation.navigate('Expenses', { date: selectedDate });
+                navigation.navigate("Expenses", { date: selectedDate });
               }}
             >
               <MaterialIcons name="arrow-circle-up" size={24} color="#EF4444" />
               <Text style={styles.actionMenuItemText}>Add Expense</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
-                navigation.navigate('Income', { date: selectedDate });
+                navigation.navigate("Income", { date: selectedDate });
               }}
             >
-              <MaterialIcons name="arrow-circle-down" size={24} color="#10B981" />
+              <MaterialIcons
+                name="arrow-circle-down"
+                size={24}
+                color="#10B981"
+              />
               <Text style={styles.actionMenuItemText}>Add Income</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
-                navigation.navigate('Investment', { date: selectedDate });
+                navigation.navigate("Investment", { date: selectedDate });
               }}
             >
-              <MaterialCommunityIcons name="chart-line" size={24} color="#3B82F6" />
+              <MaterialCommunityIcons
+                name="chart-line"
+                size={24}
+                color="#3B82F6"
+              />
               <Text style={styles.actionMenuItemText}>Add Investment</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.actionMenuCancelButton}
               onPress={() => setActionMenuVisible(false)}
@@ -606,13 +773,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
   },
   backButton: {
     padding: 8,
@@ -623,119 +790,119 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: "600",
+    color: "#1E293B",
   },
   headerDate: {
     fontSize: 14,
-    color: '#64748B',
+    color: "#64748B",
     marginTop: 2,
   },
   filterContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 12,
     paddingHorizontal: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: "#E2E8F0",
   },
   filterButton: {
     flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 4, 
+    paddingHorizontal: 4,
     borderRadius: 8,
     marginHorizontal: 2,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center', 
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   filterText: {
-    fontSize: 12, 
-    fontWeight: '500',
-    color: '#64748B',
-    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748B",
+    textAlign: "center",
   },
   activeFilter: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: "#E0F2FE",
   },
   activeIncomeFilter: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: "#DCFCE7",
   },
   activeInvestmentFilter: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: "#DBEAFE",
   },
   activeExpenseFilter: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: "#FEE2E2",
   },
   activeFilterText: {
-    color: '#0F172A',
-    fontWeight: '600',
+    color: "#0F172A",
+    fontWeight: "600",
   },
   listContainer: {
     paddingBottom: 100, // Give more space at bottom
   },
   transactionItem: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
     padding: 16,
     // Removed card styling
   },
   transactionLeftContent: {
     marginRight: 12,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   transactionMiddleContent: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   transactionRightContent: {
-    alignItems: 'flex-end',
-    height: '100%', 
+    alignItems: "flex-end",
+    height: "100%",
   },
   transactionName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: "600",
+    color: "#1E293B",
     marginBottom: 4,
   },
   transactionMetaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   transactionMeta: {
     fontSize: 13,
-    color: '#64748B',
+    color: "#64748B",
     marginLeft: 4,
     marginRight: 0, // Make sure there's no extra margin
-    flex: 0 // Allow meta text to shrink if needed
+    flex: 0, // Allow meta text to shrink if needed
   },
   metaDot: {
     width: 4,
-    height: 4, 
+    height: 4,
     borderRadius: 2,
-    backgroundColor: '#CBD5E1',
+    backgroundColor: "#CBD5E1",
     marginHorizontal: 4,
   },
   transactionAmount: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   incomeAmount: {
-    color: '#10B981',
+    color: "#10B981",
   },
   expenseAmount: {
-    color: '#EF4444',
+    color: "#EF4444",
   },
   investmentAmount: {
-    color: '#3B82F6',
+    color: "#3B82F6",
   },
   deleteIconContainer: {
     padding: 8, // Increased touch area
   },
   addButton: {
     position: "absolute",
-    bottom: Platform.OS === 'ios' ? 90 : 80,
+    bottom: Platform.OS === "ios" ? 90 : 80,
     right: 20,
     backgroundColor: "#2563eb",
     width: 60,
@@ -749,76 +916,76 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
     zIndex: 1000,
-  }, 
+  },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748B',
+    color: "#64748B",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   emptyText: {
     marginTop: 16,
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: "600",
+    color: "#1E293B",
   },
   emptySubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
+    color: "#64748B",
+    textAlign: "center",
   },
   emptyButton: {
     marginTop: 24,
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
   },
   emptyButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
     fontSize: 14,
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: '90%',
+    maxHeight: "90%",
   },
   formScrollView: {
-    maxHeight: Platform.OS === 'ios' ? 500 : 450,
+    maxHeight: Platform.OS === "ios" ? 500 : 450,
   },
   formScrollContent: {
     paddingBottom: 10,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: "600",
+    color: "#1E293B",
   },
   modalCloseButton: {
     padding: 4,
@@ -829,109 +996,165 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#64748B',
+    fontWeight: "500",
+    color: "#64748B",
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: "#E2E8F0",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: '#1E293B',
+    color: "#1E293B",
   },
   pickerContainer: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: "#E2E8F0",
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   picker: {
     height: 50,
-    color: '#1E293B',
+    color: "#1E293B",
   },
   buttonContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: "#F1F5F9",
     paddingTop: 16,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: "#F1F5F9",
     paddingVertical: 12,
     borderRadius: 8,
     marginRight: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButtonText: {
-    color: '#64748B',
-    fontWeight: '600',
+    color: "#64748B",
+    fontWeight: "600",
     fontSize: 15,
   },
   saveButton: {
     flex: 1,
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     paddingVertical: 12,
     borderRadius: 8,
     marginLeft: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   saveButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
     fontSize: 15,
-  }, 
-  
+  },
+
   // Action Menu Styles
   actionMenuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-end",
   },
   actionMenuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   actionMenuTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontWeight: "600",
+    color: "#1E293B",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: "#F1F5F9",
   },
   actionMenuItemText: {
     fontSize: 16,
-    color: '#1E293B',
+    color: "#1E293B",
     marginLeft: 16,
   },
   actionMenuCancelButton: {
     marginTop: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: "#F1F5F9",
     borderRadius: 10,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   actionMenuCancelText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-  }
+    fontWeight: "600",
+    color: "#64748B",
+  },
+
+  // FD/RD Card Styles
+  fdRdCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  fdCardBg: {
+    backgroundColor: "#E0F7FA",
+  },
+  rdCardBg: {
+    backgroundColor: "#F3E5F5",
+  },
+  fdRdIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  fdRdTitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1E293B",
+  },
+  fdRdSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 4,
+  },
+  fdRdMeta: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginRight: 12,
+  },
 });
 
 export default TransactionsPage;

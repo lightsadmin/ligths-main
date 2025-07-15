@@ -61,10 +61,61 @@ const investmentTypes = [
 
 const InvestmentNavigation = () => {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState("fd");
+  const [activeTab, setActiveTab] = useState("Invest.");
+
+  // Tab navigation handler
+  const handleTabPress = (tab) => {
+    setActiveTab(tab);
+    if (tab === "All") {
+      navigation.navigate("DateExpenses");
+    } else if (tab === "Income") {
+      navigation.navigate("DateExpenses", { filter: "Income" });
+    } else if (tab === "Invest.") {
+      // Stay on this page
+    } else if (tab === "Expense") {
+      navigation.navigate("DateExpenses", { filter: "Expense" });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Header with navigation tabs */}
+      {/* <View style={styles.headerNavTabs}>
+        {[
+          { id: "All", label: "All" },
+          { id: "Income", label: "Income" },
+          { id: "Invest.", label: "Invest." },
+          { id: "Expense", label: "Expense" },
+        ].map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.navTabButton,
+              activeTab === tab.label && styles.activeNavTabButton,
+              tab.id === "Income" &&
+                activeTab === tab.label &&
+                styles.activeIncomeTab,
+              tab.id === "Invest." &&
+                activeTab === tab.label &&
+                styles.activeInvestTab,
+              tab.id === "Expense" &&
+                activeTab === tab.label &&
+                styles.activeExpenseTab,
+            ]}
+            onPress={() => handleTabPress(tab.label)}
+          >
+            <Text
+              style={[
+                styles.navTabText,
+                activeTab === tab.label && styles.activeNavTabText,
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View> */}
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 32 }}
@@ -186,6 +237,47 @@ const InvestmentNavigation = () => {
 };
 
 const styles = StyleSheet.create({
+  headerNavTabs: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  navTabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginHorizontal: 2,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navTabText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748B",
+    textAlign: "center",
+  },
+  activeNavTabButton: {
+    backgroundColor: "#E0F2FE",
+  },
+  activeIncomeTab: {
+    backgroundColor: "#DCFCE7",
+  },
+  activeInvestTab: {
+    backgroundColor: "#DBEAFE",
+  },
+  activeExpenseTab: {
+    backgroundColor: "#FEE2E2",
+  },
+  activeNavTabText: {
+    color: "#0F172A",
+    fontWeight: "600",
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#F8FAFC",

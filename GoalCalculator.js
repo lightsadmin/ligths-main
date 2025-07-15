@@ -132,20 +132,23 @@ export default function GoalCalculator() {
         console.log("Found username:", storedUserName);
         setUserName(storedUserName);
       } else {
-        console.log("Username not found in AsyncStorage");
+        console.log("Username not found in AsyncStorage.");
 
-        // Use a default username for testing or show an error message
-        // For development only - remove in production
+        // For development/testing:
         const defaultUsername = "testuser";
         console.log("Using default username for testing:", defaultUsername);
         setUserName(defaultUsername);
 
-        // Comment this in production and uncomment the Alert
-        // Alert.alert("Error", "User not found. Please login again.");
+        // In a real app, you would typically navigate to the login screen here:
+        // Alert.alert("Error", "User not found. Please login again.", [
+        //   { text: "OK", onPress: () => navigation.navigate('Login') }
+        // ]);
       }
     } catch (error) {
       console.error("Error getting username:", error);
       Alert.alert("Error", "Failed to get user information.");
+      // Fallback to default username even on error for dev/testing
+      setUserName("testuser");
     }
   };
 
@@ -273,6 +276,18 @@ export default function GoalCalculator() {
   };
 
   const calculateGoal = async () => {
+    // --- START OF ADDED GUARD CLAUSE ---
+    if (!userName) {
+      Alert.alert(
+        "Error",
+        "User information not available. Please ensure you are logged in or try again."
+      );
+      // Attempt to re-fetch username if it's missing (might be a timing issue)
+      await getUserName();
+      return; // Crucial: Stop execution if userName is not present
+    }
+    // --- END OF ADDED GUARD CLAUSE ---
+
     const g = goalData;
     const cost = parseFloat(g.presentCost);
     let y;
@@ -327,22 +342,11 @@ export default function GoalCalculator() {
         value: parseFloat(g.currentAge),
         fieldValue: g.currentAge,
       });
-    } else if (g.name === "Dream Home") {
+    } else if (g.name === "Dream Home" || g.name === "Custom Goal") {
       requiredFields.push({
         key: "years",
         value: parseFloat(g.years),
         fieldValue: g.years,
-      });
-    } else if (g.name === "Custom Goal") {
-      requiredFields.push({
-        key: "years",
-        value: parseFloat(g.years),
-        fieldValue: g.years,
-      });
-      requiredFields.push({
-        key: "customName",
-        value: g.customName,
-        fieldValue: g.customName,
       });
     }
 
@@ -355,13 +359,20 @@ export default function GoalCalculator() {
       });
     }
 
+    // Custom name validation
+    if (g.name === "Custom Goal") {
+      requiredFields.push({
+        key: "customName",
+        value: g.customName,
+        fieldValue: g.customName,
+      });
+    }
+
     // Check for invalid fields
     const invalidFields = requiredFields.filter((field) => {
       if (field.key === "customName") {
-        // For custom name, just check if it exists and is not empty
         return !field.fieldValue || field.fieldValue.trim() === "";
       } else {
-        // For numeric fields, check if the value is valid and the field is not empty
         return (
           isNaN(field.value) ||
           field.value <= 0 ||
@@ -686,7 +697,10 @@ export default function GoalCalculator() {
                 <Text> Custom Goal Name</Text>
               </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  errorFields.includes("customName") && styles.errorInput,
+                ]}
                 placeholder="e.g., Vacation Fund"
                 placeholderTextColor="#9ca3af"
                 value={goalData.customName}
@@ -1057,7 +1071,7 @@ export default function GoalCalculator() {
                       <Text style={styles.resultLabel}>Future Value</Text>
                       <Text style={styles.resultValue}>
                         ₹
-                        {g.futureCost.toLocaleString("en-IN", {
+                        {(g.futureCost ?? 0).toLocaleString("en-IN", {
                           maximumFractionDigits: 0,
                         })}
                       </Text>
@@ -1068,7 +1082,7 @@ export default function GoalCalculator() {
                       </Text>
                       <Text style={styles.resultValue}>
                         ₹
-                        {g.futureValueOfSavings.toLocaleString("en-IN", {
+                        {(g.futureValueOfSavings ?? 0).toLocaleString("en-IN", {
                           maximumFractionDigits: 0,
                         })}
                       </Text>
@@ -1077,7 +1091,7 @@ export default function GoalCalculator() {
                       <Text style={styles.resultLabel}>Amount Needed</Text>
                       <Text style={styles.resultValue}>
                         ₹
-                        {g.required.toLocaleString("en-IN", {
+                        {(g.required ?? 0).toLocaleString("en-IN", {
                           maximumFractionDigits: 0,
                         })}
                       </Text>
@@ -1100,7 +1114,7 @@ export default function GoalCalculator() {
                     </Text>
                     <Text style={styles.sipAmount}>
                       ₹
-                      {g.monthlySIP.toLocaleString("en-IN", {
+                      {(g.monthlySIP ?? 0).toLocaleString("en-IN", {
                         maximumFractionDigits: 0,
                       })}
                     </Text>
@@ -1119,9 +1133,9 @@ export default function GoalCalculator() {
                       backgroundGradientTo: "#ffffff",
                       color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
                     }}
-                    accessor={"population"}
-                    backgroundColor={"transparent"}
-                    paddingLeft={"15"}
+                    accessor="population"
+                    backgroundColor="transparent"
+                    paddingLeft="15"
                     center={[10, 10]}
                     absolute
                     hasLegend={false}
