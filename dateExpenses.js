@@ -23,6 +23,7 @@ import {
   Feather,
   MaterialIcons,
   MaterialCommunityIcons,
+  Ionicons, // Added Ionicons
 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
@@ -259,7 +260,7 @@ const TransactionsPage = ({ route, navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#F8FAFC" barStyle="dark-content" />
 
-      <View style={styles.header}>
+      {/* <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -270,7 +271,7 @@ const TransactionsPage = ({ route, navigation }) => {
           <Text style={styles.headerTitle}>Transactions</Text>
           <Text style={styles.headerDate}>{formatDate(selectedDate)}</Text>
         </View>
-      </View>
+      </View> */}
 
       <View style={styles.filterContainer}>
         {[
@@ -349,22 +350,30 @@ const TransactionsPage = ({ route, navigation }) => {
           )}
           renderItem={({ item }) => {
             if (!item) return null;
-            // FD/RD Investment Card (displayed like Income)
+            // FD/RD/Savings Investment Card (displayed like Income)
             if (
               item.type === "Investment" &&
               (item.subType === "FD" ||
                 item.subType === "RD" ||
                 item.investmentType === "Fixed Deposit" ||
-                item.investmentType === "Recurring Deposit")
+                item.investmentType === "Recurring Deposit" ||
+                item.investmentType === "Savings") // Added Savings here
             ) {
+              const isFD =
+                item.subType === "FD" ||
+                item.investmentType === "Fixed Deposit";
+              const isRD =
+                item.subType === "RD" ||
+                item.investmentType === "Recurring Deposit";
+              const isSavings = item.investmentType === "Savings";
+
               return (
                 <TouchableOpacity
                   style={[
                     styles.fdRdCard,
-                    item.subType === "FD" ||
-                    item.investmentType === "Fixed Deposit"
-                      ? styles.fdCardBg
-                      : styles.rdCardBg,
+                    isFD && styles.fdCardBg,
+                    isRD && styles.rdCardBg,
+                    isSavings && styles.savingsCardBg, // Apply Savings specific background
                   ]}
                   onPress={() => {}}
                   activeOpacity={0.9}
@@ -372,31 +381,43 @@ const TransactionsPage = ({ route, navigation }) => {
                   <View style={styles.fdRdIconCircle}>
                     <MaterialCommunityIcons
                       name={
-                        item.subType === "FD" ||
-                        item.investmentType === "Fixed Deposit"
+                        isFD
                           ? "bank"
-                          : "trending-up"
+                          : isRD
+                          ? "trending-up"
+                          : isSavings // Icon for Savings
+                          ? "piggy-bank-outline"
+                          : "chart-line"
                       }
                       size={28}
                       color={
-                        item.subType === "FD" ||
-                        item.investmentType === "Fixed Deposit"
+                        isFD
                           ? "#2563eb"
-                          : "#16a34a"
+                          : isRD
+                          ? "#16a34a"
+                          : isSavings // Color for Savings icon
+                          ? "#f59e0b"
+                          : "#3B82F6"
                       }
                     />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fdRdTitle} numberOfLines={1}>
-                      {item.investmentType ||
-                        (item.subType === "FD"
-                          ? "Fixed Deposit"
-                          : item.subType === "RD"
-                          ? "Recurring Deposit"
-                          : item.subType)}
+                      {isFD
+                        ? "Fixed Deposit"
+                        : isRD
+                        ? "Recurring Deposit"
+                        : isSavings // Title for Savings
+                        ? "Savings Account"
+                        : item.investmentType || item.subType}
                     </Text>
                     <Text style={styles.fdRdSubtitle} numberOfLines={2}>
-                      {item.name}
+                      {/* Display relevant info as subtitle */}
+                      {isSavings
+                        ? `Initial: ₹${parseFloat(item.amount).toLocaleString(
+                            "en-IN"
+                          )}`
+                        : item.name}
                     </Text>
                     <View
                       style={{
@@ -405,19 +426,38 @@ const TransactionsPage = ({ route, navigation }) => {
                         marginTop: 4,
                       }}
                     >
-                      <Text
-                        style={styles.fdRdMeta}
-                      >{`Amount: ₹${item.amount}`}</Text>
-                      {item.interestRate && (
-                        <Text
-                          style={styles.fdRdMeta}
-                        >{`Rate: ${item.interestRate}%`}</Text>
-                      )}
-                      {item.duration && (
-                        <Text
-                          style={styles.fdRdMeta}
-                        >{`Tenure: ${item.duration} mo`}</Text>
-                      )}
+                      {isFD || isRD ? (
+                        <>
+                          <Text
+                            style={styles.fdRdMeta}
+                          >{`Amount: ₹${item.amount}`}</Text>
+                          {item.interestRate && (
+                            <Text
+                              style={styles.fdRdMeta}
+                            >{`Rate: ${item.interestRate}%`}</Text>
+                          )}
+                          {item.duration && (
+                            <Text
+                              style={styles.fdRdMeta}
+                            >{`Tenure: ${item.duration} mo`}</Text>
+                          )}
+                        </>
+                      ) : isSavings ? (
+                        <>
+                          {item.interestRate && (
+                            <Text
+                              style={styles.fdRdMeta}
+                            >{`Interest: ${item.interestRate}%`}</Text>
+                          )}
+                          {item.maturityDate && (
+                            <Text style={styles.fdRdMeta}>
+                              {`Maturity: ${new Date(
+                                item.maturityDate
+                              ).toLocaleDateString("en-GB")}`}
+                            </Text>
+                          )}
+                        </>
+                      ) : null}
                     </View>
                   </View>
                   <TouchableOpacity
@@ -430,7 +470,7 @@ const TransactionsPage = ({ route, navigation }) => {
                 </TouchableOpacity>
               );
             }
-            // Other investment types
+            // Other investment types and regular transactions
             return (
               <TouchableOpacity
                 style={styles.transactionItem}
@@ -442,7 +482,8 @@ const TransactionsPage = ({ route, navigation }) => {
                 </View>
                 <View style={styles.transactionMiddleContent}>
                   <Text style={styles.transactionName} numberOfLines={1}>
-                    {item.name}
+                    {/* Display "Savings" if investmentType is Savings, otherwise item.name */}
+                    {item.investmentType === "Savings" ? "Savings" : item.name}
                   </Text>
                   <View style={styles.transactionMetaContainer}>
                     {getMethodIcon(item.method)}
@@ -483,7 +524,6 @@ const TransactionsPage = ({ route, navigation }) => {
           }}
         />
       )}
-
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setActionMenuVisible(true)}
@@ -513,7 +553,6 @@ const TransactionsPage = ({ route, navigation }) => {
                   <AntDesign name="close" size={24} color="#64748B" />
                 </TouchableOpacity>
               </View>
-
               <ScrollView
                 style={styles.formScrollView}
                 contentContainerStyle={styles.formScrollContent}
@@ -532,7 +571,6 @@ const TransactionsPage = ({ route, navigation }) => {
                     }
                   />
                 </View>
-
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Amount (₹)</Text>
                   <TextInput
@@ -546,7 +584,6 @@ const TransactionsPage = ({ route, navigation }) => {
                     }
                   />
                 </View>
-
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Transaction Type</Text>
                   <View style={styles.pickerContainer}>
@@ -568,10 +605,10 @@ const TransactionsPage = ({ route, navigation }) => {
                     </Picker>
                   </View>
                 </View>
-
                 {newTransaction.type && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>
+                      {" "}
                       {newTransaction.type === "Income"
                         ? "Income Type"
                         : newTransaction.type === "Expense"
@@ -595,7 +632,6 @@ const TransactionsPage = ({ route, navigation }) => {
                           <Picker.Item label="Passive" value="Passive" />
                         </Picker>
                       )}
-
                       {newTransaction.type === "Expense" && (
                         <Picker
                           selectedValue={newTransaction.subType}
@@ -619,7 +655,6 @@ const TransactionsPage = ({ route, navigation }) => {
                           <Picker.Item label="Mandatory" value="Mandatory" />
                         </Picker>
                       )}
-
                       {newTransaction.type === "Investment" && (
                         <Picker
                           selectedValue={newTransaction.subType}
@@ -647,7 +682,6 @@ const TransactionsPage = ({ route, navigation }) => {
                     </View>
                   </View>
                 )}
-
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Payment Method</Text>
                   <View style={styles.pickerContainer}>
@@ -669,10 +703,8 @@ const TransactionsPage = ({ route, navigation }) => {
                     </Picker>
                   </View>
                 </View>
-
                 <View style={{ height: 20 }} />
               </ScrollView>
-
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -680,7 +712,6 @@ const TransactionsPage = ({ route, navigation }) => {
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
                   style={styles.saveButton}
                   onPress={addTransaction}
@@ -712,7 +743,6 @@ const TransactionsPage = ({ route, navigation }) => {
         >
           <View style={styles.actionMenuContainer}>
             <Text style={styles.actionMenuTitle}>Add Transaction</Text>
-
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -723,7 +753,6 @@ const TransactionsPage = ({ route, navigation }) => {
               <MaterialIcons name="arrow-circle-up" size={24} color="#EF4444" />
               <Text style={styles.actionMenuItemText}>Add Expense</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -738,7 +767,6 @@ const TransactionsPage = ({ route, navigation }) => {
               />
               <Text style={styles.actionMenuItemText}>Add Income</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -753,7 +781,6 @@ const TransactionsPage = ({ route, navigation }) => {
               />
               <Text style={styles.actionMenuItemText}>Add Investment</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.actionMenuCancelButton}
               onPress={() => setActionMenuVisible(false)}
@@ -775,89 +802,105 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    justifyContent: "center", // Center the title and date
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: "#fff",
+    elevation: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
+    borderBottomColor: "#e2e8f0",
   },
   backButton: {
-    padding: 8,
+    position: "absolute", // Position absolutely to the left
+    left: 24,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    // backgroundColor: '#f0f0f0', // Optional: for debugging touch area
+    // borderRadius: 20, // Optional: for debugging touch area
   },
   headerTextContainer: {
-    marginLeft: 8,
-    flex: 1,
+    alignItems: "center", // Center text within its container
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1E293B",
+    color: "#1e293b",
+    marginBottom: 4, // Space between title and date
   },
   headerDate: {
     fontSize: 14,
-    color: "#64748B",
-    marginTop: 2,
+    color: "#64748b",
+    fontWeight: "500",
   },
   filterContainer: {
     flexDirection: "row",
-    padding: 12,
-    paddingHorizontal: 8,
-    backgroundColor: "#FFFFFF",
+    justifyContent: "space-around",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#e2e8f0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   filterButton: {
-    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    marginHorizontal: 2,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#64748B",
-    textAlign: "center",
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "#E2E8F0",
   },
   activeFilter: {
-    backgroundColor: "#E0F2FE",
+    backgroundColor: "#2563EB", // Default active color (blue)
   },
   activeIncomeFilter: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: "#10B981", // Green for Income
   },
   activeInvestmentFilter: {
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "#3B82F6", // Blue for Investment
   },
   activeExpenseFilter: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "#EF4444", // Red for Expense
+  },
+  filterText: {
+    color: "#475569",
+    fontWeight: "600",
+    fontSize: 14,
   },
   activeFilterText: {
-    color: "#0F172A",
-    fontWeight: "600",
+    color: "#FFFFFF",
   },
   listContainer: {
-    paddingBottom: 100, // Give more space at bottom
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 80, // Space for the floating button
   },
   transactionItem: {
     flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
-    padding: 16,
-    // Removed card styling
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12, // Space between items
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   transactionLeftContent: {
     marginRight: 12,
-    justifyContent: "center",
   },
   transactionMiddleContent: {
     flex: 1,
-    justifyContent: "center",
-  },
-  transactionRightContent: {
-    alignItems: "flex-end",
-    height: "100%",
   },
   transactionName: {
     fontSize: 16,
@@ -873,19 +916,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748B",
     marginLeft: 4,
-    marginRight: 0, // Make sure there's no extra margin
-    flex: 0, // Allow meta text to shrink if needed
   },
   metaDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#CBD5E1",
-    marginHorizontal: 4,
+    marginHorizontal: 8,
+  },
+  transactionRightContent: {
+    alignItems: "flex-end",
+    marginLeft: 12,
   },
   transactionAmount: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 4,
   },
   incomeAmount: {
@@ -898,24 +943,61 @@ const styles = StyleSheet.create({
     color: "#3B82F6",
   },
   deleteIconContainer: {
-    padding: 8, // Increased touch area
+    padding: 5, // Make the touchable area larger
   },
-  addButton: {
+  floatingButton: {
     position: "absolute",
-    bottom: Platform.OS === "ios" ? 90 : 80,
-    right: 20,
-    backgroundColor: "#2563eb",
+    bottom: 25,
+    right: 25,
+    backgroundColor: "#2563EB",
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#1e40af",
-    shadowOpacity: 0.3,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
-    elevation: 5,
-    zIndex: 1000,
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#fff",
+    margin: 24,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  emptySubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+  },
+  emptyButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  emptyButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "500",
+    fontSize: 14,
   },
   loadingContainer: {
     flex: 1,
@@ -924,163 +1006,147 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 12,
     fontSize: 16,
-    color: "#64748B",
+    color: "#475569",
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E293B",
-  },
-  emptySubtext: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#64748B",
-    textAlign: "center",
-  },
-  emptyButton: {
-    marginTop: 24,
-    backgroundColor: "#2563EB",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  emptyButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+
+  // Modal Styles
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)", // Dim background
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "90%",
-  },
-  formScrollView: {
-    maxHeight: Platform.OS === "ios" ? 500 : 450,
-  },
-  formScrollContent: {
-    paddingBottom: 10,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === "ios" ? 32 : 24,
+    maxHeight: "80%", // Limit height to prevent overflow
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    alignItems: "center",
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1E293B",
   },
   modalCloseButton: {
-    padding: 4,
-    hitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
+    padding: 8,
+  },
+  formScrollView: {
+    flexGrow: 1,
+  },
+  formScrollContent: {
+    paddingVertical: 20,
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#64748B",
-    marginBottom: 6,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 16,
     color: "#1E293B",
+    backgroundColor: "#F8FAFC",
   },
   pickerContainer: {
-    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 8,
-    overflow: "hidden",
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    overflow: "hidden", // Ensures the picker's own border radius is respected
   },
   picker: {
-    height: 50,
-    color: "#1E293B",
+    height: 50, // Standard height for pickers
+    width: "100%",
   },
   buttonContainer: {
     flexDirection: "row",
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-    paddingTop: 16,
+    justifyContent: "space-between",
+    marginTop: 20,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 8,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingVertical: 14,
     alignItems: "center",
+    marginRight: 10,
   },
   cancelButtonText: {
-    color: "#64748B",
+    fontSize: 16,
     fontWeight: "600",
-    fontSize: 15,
+    color: "#64748B",
   },
   saveButton: {
     flex: 1,
     backgroundColor: "#2563EB",
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginLeft: 8,
+    borderRadius: 10,
+    paddingVertical: 14,
     alignItems: "center",
+    marginLeft: 10,
   },
   saveButtonText: {
-    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "600",
-    fontSize: 15,
+    color: "#FFFFFF",
   },
 
-  // Action Menu Styles
+  // Action Menu Modal Styles
   actionMenuOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   actionMenuContainer: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 16,
     padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    width: "85%", // Make it a bit wider
+    alignItems: "stretch", // Stretch items to fill width
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 6,
   },
   actionMenuTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1E293B",
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: "center",
   },
   actionMenuItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    paddingHorizontal: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    marginBottom: 12, // Space between menu items
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   actionMenuItemText: {
     fontSize: 16,
@@ -1100,7 +1166,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
 
-  // FD/RD Card Styles
+  // FD/RD/Savings Card Styles
   fdRdCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
@@ -1123,6 +1189,9 @@ const styles = StyleSheet.create({
   rdCardBg: {
     backgroundColor: "#F3E5F5",
   },
+  savingsCardBg: {
+    backgroundColor: "#FFFBEB", // A light yellow for savings, matching the general app theme for warnings/info
+  },
   fdRdIconCircle: {
     width: 48,
     height: 48,
@@ -1131,28 +1200,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   fdRdTitle: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "700",
     color: "#1E293B",
+    marginBottom: 4,
   },
   fdRdSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#64748B",
-    marginTop: 4,
   },
   fdRdMeta: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#475569",
     marginRight: 12,
   },
 });

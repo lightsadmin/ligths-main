@@ -179,6 +179,29 @@ export default function FDScreen({ navigation }) {
         amount: parseFloat(amount),
       });
 
+      // Also add a transaction for calendar color logic
+      try {
+        const userInfo = await AsyncStorage.getItem("userInfo");
+        const parsedInfo = JSON.parse(userInfo);
+        const username =
+          parsedInfo?.user?.username || parsedInfo?.user?.userName;
+        const transactionData = {
+          name: newFD.name,
+          amount: parseFloat(amount),
+          type: "Investment",
+          subType: "FD",
+          method: "Bank",
+          date: newFD.startDate.split("T")[0],
+        };
+        await fetch(`${API_URL}/transactions/${username}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transactionData),
+        });
+      } catch (err) {
+        console.error("Error adding FD transaction for calendar:", err);
+      }
+
       // Refresh investments list
       fetchInvestments();
     } catch (error) {

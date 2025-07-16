@@ -8,13 +8,13 @@ import {
   TouchableOpacity,
   Image,
   SafeAreaView,
-  StatusBar,
+  StatusBar, // Ensure StatusBar is imported
   Dimensions,
   Platform,
   Modal,
   TextInput,
   KeyboardAvoidingView,
-  Alert
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -75,7 +75,7 @@ const ProfilePage = ({ navigation }) => {
       // Use navigation.reset to completely reset the navigation state
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Auth' }],
+        routes: [{ name: "Auth" }],
       });
       // Don't show an alert here since we're navigating away
     } catch (err) {
@@ -90,7 +90,10 @@ const ProfilePage = ({ navigation }) => {
       setIsSaving(true);
 
       // Basic validation
-      if (!editableProfile.firstName?.trim() || !editableProfile.lastName?.trim()) {
+      if (
+        !editableProfile.firstName?.trim() ||
+        !editableProfile.lastName?.trim()
+      ) {
         Alert.alert("Error", "First name and last name are required.");
         setIsSaving(false);
         return;
@@ -107,12 +110,15 @@ const ProfilePage = ({ navigation }) => {
       const username = parsedInfo.user.username || parsedInfo.user.userName;
 
       // Call API to update profile
-      const response = await axios.put(`${API_URL}/profile/${username}`, editableProfile);
+      const response = await axios.put(
+        `${API_URL}/profile/${username}`,
+        editableProfile
+      );
 
       if (response.status === 200) {
         // Update local state
         setProfile(editableProfile);
-        
+
         // Update AsyncStorage user data
         const updatedUserInfo = {
           ...parsedInfo,
@@ -124,19 +130,20 @@ const ProfilePage = ({ navigation }) => {
             age: editableProfile.age,
             retirementAge: editableProfile.retirementAge,
             country: editableProfile.country,
-          }
+          },
         };
-        
+
         await AsyncStorage.setItem("userInfo", JSON.stringify(updatedUserInfo));
-        
+
         setEditModalVisible(false);
         Alert.alert("Success", "Profile updated successfully!");
       }
     } catch (error) {
       console.error("Error updating profile:", error);
       Alert.alert(
-        "Update Failed", 
-        error.response?.data?.error || "Failed to update profile. Please try again."
+        "Update Failed",
+        error.response?.data?.error ||
+          "Failed to update profile. Please try again."
       );
     } finally {
       setIsSaving(false);
@@ -186,19 +193,30 @@ const ProfilePage = ({ navigation }) => {
 
   const financialDetails = [
     { icon: "calendar-outline", label: "Age", value: profile.age?.toString() },
-    { icon: "time-outline", label: "Retirement Age", value: profile.retirementAge?.toString() },
+    {
+      icon: "time-outline",
+      label: "Retirement Age",
+      value: profile.retirementAge?.toString(),
+    },
   ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      
+
+      {/* Header */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Profile</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
+        <View style={styles.profileSummary}>
           <View style={styles.avatarContainer}>
             <Text style={styles.avatarText}>{getInitials()}</Text>
           </View>
-          <Text style={styles.userName}>{profile.firstName} {profile.lastName}</Text>
+          <Text style={styles.userName}>
+            {profile.firstName} {profile.lastName}
+          </Text>
           <Text style={styles.userHandle}>@{profile.userName}</Text>
         </View>
 
@@ -208,14 +226,14 @@ const ProfilePage = ({ navigation }) => {
             <Ionicons name="person" size={20} color="#2563EB" />
             <Text style={styles.sectionTitle}>Personal Information</Text>
           </View>
-          
+
           <View style={styles.card}>
             {personalDetails.map((detail, index) => (
-              <ProfileDetailItem 
-                key={index} 
-                icon={detail.icon} 
-                label={detail.label} 
-                value={detail.value} 
+              <ProfileDetailItem
+                key={index}
+                icon={detail.icon}
+                label={detail.label}
+                value={detail.value}
                 isLast={index === personalDetails.length - 1}
               />
             ))}
@@ -228,14 +246,14 @@ const ProfilePage = ({ navigation }) => {
             <Ionicons name="call" size={20} color="#2563EB" />
             <Text style={styles.sectionTitle}>Contact Information</Text>
           </View>
-          
+
           <View style={styles.card}>
             {contactDetails.map((detail, index) => (
-              <ProfileDetailItem 
-                key={index} 
-                icon={detail.icon} 
-                label={detail.label} 
-                value={detail.value} 
+              <ProfileDetailItem
+                key={index}
+                icon={detail.icon}
+                label={detail.label}
+                value={detail.value}
                 isLast={index === contactDetails.length - 1}
               />
             ))}
@@ -248,14 +266,14 @@ const ProfilePage = ({ navigation }) => {
             <Ionicons name="wallet" size={20} color="#2563EB" />
             <Text style={styles.sectionTitle}>Financial Information</Text>
           </View>
-          
+
           <View style={styles.card}>
             {financialDetails.map((detail, index) => (
-              <ProfileDetailItem 
-                key={index} 
-                icon={detail.icon} 
-                label={detail.label} 
-                value={detail.value} 
+              <ProfileDetailItem
+                key={index}
+                icon={detail.icon}
+                label={detail.label}
+                value={detail.value}
                 isLast={index === financialDetails.length - 1}
               />
             ))}
@@ -268,9 +286,9 @@ const ProfilePage = ({ navigation }) => {
             <Ionicons name="settings-outline" size={20} color="#2563EB" />
             <Text style={styles.sectionTitle}>Account</Text>
           </View>
-          
+
           <View style={styles.card}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionButton}
               onPress={() => setEditModalVisible(true)}
             >
@@ -278,19 +296,23 @@ const ProfilePage = ({ navigation }) => {
               <Text style={styles.actionButtonText}>Edit Profile</Text>
               <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
             </TouchableOpacity>
-            
+
             <View style={styles.divider} />
-            
+
             <TouchableOpacity style={styles.actionButton}>
               <Ionicons name="key-outline" size={22} color="#1E293B" />
               <Text style={styles.actionButtonText}>Change Password</Text>
               <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
             </TouchableOpacity>
-            
+
             <View style={styles.divider} />
-            
+
             <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="notifications-outline" size={22} color="#1E293B" />
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color="#1E293B"
+              />
               <Text style={styles.actionButtonText}>Notifications</Text>
               <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
             </TouchableOpacity>
@@ -302,7 +324,7 @@ const ProfilePage = ({ navigation }) => {
           <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
-        
+
         <Text style={styles.versionText}>LightsON v1.0.0</Text>
       </ScrollView>
 
@@ -361,7 +383,10 @@ const ProfilePage = ({ navigation }) => {
                   keyboardType="phone-pad"
                   value={editableProfile.phoneNumber}
                   onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, phoneNumber: text })
+                    setEditableProfile({
+                      ...editableProfile,
+                      phoneNumber: text,
+                    })
                   }
                 />
               </View>
@@ -386,7 +411,10 @@ const ProfilePage = ({ navigation }) => {
                   keyboardType="numeric"
                   value={editableProfile.age?.toString()}
                   onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, age: text ? parseInt(text) : "" })
+                    setEditableProfile({
+                      ...editableProfile,
+                      age: text ? parseInt(text) : "",
+                    })
                   }
                 />
               </View>
@@ -399,7 +427,10 @@ const ProfilePage = ({ navigation }) => {
                   keyboardType="numeric"
                   value={editableProfile.retirementAge?.toString()}
                   onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, retirementAge: text ? parseInt(text) : "" })
+                    setEditableProfile({
+                      ...editableProfile,
+                      retirementAge: text ? parseInt(text) : "",
+                    })
                   }
                 />
               </View>
@@ -407,14 +438,18 @@ const ProfilePage = ({ navigation }) => {
               <View style={styles.readOnlyInputGroup}>
                 <Text style={styles.inputLabel}>Email (read only)</Text>
                 <View style={styles.readOnlyInput}>
-                  <Text style={styles.readOnlyText}>{editableProfile.email}</Text>
+                  <Text style={styles.readOnlyText}>
+                    {editableProfile.email}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.readOnlyInputGroup}>
                 <Text style={styles.inputLabel}>Username (read only)</Text>
                 <View style={styles.readOnlyInput}>
-                  <Text style={styles.readOnlyText}>{editableProfile.userName}</Text>
+                  <Text style={styles.readOnlyText}>
+                    {editableProfile.userName}
+                  </Text>
                 </View>
               </View>
             </ScrollView>
@@ -469,14 +504,36 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#F8FAFC",
-    paddingBottom: Platform.OS === 'ios' ? 90 : 70,
+    paddingBottom: Platform.OS === "ios" ? 90 : 70,
+  },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "left", // Centered the title
+    paddingBottom: 12, // Maintain bottom padding
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+    // Dynamically adjust paddingTop to account for status bar
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 16 : 16,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1E293B",
   },
   container: {
     padding: 16,
     backgroundColor: "#F8FAFC",
     flexGrow: 1,
   },
-  header: {
+  profileSummary: {
     alignItems: "center",
     marginBottom: 24,
   },
@@ -624,7 +681,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 16,
   },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,

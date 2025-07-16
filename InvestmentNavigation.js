@@ -8,8 +8,13 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import {
+  Ionicons,
+  FontAwesome5,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons"; // Added MaterialCommunityIcons
 import { useNavigation } from "@react-navigation/native";
+import SavingsScreen from "./SavingsScreen";
 
 const { width } = Dimensions.get("window");
 
@@ -30,8 +35,17 @@ const investmentOptions = [
     screen: "RDScreen",
     color: "#16a34a",
   },
+  {
+    id: "savings", // New Savings Option
+    title: "Savings",
+    description: "Track your savings and see simple returns",
+    icon: "bank", // Using a bank icon for savings
+    screen: "SavingsScreen", // Linked to the new SavingsScreen
+    color: "#f59e0b", // A distinct color for savings
+  },
 ];
 
+// investmentTypes array is kept but not rendered
 const investmentTypes = [
   {
     title: "Equity",
@@ -47,84 +61,85 @@ const investmentTypes = [
   },
   {
     title: "Gold",
-    description: "Physical gold, gold ETFs and sovereign gold bonds",
-    color: "#F59E0B",
-    icon: <FontAwesome5 name="coins" size={24} color="white" />,
+    description: "Invest in digital or physical gold for wealth preservation",
+    color: "#FBBF24",
+    icon: <FontAwesome5 name="medal" size={24} color="white" />,
   },
   {
     title: "Real Estate",
-    description: "Property and REITs for asset appreciation",
-    color: "#8B5CF6",
-    icon: <FontAwesome5 name="building" size={24} color="white" />,
+    description:
+      "Properties and REITs for rental income and capital appreciation",
+    color: "#EF4444",
+    icon: <FontAwesome5 name="home" size={24} color="white" />,
+  },
+  {
+    title: "Fixed Deposit",
+    description: "Secure, low-risk deposits with guaranteed returns",
+    color: "#2563EB",
+    icon: <Ionicons name="business" size={24} color="white" />,
+  },
+  {
+    title: "Recurring Deposit",
+    description:
+      "Regular deposits with compound interest for disciplined saving",
+    color: "#16A34A",
+    icon: <Ionicons name="trending-up" size={24} color="white" />,
+  },
+  {
+    title: "Savings", // New Savings Type
+    description: "Track your liquid savings in bank accounts or cash",
+    color: "#F59E0B",
+    icon: <MaterialCommunityIcons name="bank" size={24} color="white" />, // Using bank icon
   },
 ];
 
-const InvestmentNavigation = () => {
+export default function InvestmentNavigation() {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState("Invest.");
+  // Removed activeTab state
 
-  // Tab navigation handler
-  const handleTabPress = (tab) => {
-    setActiveTab(tab);
-    if (tab === "All") {
-      navigation.navigate("DateExpenses");
-    } else if (tab === "Income") {
-      navigation.navigate("DateExpenses", { filter: "Income" });
-    } else if (tab === "Invest.") {
-      // Stay on this page
-    } else if (tab === "Expense") {
-      navigation.navigate("DateExpenses", { filter: "Expense" });
-    }
-  };
+  const renderInvestmentCard = ({
+    id,
+    title,
+    description,
+    icon,
+    screen,
+    color,
+  }) => (
+    <TouchableOpacity
+      key={id}
+      style={[styles.investmentCard, { backgroundColor: color }]}
+      onPress={() => navigation.navigate(screen)}
+    >
+      <View style={styles.cardIconContainer}>
+        {id === "fd" && <Ionicons name={icon} size={28} color="white" />}
+        {id === "rd" && <Ionicons name={icon} size={28} color="white" />}
+        {id === "savings" && (
+          <MaterialCommunityIcons name={icon} size={28} color="white" />
+        )}{" "}
+        {/* Use MaterialCommunityIcons for bank */}
+      </View>
+      <View style={styles.cardContent}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardDescription}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={24} color="white" />
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header with navigation tabs */}
-      {/* <View style={styles.headerNavTabs}>
-        {[
-          { id: "All", label: "All" },
-          { id: "Income", label: "Income" },
-          { id: "Invest.", label: "Invest." },
-          { id: "Expense", label: "Expense" },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.navTabButton,
-              activeTab === tab.label && styles.activeNavTabButton,
-              tab.id === "Income" &&
-                activeTab === tab.label &&
-                styles.activeIncomeTab,
-              tab.id === "Invest." &&
-                activeTab === tab.label &&
-                styles.activeInvestTab,
-              tab.id === "Expense" &&
-                activeTab === tab.label &&
-                styles.activeExpenseTab,
-            ]}
-            onPress={() => handleTabPress(tab.label)}
-          >
-            <Text
-              style={[
-                styles.navTabText,
-                activeTab === tab.label && styles.activeNavTabText,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View> */}
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        {/* Removed header as per image */}
+        {/* Removed tabRow */}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* FD/RD Cards - keep only this block */}
-        <View style={{ padding: 16, paddingTop: 32 }}>
+        {/* Add New Investment Content - moved to the top */}
+        <View style={styles.section}>
+          {/* Removed "Add New Investment" title as per image */}
+          {/* Removed infoCard as per image */}
+
+          {/* Existing FD/RD Cards - and now Savings card */}
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.fdCardBg]}
             onPress={() => navigation.navigate("FDScreen")}
             activeOpacity={0.8}
           >
@@ -142,7 +157,7 @@ const InvestmentNavigation = () => {
             <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.rdCardBg]}
             onPress={() => navigation.navigate("RDScreen")}
             activeOpacity={0.8}
           >
@@ -159,43 +174,28 @@ const InvestmentNavigation = () => {
             </View>
             <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
           </TouchableOpacity>
-        </View>
-
-        {/* Info box */}
-        <View style={styles.infoContainer}>
-          <View style={styles.infoIconContainer}>
-            <Ionicons name="information-circle" size={24} color="#64748b" />
-          </View>
-          <Text style={styles.infoText}>
-            Track and manage your fixed deposits and recurring deposits in one
-            place. Calculate returns and monitor growth over time.
-          </Text>
-        </View>
-
-        {/* Featured Investment Types */}
-        <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Featured Investment Types</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.cardContainer}
+          {/* New Savings Card - same design */}
+          <TouchableOpacity
+            style={[styles.bankCard, styles.savingsCardBg]}
+            onPress={() => navigation.navigate("SavingsScreen")}
+            activeOpacity={0.8}
           >
-            {investmentTypes.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.card}>
-                <View
-                  style={[
-                    styles.cardIconContainer,
-                    { backgroundColor: item.color },
-                  ]}
-                >
-                  {item.icon}
-                </View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardDescription}>{item.description}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+            <View
+              style={[styles.bankIconCircle, { backgroundColor: "#f59e0b20" }]}
+            >
+              <MaterialCommunityIcons name="bank" size={28} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bankCardTitle}>Savings</Text>
+              <Text style={styles.bankCardDesc}>
+                Track your liquid savings and simple returns
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
+          </TouchableOpacity>
         </View>
+
+        {/* Removed "Your Investment Portfolio" section and "Investment Types" grid as per image */}
 
         {/* Investment Tips */}
         <View style={styles.tipsSection}>
@@ -234,162 +234,36 @@ const InvestmentNavigation = () => {
       </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  headerNavTabs: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  navTabButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginHorizontal: 2,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navTabText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#64748B",
-    textAlign: "center",
-  },
-  activeNavTabButton: {
-    backgroundColor: "#E0F2FE",
-  },
-  activeIncomeTab: {
-    backgroundColor: "#DCFCE7",
-  },
-  activeInvestTab: {
-    backgroundColor: "#DBEAFE",
-  },
-  activeExpenseTab: {
-    backgroundColor: "#FEE2E2",
-  },
-  activeNavTabText: {
-    color: "#0F172A",
-    fontWeight: "600",
-  },
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  scrollView: {
-    flex: 1,
+  scrollViewContent: {
+    paddingBottom: 20, // Give some padding at the bottom for scroll
   },
-  cardSection: {
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 8,
-  },
-  bankCard: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
   },
-  bankIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  backButton: {
+    width: 40,
+    height: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
   },
-  bankCardTitle: {
-    fontSize: 16,
+  screenTitle: {
+    fontSize: 20,
     fontWeight: "700",
     color: "#1E293B",
-    marginBottom: 2,
-  },
-  bankCardDesc: {
-    fontSize: 13,
-    color: "#64748b",
-    lineHeight: 18,
-  },
-  infoContainer: {
-    backgroundColor: "#EFF6FF",
-    padding: 16,
-    marginHorizontal: 16,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  infoIconContainer: {
-    marginRight: 12,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#64748B",
-    lineHeight: 20,
-  },
-  cardContainer: {
-    paddingVertical: 8,
-    paddingBottom: 16,
-  },
-  card: {
-    width: width * 0.75,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginRight: 12,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tipsSection: {
-    padding: 16,
-    marginBottom: 24,
-  },
-  tipCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  tipHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginLeft: 8,
-  },
-  tipContent: {
-    fontSize: 14,
-    color: "#64748B",
-    lineHeight: 20,
   },
   tabRow: {
     flexDirection: "row",
@@ -426,26 +300,166 @@ const styles = StyleSheet.create({
   activeTabButtonText: {
     color: "#2563eb",
   },
+  section: {
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 16,
+  },
+  subSectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#DBEAFE",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderColor: "#93C5FD",
+    borderWidth: 1,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginLeft: 8,
+  },
+  tipContent: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  investmentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   cardIconContainer: {
+    marginRight: 15,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+    lineHeight: 18,
+  },
+  typeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  typeCard: {
+    width: (width - 48) / 2, // 16*2 padding + 16 gap
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    justifyContent: "space-between",
+    minHeight: 160,
+  },
+  typeIcon: {
+    marginBottom: 10,
+  },
+  typeTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  typeDescription: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  // Styles for the FD/RD/Savings cards within the "Add New Investment" section
+  bankCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    // Removed specific background here, now applying dynamically
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  // New styles for specific card backgrounds
+  fdCardBg: {
+    backgroundColor: "#e3eafd", // light blue
+  },
+  rdCardBg: {
+    backgroundColor: "#e6f4ec", // light green
+  },
+  savingsCardBg: {
+    backgroundColor: "#fffbe6", // very light yellow/orange
+  },
+  bankIconCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
-    backgroundColor: "#F1F5F9", // subtle background for icon
+    marginRight: 16,
   },
-  cardTitle: {
+  bankCardTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1E293B",
+    marginBottom: 2,
+  },
+  bankCardDesc: {
+    fontSize: 13,
+    color: "#64748b",
+    lineHeight: 18,
+  },
+  tipsSection: {
+    padding: 16,
+    marginBottom: 24,
+  },
+  tipCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
-  cardDescription: {
-    fontSize: 14,
-    color: "#64748B",
-    lineHeight: 20,
-  },
 });
-
-export default InvestmentNavigation;

@@ -15,32 +15,31 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { EventRegister } from "react-native-event-listeners"; // Import EventRegister
+import { EventRegister } from "react-native-event-listeners";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
-export default function RDScreen({ navigation }) {
-  const [investments, setInvestments] = useState([]);
-  const [monthlyDeposit, setMonthlyDeposit] = useState("");
-  const [interestRate, setInterestRate] = useState("");
-  const [duration, setDuration] = useState("");
+export default function SavingsScreen({ navigation }) {
+  const [savings, setSavings] = useState([]);
+  const [initialDeposit, setInitialDeposit] = useState("");
+  const [interestRate, setInterestRate] = useState("0");
+  const [maturityDate, setMaturityDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goals, setGoals] = useState([]);
-  const [linkedGoal, setLinkedGoal] = useState(null);
 
   useEffect(() => {
-    fetchInvestments();
+    fetchSavings();
     fetchGoals();
   }, []);
 
-  const fetchInvestments = async () => {
+  const fetchSavings = async () => {
     try {
       setLoading(true);
-
-      // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
         Alert.alert("Error", "User not logged in. Please log in again.");
@@ -60,7 +59,6 @@ export default function RDScreen({ navigation }) {
         return;
       }
 
-      // Call the API with token
       const response = await fetch(`${API_URL}/investments`, {
         method: "GET",
         headers: {
@@ -74,15 +72,14 @@ export default function RDScreen({ navigation }) {
       }
 
       const data = await response.json();
-      // Filter RD investments
-      const rdInvestments = data.filter(
-        (item) => item.investmentType === "Recurring Deposit"
+      const savingsInvestments = data.filter(
+        (item) => item.investmentType === "Savings"
       );
-      setInvestments(rdInvestments);
-      setLoading(false);
+      setSavings(savingsInvestments);
     } catch (error) {
-      console.error("Error fetching investments:", error);
-      Alert.alert("Error", "Failed to fetch investments. Please try again.");
+      console.error("Error fetching savings:", error);
+      Alert.alert("Error", "Failed to fetch savings. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -97,23 +94,37 @@ export default function RDScreen({ navigation }) {
       if (response.ok) {
         const goalsData = await response.json();
         setGoals(goalsData);
-        console.log("Fetched goals:", goalsData);
       }
     } catch (error) {
       console.error("Error fetching goals:", error);
     }
   };
 
-  const addRD = async () => {
-    if (!monthlyDeposit || !interestRate || !duration) {
-      Alert.alert("Error", "Please enter all required fields");
+  const onDateChange = (event, selectedDate) => {
+    const currentDate = selectedDate || maturityDate;
+    setShowDatePicker(Platform.OS === "ios");
+    setMaturityDate(currentDate);
+  };
+
+  const showDatepicker = () => {
+    setShowDatePicker(true);
+  };
+
+  const hideDatepicker = () => {
+    setShowDatePicker(false);
+  };
+
+  const addSavings = async () => {
+    if (!initialDeposit || !maturityDate) {
+      Alert.alert(
+        "Missing Information",
+        "Please enter initial deposit and select a maturity date."
+      );
       return;
     }
 
     try {
       setLoading(true);
-
-      // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
         Alert.alert("Error", "User not logged in. Please log in again.");
@@ -123,38 +134,29 @@ export default function RDScreen({ navigation }) {
 
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
+      const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
 
-      if (!token) {
+      if (!token || !username) {
         Alert.alert(
           "Error",
-          "Authentication token not found. Please log in again."
+          "Authentication token or username not found. Please log in again."
         );
         setLoading(false);
         return;
       }
 
-      // Calculate maturity date (current date + duration in months)
-      const maturityDate = new Date();
-      maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
-      const startDate = new Date(); // Define startDate here
-
-      // Create new RD investment object
-      const newRD = {
-        name: `RD - ${monthlyDeposit}/month for ${duration} months`,
-        amount: parseFloat(monthlyDeposit), // Monthly amount
-        currentAmount: parseFloat(monthlyDeposit), // Initially just the first deposit
+      const newSavings = {
+        amount: parseFloat(initialDeposit),
+        currentAmount: parseFloat(initialDeposit),
+        investmentType: "Savings",
+        startDate: new Date().toISOString(),
         interestRate: parseFloat(interestRate),
-        goalId: selectedGoal, // Add the selected goal ID
-        investmentType: "Recurring Deposit",
-        startDate: startDate.toISOString(), // Use defined startDate
         maturityDate: maturityDate.toISOString(),
-        compoundingFrequency: "quarterly", // Most RDs compound quarterly
-        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`,
+        description: `Savings account for ₹${initialDeposit} maturing on ${maturityDate.toLocaleDateString(
+          "en-GB"
+        )}`,
+        goalId: selectedGoal,
       };
-
-      // Add custom fields for RD
-      newRD.monthlyDeposit = parseFloat(monthlyDeposit);
-      newRD.duration = parseInt(duration);
 
       const response = await fetch(`${API_URL}/investment`, {
         method: "POST",
@@ -162,42 +164,44 @@ export default function RDScreen({ navigation }) {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newRD),
+        body: JSON.stringify(newSavings),
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `API Error: ${response.status}`);
       }
 
-      // Reset form including goal selection
-      setMonthlyDeposit("");
-      setInterestRate("");
-      setDuration("");
+      setInitialDeposit(""); // Reset
+      setInterestRate("0");
+      setMaturityDate(new Date());
       setSelectedGoal(null);
 
-      Alert.alert("Success", "Recurring deposit added successfully");
+      Alert.alert("Success", "Savings added successfully!");
 
-      // Emit the event for calendar update
       EventRegister.emit("investmentAdded", {
         type: "Investment",
-        subType: "RD",
-        date: startDate.toISOString().split("T")[0], // Use YYYY-MM-DD format for calendar
-        amount: parseFloat(monthlyDeposit),
+        subType: "Savings",
+        name: "New Savings",
+        date: new Date().toISOString().split("T")[0],
+        amount: parseFloat(initialDeposit),
+        interestRate: parseFloat(interestRate),
+        investmentType: "Savings",
       });
 
-      // Also add a transaction for calendar color logic
+      // Also add a transaction for calendar color logic, similar to RDScreen
       try {
         const userInfo = await AsyncStorage.getItem("userInfo");
         const parsedInfo = JSON.parse(userInfo);
         const username =
           parsedInfo?.user?.username || parsedInfo?.user?.userName;
         const transactionData = {
-          name: newRD.name,
-          amount: parseFloat(monthlyDeposit),
+          name: newSavings.description, // Use the description as transaction name
+          amount: parseFloat(initialDeposit),
           type: "Investment",
-          subType: "RD",
-          method: "Bank",
-          date: startDate.toISOString().split("T")[0],
+          subType: "Savings",
+          method: "Bank", // Assuming bank transfer for initial deposit
+          date: new Date().toISOString().split("T")[0],
         };
         await fetch(`${API_URL}/transactions/${username}`, {
           method: "POST",
@@ -205,119 +209,126 @@ export default function RDScreen({ navigation }) {
           body: JSON.stringify(transactionData),
         });
       } catch (err) {
-        console.error("Error adding RD transaction for calendar:", err);
+        console.error("Error adding Savings transaction for calendar:", err);
       }
 
-      // Refresh investments list
-      fetchInvestments();
+      fetchSavings();
     } catch (error) {
-      console.error("Error adding investment:", error);
-      Alert.alert("Error", "Failed to add investment. Please try again.");
+      console.error("Error adding savings:", error);
+      Alert.alert("Error", `Failed to add savings: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate maturity amount for RD
-  const calculateMaturityAmount = (deposit, rate, months) => {
-    const d = parseFloat(deposit);
-    const r = parseFloat(rate) / 100 / 12; // monthly interest rate
-    const n = parseInt(months);
+  const deleteInvestment = async (id) => {
+    Alert.alert(
+      "Delete Savings",
+      "Are you sure you want to delete this savings entry?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const userInfoString = await AsyncStorage.getItem("userInfo");
+              if (!userInfoString) {
+                Alert.alert(
+                  "Error",
+                  "User not logged in. Please log in again."
+                );
+                return;
+              }
 
-    // RD maturity calculation formula: P × (((1 + r)^n - 1) / r)
-    return d * ((Math.pow(1 + r, n) - 1) / r);
+              const parsedInfo = JSON.parse(userInfoString);
+              const token = parsedInfo.token;
+
+              if (!token) {
+                Alert.alert(
+                  "Error",
+                  "Authentication token not found. Please log in again."
+                );
+                return;
+              }
+
+              const response = await fetch(`${API_URL}/investment/${id}`, {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                  errorData.error || `API Error: ${response.status}`
+                );
+              }
+
+              setSavings(savings.filter((item) => item._id !== id));
+              Alert.alert("Success", "Savings entry deleted successfully.");
+            } catch (error) {
+              console.error("Error deleting savings:", error);
+              Alert.alert(
+                "Error",
+                `Failed to delete savings: ${error.message}`
+              );
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
-  // Calculate current value of RD
-  const calculateCurrentValue = (deposit, rate, startDate, duration) => {
-    const d = parseFloat(deposit);
-    const r = parseFloat(rate) / 100 / 12; // monthly interest rate
-    const totalMonths = parseInt(duration);
+  // Calculate maturity amount for a single lump sum deposit (Savings/Fixed Deposit)
+  const calculateMaturityAmount = (
+    initialDeposit,
+    annualRate,
+    startDate,
+    maturityDate
+  ) => {
+    const P = parseFloat(initialDeposit);
+    const r = parseFloat(annualRate) / 100; // Annual rate as decimal
+    const start = new Date(startDate);
+    const maturity = new Date(maturityDate);
 
-    // Calculate elapsed months since start date
+    // Calculate time in years
+    const diffTime = Math.abs(maturity.getTime() - start.getTime());
+    const t = diffTime / (1000 * 60 * 60 * 24 * 365.25); // Time in years, considering leap years
+
+    const n = 12; // Monthly compounding for consistency with RD, or adjust as needed (e.g., 1 for annual)
+
+    // A = P * (1 + r/n)^(nt)
+    return P * Math.pow(1 + r / n, n * t);
+  };
+
+  // Calculate current value for a single lump sum deposit (Savings/Fixed Deposit)
+  const calculateCurrentValue = (initialDeposit, annualRate, startDate) => {
+    const P = parseFloat(initialDeposit);
+    const r = parseFloat(annualRate) / 100; // Annual rate as decimal
     const start = new Date(startDate);
     const now = new Date();
-    const elapsedMonths =
-      (now.getFullYear() - start.getFullYear()) * 12 +
-      (now.getMonth() - start.getMonth());
 
-    // Limit to actual duration or elapsed time, whichever is smaller
-    const n = Math.min(Math.max(elapsedMonths, 1), totalMonths);
+    // Calculate elapsed time in years
+    const diffTime = Math.abs(now.getTime() - start.getTime());
+    const t = diffTime / (1000 * 60 * 60 * 24 * 365.25);
 
-    // Calculate current value using same formula but with elapsed months
-    return d * ((Math.pow(1 + r, n) - 1) / r);
+    const n = 12; // Monthly compounding
+
+    // A = P * (1 + r/n)^(nt)
+    return P * Math.pow(1 + r / n, n * t);
   };
 
-  // Delete investment
-  const deleteInvestment = async (id) => {
-    try {
-      // Get user info from AsyncStorage
-      const userInfoString = await AsyncStorage.getItem("userInfo");
-      if (!userInfoString) {
-        Alert.alert("Error", "User not logged in. Please log in again.");
-        return;
-      }
-
-      const parsedInfo = JSON.parse(userInfoString);
-      const token = parsedInfo.token;
-
-      if (!token) {
-        Alert.alert(
-          "Error",
-          "Authentication token not found. Please log in again."
-        );
-        return;
-      }
-
-      // Confirmation dialog
-      Alert.alert(
-        "Delete Investment",
-        "Are you sure you want to delete this recurring deposit?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                setLoading(true);
-
-                const response = await fetch(`${API_URL}/investment/${id}`, {
-                  method: "DELETE",
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                  },
-                });
-
-                if (!response.ok) {
-                  throw new Error(`API Error: ${response.status}`);
-                }
-
-                // Update local state
-                setInvestments(investments.filter((item) => item._id !== id));
-                Alert.alert("Success", "Investment deleted successfully");
-                setLoading(false);
-              } catch (error) {
-                console.error("Error deleting investment:", error);
-                Alert.alert("Error", "Failed to delete investment");
-                setLoading(false);
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("Error preparing delete:", error);
-      Alert.alert("Error", "An error occurred");
-    }
-  };
-
-  if (loading && investments.length === 0) {
+  if (loading && savings.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Loading investments...</Text>
+        <ActivityIndicator size="large" color="#f59e0b" />
+        <Text style={styles.loadingText}>Loading savings...</Text>
       </View>
     );
   }
@@ -325,19 +336,6 @@ export default function RDScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-
-      {/* Add a custom header
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recurring Deposit</Text>
-        <View style={styles.backButton} />
-      </View> */}
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidContainer}
@@ -347,14 +345,14 @@ export default function RDScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Add Recurring Deposit</Text>
+            <Text style={styles.sectionTitle}>Add New Savings</Text>
 
-            <Text style={styles.inputLabel}>Monthly Deposit (₹)</Text>
+            <Text style={styles.inputLabel}>Initial Deposit (₹)</Text>
             <TextInput
               style={styles.input}
-              value={monthlyDeposit}
-              onChangeText={setMonthlyDeposit}
-              placeholder="Enter monthly deposit amount"
+              value={initialDeposit}
+              onChangeText={setInitialDeposit}
+              placeholder="Enter initial deposit amount"
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
@@ -364,20 +362,41 @@ export default function RDScreen({ navigation }) {
               style={styles.input}
               value={interestRate}
               onChangeText={setInterestRate}
-              placeholder="Enter annual interest rate"
+              placeholder="E.g., 0"
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
 
-            <Text style={styles.inputLabel}>Duration (months)</Text>
-            <TextInput
-              style={styles.input}
-              value={duration}
-              onChangeText={setDuration}
-              placeholder="Enter duration in months"
-              keyboardType="numeric"
-              placeholderTextColor="#94a3b8"
-            />
+            <Text style={styles.inputLabel}>Maturity Date</Text>
+            <TouchableOpacity
+              onPress={showDatepicker}
+              style={styles.datePickerButton}
+            >
+              <Text style={styles.datePickerButtonText}>
+                {maturityDate
+                  ? maturityDate.toLocaleDateString("en-GB")
+                  : "Select Maturity Date"}
+              </Text>
+              <Ionicons name="calendar-outline" size={24} color="#64748b" />
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                testID="dateTimePicker"
+                value={maturityDate}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+              />
+            )}
+            {Platform.OS === "ios" && showDatePicker && (
+              <TouchableOpacity
+                onPress={hideDatepicker}
+                style={styles.closePickerButton}
+              >
+                <Text style={styles.closePickerButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Link to Goal (Optional)</Text>
@@ -406,79 +425,78 @@ export default function RDScreen({ navigation }) {
             <TouchableOpacity
               style={[
                 styles.addButton,
-                (!monthlyDeposit || !interestRate || !duration) &&
-                  styles.disabledButton,
+                (!initialDeposit || !maturityDate) && styles.disabledButton,
               ]}
-              onPress={addRD}
-              disabled={
-                loading || !monthlyDeposit || !interestRate || !duration
-              }
+              onPress={addSavings}
+              disabled={loading || !initialDeposit || !maturityDate}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.addButtonText}>Add Recurring Deposit</Text>
+                <Text style={styles.addButtonText}>Add Savings</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionTitle}>Your Recurring Deposits</Text>
+          <Text style={styles.sectionTitle}>Your Savings Accounts</Text>
 
-          {investments.length === 0 ? (
+          {savings.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="wallet-outline" size={64} color="#cbd5e1" />
-              <Text style={styles.emptyText}>No recurring deposits found</Text>
+              <MaterialCommunityIcons
+                name="piggy-bank-outline"
+                size={64}
+                color="#cbd5e1"
+              />
+              <Text style={styles.emptyText}>No savings accounts found</Text>
               <Text style={styles.emptySubtext}>
-                Add your first RD using the form above
+                Add your savings details using the form above
               </Text>
             </View>
           ) : (
             <FlatList
-              data={investments}
+              data={savings}
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
               renderItem={({ item }) => {
-                // Get the monthly deposit, duration from item properties or from description
-                const monthlyDeposit = item.monthlyDeposit || item.amount;
-                const duration = item.duration || 12; // Default to 12 if not specified
+                const initialDeposit = item.amount;
+                const interestRate = item.interestRate;
+                const startDate = item.startDate;
+                const maturityDate = item.maturityDate;
 
-                // Calculate maturity amount
                 const maturityAmount = calculateMaturityAmount(
-                  monthlyDeposit,
-                  item.interestRate,
-                  duration
+                  initialDeposit,
+                  interestRate,
+                  startDate,
+                  maturityDate
                 );
-
-                // Calculate current value
                 const currentValue = calculateCurrentValue(
-                  monthlyDeposit,
-                  item.interestRate,
-                  item.startDate,
-                  duration
+                  initialDeposit,
+                  interestRate,
+                  startDate
                 );
 
                 return (
-                  <View style={styles.rdCard}>
-                    <View style={styles.rdHeader}>
-                      <Text style={styles.depositAmount}>
-                        ₹{parseFloat(monthlyDeposit).toLocaleString("en-IN")}
-                        /month
+                  <View style={styles.savingsCard}>
+                    <View style={styles.savingsHeader}>
+                      {/* Changed to display initial amount */}
+                      <Text style={styles.savingsName}>
+                        ₹{parseFloat(item.amount).toLocaleString("en-IN")}
                       </Text>
-                      <View style={styles.durationBadge}>
-                        <Text style={styles.durationText}>
-                          {duration} months
+                      <View style={styles.rateBadge}>
+                        <Text style={styles.rateText}>
+                          {item.interestRate || 0}% Interest
                         </Text>
                       </View>
                     </View>
 
-                    <View style={styles.rdDetails}>
-                      <View style={styles.detailRow}>
+                    <View style={styles.savingsDetails}>
+                      {/* Changed to display interest rate instead of initial deposit */}
+                      {/* <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Interest Rate:</Text>
                         <Text style={styles.detailValue}>
-                          {item.interestRate}%
+                          {item.interestRate || 0}%
                         </Text>
-                      </View>
-
+                      </View> */}
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Current Value:</Text>
                         <Text style={styles.currentValue}>
@@ -487,22 +505,22 @@ export default function RDScreen({ navigation }) {
                       </View>
 
                       <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>
-                          Total Investment:
-                        </Text>
-                        <Text style={styles.detailValue}>
-                          ₹{(monthlyDeposit * duration).toLocaleString("en-IN")}
-                        </Text>
-                      </View>
-
-                      <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Maturity Value:</Text>
-                        <Text style={styles.maturityValue}>
+                        <Text style={styles.maturityValueText}>
                           ₹{Math.round(maturityAmount).toLocaleString("en-IN")}
                         </Text>
                       </View>
                     </View>
-
+                    {item.maturityDate && (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Maturity Date:</Text>
+                        <Text style={styles.detailValue}>
+                          {new Date(item.maturityDate).toLocaleDateString(
+                            "en-GB"
+                          )}
+                        </Text>
+                      </View>
+                    )}
                     {item.goalId && (
                       <View style={styles.goalLink}>
                         <Text style={styles.goalLabel}>Linked Goal:</Text>
@@ -580,22 +598,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
     color: "#1e293b",
   },
+  datePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: "#f8fafc",
+  },
+  datePickerButtonText: {
+    fontSize: 16,
+    color: "#1e293b",
+  },
+  closePickerButton: {
+    marginTop: 10,
+    backgroundColor: "#f59e0b",
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    alignSelf: "center",
+  },
+  closePickerButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
   addButton: {
-    backgroundColor: "#16a34a",
+    backgroundColor: "#f59e0b",
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
     marginTop: 8,
   },
   disabledButton: {
-    backgroundColor: "#86efac",
+    backgroundColor: "#fcd34d",
   },
   addButtonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
   },
-  rdCard: {
+  savingsCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
@@ -606,29 +651,29 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  rdHeader: {
+  savingsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  depositAmount: {
-    fontSize: 20,
+  savingsName: {
+    fontSize: 18,
     fontWeight: "bold",
     color: "#1e293b",
   },
-  durationBadge: {
-    backgroundColor: "#e8f5e9",
+  rateBadge: {
+    backgroundColor: "#fffbeb",
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 20,
   },
-  durationText: {
-    color: "#16a34a",
+  rateText: {
+    color: "#d97706",
     fontWeight: "600",
     fontSize: 14,
   },
-  rdDetails: {
+  savingsDetails: {
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
     paddingTop: 12,
@@ -655,7 +700,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 16,
   },
-  maturityValue: {
+  maturityValueText: {
     color: "#16a34a",
     fontWeight: "700",
     fontSize: 16,
@@ -711,43 +756,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: "#fff",
-    elevation: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     marginBottom: 8,
     color: "#475569",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    overflow: "hidden",
-    marginBottom: 16,
   },
   pickerContainer: {
     backgroundColor: "#f8fafc",
@@ -763,20 +779,20 @@ const styles = StyleSheet.create({
   goalLink: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#fffbeb",
     padding: 8,
     borderRadius: 8,
     marginTop: 12,
   },
   goalLabel: {
     fontSize: 14,
-    color: "#0369a1",
+    color: "#b45309",
     fontWeight: "500",
     marginRight: 8,
   },
   goalValue: {
     fontSize: 14,
-    color: "#0284c7",
+    color: "#d97706",
     fontWeight: "600",
   },
 });

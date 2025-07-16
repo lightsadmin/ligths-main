@@ -315,24 +315,7 @@ const CalendarMain = () => {
         normalizedDate = item.date;
       }
 
-      // Check both subType and investmentType for FD/RD
-      if (
-        item.type === "Investment" &&
-        (item.subType === "FD" ||
-          item.subType === "RD" ||
-          item.investmentType === "Fixed Deposit" ||
-          item.investmentType === "Recurring Deposit")
-      ) {
-        marked[normalizedDate] = {
-          selected: true,
-          selectedColor: "#3B82F6", // Blue color
-          marked: true,
-          dotColor: "#3B82F6",
-        };
-        return;
-      }
-
-      // Default logic for other types
+      // Always sum all transactions for the day
       if (!marked[normalizedDate]) {
         marked[normalizedDate] = {
           income: 0,
@@ -363,7 +346,9 @@ const CalendarMain = () => {
       const { income, expense, investment } = marked[date];
       let selectedColor = "#64748B"; // Default gray
 
-      if (income > expense && income > investment) {
+      if (income === 0 && expense === 0 && investment > 0) {
+        selectedColor = "#3B82F6"; // Only investment present
+      } else if (income > expense && income > investment) {
         selectedColor = "#10B981"; // Green for income
       } else if (expense > income && expense > investment) {
         selectedColor = "#EF4444"; // Red for expense
@@ -450,23 +435,28 @@ const CalendarMain = () => {
   };
 
   useEffect(() => {
-    // Add listener for new investments
-    const listener = EventRegister.addEventListener(
-      "investmentAdded",
-      (newInvestment) => {
-        // Fetch updated transactions or add the new one locally
+    // Listen for both transaction and investment events
+    const transactionListener = EventRegister.addEventListener(
+      "transactionAdded",
+      () => {
         fetchTransactions();
       }
     );
-
+    const investmentListener = EventRegister.addEventListener(
+      "investmentAdded",
+      () => {
+        fetchTransactions();
+      }
+    );
     return () => {
-      // Clean up listener
-      EventRegister.removeEventListener(listener);
+      EventRegister.removeEventListener(transactionListener);
+      EventRegister.removeEventListener(investmentListener);
     };
   }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      
       <View style={styles.header}>
         <Text style={styles.headerTitle}>LigthsON</Text>
       </View>
@@ -805,6 +795,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingVertical: 16,
     paddingHorizontal: 20,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
     marginBottom: 8,
@@ -1123,6 +1114,6 @@ const styles = StyleSheet.create({
     color: "#64748b",
     lineHeight: 18,
   },
-});
+}); 
 
 export default CalendarMain;

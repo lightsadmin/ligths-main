@@ -39,6 +39,7 @@ import Expenses from "./Expenses";
 import Investment from "./Investment";
 import FDScreen from "./FDScreen";
 import RDScreen from "./RDScreen";
+import SavingsScreen from "./SavingsScreen"; // <--- ADD THIS IMPORT
 import GoalCalculator from "./GoalCalculator";
 import InvestmentNavigation from "./InvestmentNavigation";
 
@@ -100,6 +101,7 @@ const headerOptions = (title, showBackButton = true) => ({
 });
 
 // Calendar Stack Navigator
+// Calendar Stack Navigator
 const CalendarStackNavigator = () => (
   <CalendarStack.Navigator>
     <CalendarStack.Screen
@@ -110,7 +112,7 @@ const CalendarStackNavigator = () => (
     <CalendarStack.Screen
       name="DateExpenses"
       component={DateExpenses}
-      options={headerOptions("Daily Transactions")}
+      // options={headerOptions("Daily Transactions")}
     />
     <CalendarStack.Screen
       name="Income"
@@ -133,6 +135,7 @@ const CalendarStackNavigator = () => (
     />
     <CalendarStack.Screen name="FDScreen" component={FDScreen} />
     <CalendarStack.Screen name="RDScreen" component={RDScreen} />
+    <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
   </CalendarStack.Navigator>
 );
 
@@ -155,6 +158,12 @@ const InvestmentStackNavigator = () => (
       component={RDScreen}
       options={{ headerShown: false }}
     />
+    <InvestmentStack.Screen
+      name="SavingsScreen"
+      component={SavingsScreen}
+      options={{ headerShown: false }}
+    />{" "}
+    {/* <--- ADDED THIS LINE to InvestmentStack as well for consistency, if used directly */}
   </InvestmentStack.Navigator>
 );
 

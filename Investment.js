@@ -41,13 +41,9 @@ const Investment = ({ navigation }) => {
                 Track your FD investments and calculate returns
               </Text>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={22}
-              color="#94a3b8"
-              style={{ marginLeft: 8 }}
-            />
+            <Ionicons name="chevron-forward" size={24} color="#64748B" />
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.fdRdCard, styles.rdCardBg]}
             onPress={() => navigation.navigate("RDScreen")}
@@ -62,88 +58,91 @@ const Investment = ({ navigation }) => {
                 Manage your RD investments and monitor growth
               </Text>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={22}
-              color="#94a3b8"
-              style={{ marginLeft: 8 }}
-            />
+            <Ionicons name="chevron-forward" size={24} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.fdRdCard, styles.savingsCardBg]}
+            onPress={() => navigation.navigate("SavingsScreen")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.fdRdIconCircle}>
+              <MaterialCommunityIcons name="bank" size={28} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fdRdTitle}>Savings</Text>
+              <Text style={styles.fdRdSubtitle}>
+                Track your savings and see simple returns
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#64748B" />
           </TouchableOpacity>
         </View>
 
-        {/* Info box - InvestmentNavigation style */}
-        <View style={styles.infoBoxNav}>
-          <View style={styles.infoBoxIconCircle}>
-            <Ionicons name="information-circle" size={22} color="#64748b" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoBoxTitle}>
-              Track and manage your fixed deposits and recurring deposits in one
-              place.
-            </Text>
-            <Text style={styles.infoBoxSubtitle}>
-              Calculate returns and monitor growth over time.
-            </Text>
-          </View>
+        {/* Notify Section */}
+        <View style={styles.notifySection}>
+          <Image
+            source={{
+              uri: "https://cdn-icons-png.flaticon.com/512/3592/3592189.png",
+            }} // Placeholder image
+            style={{ width: 80, height: 80, marginBottom: 12 }}
+          />
+          <Text style={styles.notifyText}>
+            Set up notifications for your investments. Get alerts on maturity,
+            interest payments, and more.
+          </Text>
+          <TouchableOpacity style={styles.notifyButton}>
+            <Text style={styles.notifyButtonText}>Set up Notifications</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Featured Investment Types */}
-        <View style={styles.cardSection}>
-          <Text style={styles.sectionTitle}>Featured Investment Types</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.cardContainer}
-          >
-            {investmentTypes.map((item, index) => (
-              <TouchableOpacity key={index} style={styles.card}>
-                <View
-                  style={[
-                    styles.cardIconContainer,
-                    { backgroundColor: item.color },
-                  ]}
-                >
-                  {item.icon}
-                </View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardDescription}>{item.description}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Investment Tips */}
+        {/* Financial Tips Section */}
         <View style={styles.tipsSection}>
-          <Text style={styles.sectionTitle}>Investment Tips</Text>
+          <Text style={styles.tipsTitle}>Financial Tips for You</Text>
           <View style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
-              <Text style={styles.tipTitle}>Start Early</Text>
+            <Ionicons
+              name="bulb-outline"
+              size={24}
+              color="#2563EB"
+              style={styles.tipIcon}
+            />
+            <View style={styles.tipContent}>
+              <Text style={styles.tipTitleCard}>Diversify Your Portfolio</Text>
+              <Text style={styles.tipDescription}>
+                Don't put all your eggs in one basket. Spread your investments
+                across different asset classes.
+              </Text>
             </View>
-            <Text style={styles.tipContent}>
-              The power of compounding works best over long periods. Starting
-              early, even with small amounts, can lead to significant growth.
-            </Text>
           </View>
           <View style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
-              <Text style={styles.tipTitle}>Diversify Your Portfolio</Text>
+            <Ionicons
+              name="cash-outline"
+              size={24}
+              color="#16A34A"
+              style={styles.tipIcon}
+            />
+            <View style={styles.tipContent}>
+              <Text style={styles.tipTitleCard}>Start Early</Text>
+              <Text style={styles.tipDescription}>
+                The power of compounding works best over time. Start investing
+                as early as possible.
+              </Text>
             </View>
-            <Text style={styles.tipContent}>
-              Don't put all your eggs in one basket. Spread your investments
-              across different asset classes to reduce risk.
-            </Text>
           </View>
           <View style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
-              <Text style={styles.tipTitle}>Invest Regularly</Text>
+            <Ionicons
+              name="wallet-outline"
+              size={24}
+              color="#F59E0B"
+              style={styles.tipIcon}
+            />
+            <View style={styles.tipContent}>
+              <Text style={styles.tipTitleCard}>Set Clear Goals</Text>
+              <Text style={styles.tipDescription}>
+                Define what you're saving for, whether it's a house, retirement,
+                or education.
+              </Text>
             </View>
-            <Text style={styles.tipContent}>
-              Consistent investing through SIPs (Systematic Investment Plans)
-              can help navigate market volatility through rupee-cost averaging.
-            </Text>
           </View>
         </View>
       </ScrollView>
@@ -151,277 +150,66 @@ const Investment = ({ navigation }) => {
   );
 };
 
-const investmentTypes = [
-  {
-    title: "Equity",
-    description: "Stocks and equity mutual funds for long-term growth",
-    color: "#3B82F6",
-    icon: <FontAwesome5 name="chart-line" size={24} color="white" />,
-  },
-  {
-    title: "Debt",
-    description: "Bonds and fixed income for stability and regular income",
-    color: "#10B981",
-    icon: <FontAwesome5 name="money-bill-wave" size={24} color="white" />,
-  },
-  {
-    title: "Gold",
-    description: "Physical gold, gold ETFs and sovereign gold bonds",
-    color: "#F59E0B",
-    icon: <FontAwesome5 name="coins" size={24} color="white" />,
-  },
-  {
-    title: "Real Estate",
-    description: "Property and REITs for asset appreciation",
-    color: "#8B5CF6",
-    icon: <FontAwesome5 name="building" size={24} color="white" />,
-  },
-];
-
-export default Investment;
-
 const styles = StyleSheet.create({
-  infoBoxNav: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
-    padding: 12,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  infoBoxIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#e5e7eb",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    marginTop: 2,
-  },
-  infoBoxTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  infoBoxSubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  fdRdCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    backgroundColor: "#fff",
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  fdCardBg: {
-    backgroundColor: "#e3eafd",
-  },
-  rdCardBg: {
-    backgroundColor: "#e6f4ec",
-  },
-  fdRdIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  fdRdTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  fdRdSubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 2,
-  },
   safeArea: {
     flex: 1,
     backgroundColor: "#F8FAFC",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1E293B",
-  },
-  infoButton: {
-    padding: 8,
-  },
   scrollView: {
     flex: 1,
   },
-  banner: {
+  fdRdCard: {
     flexDirection: "row",
-    backgroundColor: "#2563EB",
-    marginHorizontal: 16,
-    marginVertical: 16,
-    borderRadius: 16,
-    overflow: "hidden",
-    padding: 20,
-  },
-  bannerContent: {
-    flex: 3,
-  },
-  bannerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  bannerDescription: {
-    fontSize: 14,
-    color: "#E0F2FE",
-    lineHeight: 20,
-  },
-  bannerIconContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  featuredSection: {
-    padding: 16,
     backgroundColor: "#FFFFFF",
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 16,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  timeline: {
-    marginTop: 8,
-  },
-  timelineItem: {
-    flexDirection: "row",
-    marginBottom: 24,
-  },
-  timelineDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#E2E8F0",
-    justifyContent: "center",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     alignItems: "center",
-    marginRight: 12,
-    zIndex: 1,
-  },
-  activeTimelineDot: {
-    backgroundColor: "#10B981",
-  },
-  currentTimelineDot: {
-    backgroundColor: "#3B82F6",
-  },
-  timelineDotText: {
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  timelineConnector: {
-    position: "absolute",
-    left: 16,
-    top: 32,
-    bottom: -24,
-    width: 2,
-    backgroundColor: "#E2E8F0",
-  },
-  lastConnector: {
-    display: "none",
-  },
-  timelineContent: {
-    flex: 1,
-    paddingTop: 4,
-  },
-  timelineTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  timelineDescription: {
-    fontSize: 14,
-    color: "#64748B",
-    lineHeight: 20,
-  },
-  cardSection: {
-    padding: 16,
-  },
-  cardContainer: {
-    paddingVertical: 8,
-    paddingBottom: 16,
-  },
-  card: {
-    width: width * 0.75,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginRight: 12,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1, // Reduced shadow for a softer look
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
-  cardIconContainer: {
+  fdCardBg: {
+    backgroundColor: "#E0F7FA", // Light blue, slightly different from the image but fits theme
+  },
+  rdCardBg: {
+    backgroundColor: "#F3E5F5", // Light purple
+  },
+  savingsCardBg: {
+    backgroundColor: "#FFFBEB", // Light yellow
+  },
+  fdRdIconCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
+    backgroundColor: "#FFFFFF", // Icon circle background
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  cardTitle: {
+  fdRdTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#1E293B",
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  cardDescription: {
-    fontSize: 14,
+  fdRdSubtitle: {
+    fontSize: 13,
     color: "#64748B",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   notifySection: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "#EFF6FF", // Light blue background
     padding: 16,
     marginHorizontal: 16,
     borderRadius: 16,
@@ -452,31 +240,47 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
+  tipsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 16,
+    textAlign: "center",
+  },
   tipCard: {
+    flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
+    alignItems: "flex-start",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
   },
-  tipHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
+  tipIcon: {
+    marginRight: 12,
+    marginTop: 2,
   },
-  tipTitle: {
+  tipContent: {
+    flex: 1,
+  },
+  tipTitleCard: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1E293B",
-    marginLeft: 8,
+    marginBottom: 4,
   },
-  tipContent: {
-    fontSize: 14,
+  tipDescription: {
+    fontSize: 13,
     color: "#64748B",
-    lineHeight: 20,
+    lineHeight: 18,
   },
 });
+
+export default Investment;

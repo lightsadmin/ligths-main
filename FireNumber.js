@@ -477,9 +477,9 @@ const FireNumber = () => {
               <Text style={styles.fireNumber}>
                 {fireNumber ? `₹${formatCurrency(fireNumber)}` : '₹0.00'}
               </Text>
-              <Text style={styles.fireFormula}>
+              {/* <Text style={styles.fireFormula}>
                 Future Annual Expense / Safe Withdrawal Rate
-              </Text>
+              </Text> */}
             </View>
           </View>
           
@@ -559,9 +559,9 @@ const FireNumber = () => {
                 </Text>
               </View>
             )}
-          </View>
+          {/* </View>
           
-          <View style={styles.card}>
+          {/* <View style={styles.card}>
             <Text style={styles.sectionTitle}>About the Calculation</Text>
             <View style={styles.infoCard}>
               <Text style={styles.infoTitle}>Daily Average Method</Text>
@@ -578,7 +578,7 @@ const FireNumber = () => {
               <Text style={styles.infoExample}>
                 Example: If you spent ₹10,000 across 3 days, your daily average is ₹3,333.
               </Text>
-            </View>
+            </View> */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
