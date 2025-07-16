@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -11,33 +11,38 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  TouchableOpacity
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+  TouchableOpacity,
+} from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
 const FireNumber = () => {
   // User input states
-  const [currentAge, setCurrentAge] = useState('');
-  const [retirementAge, setRetirementAge] = useState('');
-  const [monthlyExpense, setMonthlyExpense] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState('India');
-  const [safeWithdrawalRate, setSafeWithdrawalRate] = useState('4');
-  
+  const [currentAge, setCurrentAge] = useState("");
+  const [retirementAge, setRetirementAge] = useState("");
+  const [monthlyExpense, setMonthlyExpense] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("India");
+  const [safeWithdrawalRate, setSafeWithdrawalRate] = useState("4");
+
   // Calculated values
-  const [yearsToRetirement, setYearsToRetirement] = useState('');
-  const [yearlyExpense, setYearlyExpense] = useState('');
-  const [futureAnnualExpense, setFutureAnnualExpense] = useState('');
-  const [fireNumber, setFireNumber] = useState('');
-  
+  const [yearsToRetirement, setYearsToRetirement] = useState("");
+  const [yearlyExpense, setYearlyExpense] = useState("");
+  const [futureAnnualExpense, setFutureAnnualExpense] = useState("");
+  const [fireNumber, setFireNumber] = useState("");
+
+  // SIP Calculation States
+  const [sip8Percent, setSip8Percent] = useState("0.00");
+  const [sip10Percent, setSip10Percent] = useState("0.00");
+  const [sip12Percent, setSip12Percent] = useState("0.00");
+
   // Data states
   const [expenses, setExpenses] = useState([]);
   const [filteredExpenses, setFilteredExpenses] = useState([]);
   const [uniqueDays, setUniqueDays] = useState(0);
-  const [dailyAverage, setDailyAverage] = useState('0.00');
+  const [dailyAverage, setDailyAverage] = useState("0.00");
   const [inflationData, setInflationData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,13 +52,13 @@ const FireNumber = () => {
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
-  const [filterMonth, setFilterMonth] = useState('All');
-  const [filterYear, setFilterYear] = useState('All');
+  const [filterMonth, setFilterMonth] = useState("All");
+  const [filterYear, setFilterYear] = useState("All");
 
   // Get inflation rate from selected country
   const getInflationRate = () => {
     const countryData = inflationData.find(
-      country => country.country_name === selectedCountry
+      (country) => country.country_name === selectedCountry
     );
     return countryData ? countryData.AVG : 0;
   };
@@ -64,24 +69,31 @@ const FireNumber = () => {
       return { years: [], months: [] };
     }
 
-    const years = [...new Set(expenses.map(expense => {
-      const date = new Date(expense.date);
-      return date.getFullYear();
-    }))].sort((a, b) => b - a); // Sort descending
+    const years = [
+      ...new Set(
+        expenses.map((expense) => {
+          const date = new Date(expense.date);
+          return date.getFullYear();
+        })
+      ),
+    ].sort((a, b) => b - a); // Sort descending
 
     const months = [
-      { name: 'January', value: 0 },
-      { name: 'February', value: 1 },
-      { name: 'March', value: 2 },
-      { name: 'April', value: 3 },
-      { name: 'May', value: 4 },
-      { name: 'June', value: 5 },
-      { name: 'July', value: 6 },
-      { name: 'August', value: 7 },
-      { name: 'September', value: 8 },
-      { name: 'October', value: 9 },
-      { name: 'November', value: 10 },
-      { name: 'December', value: 11 }
+      { name: "January", value: 0 },
+      { name: "February", value: 1 },
+      { name: "March", value: 2 },
+      { name: "April", value: 3 },
+      { name: "May", value: 4 },
+      { name: "June", value: 5 },
+      { name: "April", value: 3 },
+      { name: "May", value: 4 },
+      { name: "June", value: 5 },
+      { name: "July", value: 6 },
+      { name: "August", value: 7 },
+      { name: "September", value: 8 },
+      { name: "October", value: 9 },
+      { name: "November", value: 10 },
+      { name: "December", value: 11 },
     ];
 
     return { years, months };
@@ -97,18 +109,18 @@ const FireNumber = () => {
     let result = [...expenses];
 
     // Filter by year if not "All"
-    if (filterYear !== 'All') {
+    if (filterYear !== "All") {
       const yearNum = parseInt(filterYear);
-      result = result.filter(expense => {
+      result = result.filter((expense) => {
         const date = new Date(expense.date);
         return date.getFullYear() === yearNum;
       });
     }
 
     // Filter by month if not "All"
-    if (filterMonth !== 'All') {
+    if (filterMonth !== "All") {
       const monthNum = parseInt(filterMonth);
-      result = result.filter(expense => {
+      result = result.filter((expense) => {
         const date = new Date(expense.date);
         return date.getMonth() === monthNum;
       });
@@ -120,17 +132,17 @@ const FireNumber = () => {
   const fetchInflationData = async () => {
     try {
       const response = await fetch(`${API_URL}/api/inflation-data`);
-        
+
       if (!response.ok) {
-        throw new Error('Failed to fetch inflation data');
+        throw new Error("Failed to fetch inflation data");
       }
-        
+
       const data = await response.json();
       setInflationData(data);
       return true;
     } catch (err) {
-      console.error('Error fetching inflation data:', err);
-      setError('Could not load inflation data. Please check your connection.');
+      console.error("Error fetching inflation data:", err);
+      setError("Could not load inflation data. Please check your connection.");
       return false;
     }
   };
@@ -144,56 +156,73 @@ const FireNumber = () => {
         setLoading(false);
         return false;
       }
-      
+
       const parsedInfo = JSON.parse(userInfoString);
       setUserInfo(parsedInfo);
-      
+
       // Get username
-      const username = parsedInfo?.user?.username || parsedInfo?.user?.userName || parsedInfo?.username || parsedInfo?.userName;
-      
+      const username =
+        parsedInfo?.user?.username ||
+        parsedInfo?.user?.userName ||
+        parsedInfo?.username ||
+        parsedInfo?.userName;
+
       if (!username) {
         setError("Username not found");
         setLoading(false);
         return false;
       }
-      
+
       // Set current age and retirement age from user profile
       if (parsedInfo?.user?.age || parsedInfo?.age) {
         setCurrentAge(String(parsedInfo?.user?.age || parsedInfo?.age));
       }
-      
+
       if (parsedInfo?.user?.retirementAge || parsedInfo?.retirementAge) {
-        setRetirementAge(String(parsedInfo?.user?.retirementAge || parsedInfo?.retirementAge));
+        setRetirementAge(
+          String(parsedInfo?.user?.retirementAge || parsedInfo?.retirementAge)
+        );
       }
-      
+
       // Fetch monthly essential expenses - include today's expenses
-      const monthlyResponse = await fetch(`${API_URL}/transactions/${username}/monthly-essential?includeToday=${includeToday}`);
-      
+      const monthlyResponse = await fetch(
+        `${API_URL}/transactions/${username}/monthly-essential?includeToday=${includeToday}`
+      );
+
       if (monthlyResponse.ok) {
         const monthlyData = await monthlyResponse.json();
         setExpenses(monthlyData.expenses);
         setFilteredExpenses(monthlyData.expenses);
-        
+
         // Use daily average from backend
         if (monthlyData.expenses && monthlyData.expenses.length > 0) {
           // Get unique days count
-          const uniqueDaysCount = monthlyData.uniqueDays || new Set(
-            monthlyData.expenses.map(expense => expense.date.substring(0, 10))
-          ).size;
-          
+          const uniqueDaysCount =
+            monthlyData.uniqueDays ||
+            new Set(
+              monthlyData.expenses.map((expense) =>
+                expense.date.substring(0, 10)
+              )
+            ).size;
+
           setUniqueDays(uniqueDaysCount);
-          
+
           // Calculate total amount
-          const totalAmount = parseFloat(monthlyData.totalAmount || 
-            monthlyData.expenses.reduce((sum, expense) => sum + expense.amount, 0));
-          
+          const totalAmount = parseFloat(
+            monthlyData.totalAmount ||
+              monthlyData.expenses.reduce(
+                (sum, expense) => sum + expense.amount,
+                0
+              )
+          );
+
           // Set daily average - JUST divide by days (no multiplication by 30)
           const dailyAvg = totalAmount / uniqueDaysCount;
           setDailyAverage(dailyAvg.toFixed(2));
-          
+
           // Set monthly expense to the daily average (as requested - no multiplication by 30)
           setMonthlyExpense(dailyAvg.toFixed(2));
-          
+
           console.log(`Total amount: ₹${totalAmount}`);
           console.log(`Number of expenses: ${monthlyData.expenses.length}`);
           console.log(`Number of unique days: ${uniqueDaysCount}`);
@@ -206,39 +235,42 @@ const FireNumber = () => {
       } else {
         throw new Error("Failed to fetch monthly expenses");
       }
-      
+
       return true;
     } catch (err) {
-      console.error('Error fetching user data:', err);
+      console.error("Error fetching user data:", err);
       return false;
     }
   };
 
   const getExpensesSummary = () => {
     if (expenses.length === 0) return "No essential expenses recorded";
-    
+
     // Get earliest and latest dates
-    const sortedExpenses = [...expenses].sort((a, b) => 
-      new Date(a.date) - new Date(b.date)
+    const sortedExpenses = [...expenses].sort(
+      (a, b) => new Date(a.date) - new Date(b.date)
     );
-    
+
     const earliestDate = new Date(sortedExpenses[0].date);
     const latestDate = new Date(sortedExpenses[sortedExpenses.length - 1].date);
-    
-    const formattedEarliest = earliestDate.toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+
+    const formattedEarliest = earliestDate.toLocaleDateString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
-    
-    const formattedLatest = latestDate.toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+
+    const formattedLatest = latestDate.toLocaleDateString("en-IN", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
-    
-    const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    
+
+    const totalAmount = expenses.reduce(
+      (sum, expense) => sum + expense.amount,
+      0
+    );
+
     return `${expenses.length} expenses across ${uniqueDays} days (avg ₹${dailyAverage}/day) from ${formattedEarliest} to ${formattedLatest}`;
   };
 
@@ -248,14 +280,14 @@ const FireNumber = () => {
       setLoading(true);
       const inflationLoaded = await fetchInflationData();
       const userDataLoaded = await fetchUserData();
-      
+
       if (inflationLoaded && userDataLoaded) {
         setError(null);
       }
-      
+
       setLoading(false);
     };
-    
+
     loadAllData();
   }, [includeToday]);
 
@@ -270,14 +302,14 @@ const FireNumber = () => {
   useEffect(() => {
     if (currentAge && retirementAge) {
       const years = parseInt(retirementAge) - parseInt(currentAge);
-      setYearsToRetirement(years > 0 ? years.toString() : '0');
+      setYearsToRetirement(years > 0 ? years.toString() : "0");
     }
   }, [currentAge, retirementAge]);
 
   // Calculate yearly expense
   useEffect(() => {
     if (monthlyExpense) {
-      const yearly = parseFloat(monthlyExpense) * 365;  // Daily average * 365 for yearly
+      const yearly = parseFloat(monthlyExpense) * 365; // Daily average * 365 for yearly
       setYearlyExpense(yearly.toFixed(2));
     }
   }, [monthlyExpense]);
@@ -302,10 +334,39 @@ const FireNumber = () => {
     }
   }, [futureAnnualExpense, safeWithdrawalRate]);
 
+  // Calculate SIP amounts
+  useEffect(() => {
+    if (fireNumber && yearsToRetirement && inflationData.length > 0) {
+      const targetAmount = parseFloat(fireNumber);
+      const n = parseInt(yearsToRetirement) * 12; // Number of months
+
+      const calculateSIP = (annualInterestRate) => {
+        const monthlyInterestRate = annualInterestRate / 100 / 12;
+        if (n === 0 || monthlyInterestRate === 0) {
+          return targetAmount / (n || 1); // Avoid division by zero, handle n=0 case
+        }
+        // SIP formula: P = FV * i / ((1 + i)^n - 1)
+        // Where P = SIP amount, FV = Future Value (FIRE Number), i = monthly interest rate, n = number of months
+        const sip =
+          (targetAmount * monthlyInterestRate) /
+          (Math.pow(1 + monthlyInterestRate, n) - 1);
+        return sip > 0 ? sip.toFixed(2) : "0.00"; // Ensure non-negative and formatted
+      };
+
+      setSip8Percent(calculateSIP(8));
+      setSip10Percent(calculateSIP(10));
+      setSip12Percent(calculateSIP(12));
+    } else {
+      setSip8Percent("0.00");
+      setSip10Percent("0.00");
+      setSip12Percent("0.00");
+    }
+  }, [fireNumber, yearsToRetirement, inflationData]); // Depend on fireNumber and yearsToRetirement
+
   // Reset filters
   const resetFilters = () => {
-    setFilterMonth('All');
-    setFilterYear('All');
+    setFilterMonth("All");
+    setFilterYear("All");
   };
 
   // Toggle filters visibility
@@ -331,7 +392,9 @@ const FireNumber = () => {
     return (
       <SafeAreaView style={[styles.safeArea, styles.errorContainer]}>
         <Text style={styles.errorText}>Error: {error}</Text>
-        <Text style={styles.errorSubtext}>Please check your connection and try again</Text>
+        <Text style={styles.errorSubtext}>
+          Please check your connection and try again
+        </Text>
       </SafeAreaView>
     );
   }
@@ -339,10 +402,10 @@ const FireNumber = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
           refreshControl={
@@ -351,12 +414,14 @@ const FireNumber = () => {
         >
           <View style={styles.header}>
             <Text style={styles.title}>FIRE Number Calculator</Text>
-            <Text style={styles.subtitle}>Financial Independence, Retire Early</Text>
+            <Text style={styles.subtitle}>
+              Financial Independence, Retire Early
+            </Text>
           </View>
-          
+
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Basic Information</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Current Age</Text>
               <TextInput
@@ -367,7 +432,7 @@ const FireNumber = () => {
                 placeholder="Enter your current age"
               />
             </View>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Retirement Age</Text>
               <TextInput
@@ -378,20 +443,25 @@ const FireNumber = () => {
                 placeholder="Enter your target retirement age"
               />
             </View>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Years to Retirement</Text>
               <View style={styles.calculatedField}>
-                <Text style={styles.calculatedText}>{yearsToRetirement || '0'}</Text>
+                <Text style={styles.calculatedText}>
+                  {yearsToRetirement || "0"}
+                </Text>
               </View>
             </View>
           </View>
-          
+
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Financial Parameters</Text>
-              <TouchableOpacity 
-                style={[styles.toggleButton, includeToday ? styles.toggleActive : {}]}
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  includeToday ? styles.toggleActive : {},
+                ]}
                 onPress={toggleIncludeToday}
               >
                 <Text style={styles.toggleText}>
@@ -402,19 +472,27 @@ const FireNumber = () => {
 
             <View style={styles.inputGroup}>
               <View style={styles.labelWithHint}>
-                <Text style={styles.label}>Average Daily Essential Expenses</Text>
+                <Text style={styles.label}>
+                  Average Daily Essential Expenses
+                </Text>
                 <TouchableOpacity
-                  onPress={() => Alert.alert(
-                    "Calculation Method",
-                    "Daily expense = Total expenses ÷ Number of days with expenses"
-                  )}
+                  onPress={() =>
+                    Alert.alert(
+                      "Calculation Method",
+                      "Daily expense = Total expenses ÷ Number of days with expenses"
+                    )
+                  }
                 >
-                  <Ionicons name="information-circle-outline" size={18} color="#888" />
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={18}
+                    color="#888"
+                  />
                 </TouchableOpacity>
               </View>
               <View style={styles.calculatedField}>
                 <Text style={styles.calculatedText}>
-                  {monthlyExpense ? `₹${monthlyExpense}` : '₹0.00'}
+                  {monthlyExpense ? `₹${monthlyExpense}` : "₹0.00"}
                 </Text>
               </View>
               <Text style={styles.labelHint}>{getExpensesSummary()}</Text>
@@ -424,7 +502,7 @@ const FireNumber = () => {
               <Text style={styles.label}>Yearly Essential Expenses</Text>
               <View style={styles.calculatedField}>
                 <Text style={styles.calculatedText}>
-                  {yearlyExpense ? `₹${yearlyExpense}` : '₹0.00'}
+                  {yearlyExpense ? `₹${yearlyExpense}` : "₹0.00"}
                 </Text>
               </View>
             </View>
@@ -439,10 +517,12 @@ const FireNumber = () => {
                 onValueChange={(itemValue) => setSelectedCountry(itemValue)}
               >
                 {inflationData.map((country) => (
-                  <Picker.Item 
-                    key={country.country_name} 
-                    label={`${country.country_name} (${country.AVG.toFixed(2)}%)`}
-                    value={country.country_name} 
+                  <Picker.Item
+                    key={country.country_name}
+                    label={`${country.country_name} (${country.AVG.toFixed(
+                      2
+                    )}%)`}
+                    value={country.country_name}
                   />
                 ))}
               </Picker>
@@ -459,39 +539,74 @@ const FireNumber = () => {
               />
             </View>
           </View>
-          
+
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Results</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Future Annual Expenses</Text>
               <View style={styles.calculatedField}>
                 <Text style={styles.calculatedText}>
-                  {futureAnnualExpense ? `₹${futureAnnualExpense}` : '₹0.00'}
+                  {futureAnnualExpense ? `₹${futureAnnualExpense}` : "₹0.00"}
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.fireNumberContainer}>
               <Text style={styles.fireNumberLabel}>Your FIRE Number</Text>
               <Text style={styles.fireNumber}>
-                {fireNumber ? `₹${formatCurrency(fireNumber)}` : '₹0.00'}
+                {fireNumber ? `₹${formatCurrency(fireNumber)}` : "₹0.00"}
               </Text>
               {/* <Text style={styles.fireFormula}>
                 Future Annual Expense / Safe Withdrawal Rate
               </Text> */}
             </View>
+
+            {/* SIP Calculation Table */}
+            <View style={styles.sipTableContainer}>
+              <Text style={styles.sipTableTitle}>
+                Monthly SIP to reach FIRE Number
+              </Text>
+              <View style={styles.table}>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableHeader}>Interest Rate</Text>
+                  <Text style={styles.tableHeader}>Monthly Investment</Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableCell}>8%</Text>
+                  <Text style={styles.tableCell}>
+                    ₹{formatCurrency(sip8Percent)}
+                  </Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableCell}>10%</Text>
+                  <Text style={styles.tableCell}>
+                    ₹{formatCurrency(sip10Percent)}
+                  </Text>
+                </View>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableCell}>12%</Text>
+                  <Text style={styles.tableCell}>
+                    ₹{formatCurrency(sip12Percent)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            {/* End SIP Calculation Table */}
           </View>
-          
+
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your Essential Expenses</Text>
-              <TouchableOpacity onPress={toggleFilters} style={styles.filterButton}>
+              <TouchableOpacity
+                onPress={toggleFilters}
+                style={styles.filterButton}
+              >
                 <Ionicons name="filter" size={20} color="#e67e22" />
                 <Text style={styles.filterButtonText}>Filter</Text>
               </TouchableOpacity>
             </View>
-            
+
             {showFilters && (
               <View style={styles.filtersContainer}>
                 <View style={styles.filterRow}>
@@ -505,11 +620,15 @@ const FireNumber = () => {
                     >
                       <Picker.Item label="All Months" value="All" />
                       {availableFilters.months.map((month) => (
-                        <Picker.Item key={month.value} label={month.name} value={month.value.toString()} />
+                        <Picker.Item
+                          key={month.value}
+                          label={month.name}
+                          value={month.value.toString()}
+                        />
                       ))}
                     </Picker>
                   </View>
-                  
+
                   <View style={styles.filterItem}>
                     <Text style={styles.filterLabel}>Year</Text>
                     <Picker
@@ -520,66 +639,83 @@ const FireNumber = () => {
                     >
                       <Picker.Item label="All Years" value="All" />
                       {availableFilters.years.map((year) => (
-                        <Picker.Item key={year} label={year.toString()} value={year.toString()} />
+                        <Picker.Item
+                          key={year}
+                          label={year.toString()}
+                          value={year.toString()}
+                        />
                       ))}
                     </Picker>
                   </View>
                 </View>
-                
-                <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={resetFilters}
+                >
                   <Text style={styles.resetButtonText}>Reset Filters</Text>
                 </TouchableOpacity>
               </View>
             )}
-            
+
             <View style={styles.filterSummary}>
               <Text style={styles.filterSummaryText}>
                 Showing {filteredExpenses.length} of {expenses.length} expenses
-                {filterMonth !== 'All' || filterYear !== 'All' ? ' (filtered)' : ''}
+                {filterMonth !== "All" || filterYear !== "All"
+                  ? " (filtered)"
+                  : ""}
               </Text>
             </View>
-            
+
             {filteredExpenses.length > 0 ? (
               filteredExpenses.map((expense) => (
                 <View key={expense._id} style={styles.expenseItem}>
                   <View style={styles.expenseDetails}>
                     <Text style={styles.expenseName}>{expense.name}</Text>
-                    <Text style={styles.expenseDate}>{formatDate(expense.date)}</Text>
+                    <Text style={styles.expenseDate}>
+                      {formatDate(expense.date)}
+                    </Text>
                   </View>
-                  <Text style={styles.expenseAmount}>₹{expense.amount.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.expenseAmount}>
+                    ₹{expense.amount.toLocaleString("en-IN")}
+                  </Text>
                 </View>
               ))
             ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No essential expenses found</Text>
+                <Text style={styles.emptyStateText}>
+                  No essential expenses found
+                </Text>
                 <Text style={styles.emptyStateSubtext}>
-                  {expenses.length > 0 
-                    ? "Adjust your filters to see expenses" 
+                  {expenses.length > 0
+                    ? "Adjust your filters to see expenses"
                     : "Record essential expenses in Calendar to see them here"}
                 </Text>
               </View>
             )}
-          {/* </View>
-          
+          </View>
+
           {/* <View style={styles.card}>
             <Text style={styles.sectionTitle}>About the Calculation</Text>
             <View style={styles.infoCard}>
               <Text style={styles.infoTitle}>Daily Average Method</Text>
               <Text style={styles.infoText}>
-                Your average daily expense is calculated by dividing the total essential expenses by the number of unique days with expenses.
+                Your average daily expense is calculated by dividing the total
+                essential expenses by the number of unique days with expenses.
               </Text>
-              
+
               <View style={styles.formula}>
                 <Text style={styles.formulaText}>
                   Daily Average = Total Essential Expenses ÷ Days with Expenses
                 </Text>
               </View>
-              
+
               <Text style={styles.infoExample}>
-                Example: If you spent ₹10,000 across 3 days, your daily average is ₹3,333.
+                Example: If you spent ₹10,000 across 3 days, your daily average
+                is ₹3,333.
               </Text>
-            </View> */}
-          </View>
+            </View>
+          </View> */}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -588,7 +724,7 @@ const FireNumber = () => {
 
 // Helper functions
 const formatCurrency = (value) => {
-  return parseFloat(value).toLocaleString('en-IN', {
+  return parseFloat(value).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -596,17 +732,17 @@ const formatCurrency = (value) => {
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return date.toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 };
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f7',
+    backgroundColor: "#f5f5f7",
   },
   container: {
     flex: 1,
@@ -616,157 +752,157 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#e67e22',
+    fontWeight: "bold",
+    color: "#e67e22",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#555',
+    color: "#555",
     marginBottom: 20,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 8,
-    backgroundColor: '#f8f4e3',
+    backgroundColor: "#f8f4e3",
     borderRadius: 8,
   },
   filterButtonText: {
     marginLeft: 4,
     fontSize: 14,
-    color: '#e67e22',
+    color: "#e67e22",
   },
   inputGroup: {
     marginBottom: 16,
   },
   labelWithHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
   label: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 8,
   },
   labelHint: {
     fontSize: 12,
-    color: '#888',
+    color: "#888",
     marginTop: 4,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   input: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   picker: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   calculatedField: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 8,
     padding: 12,
   },
   calculatedText: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   fireNumberContainer: {
-    alignItems: 'center',
-    backgroundColor: '#f8f4e3',
+    alignItems: "center",
+    backgroundColor: "#f8f4e3",
     borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#e67e22',
+    borderColor: "#e67e22",
   },
   fireNumberLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#e67e22',
+    fontWeight: "bold",
+    color: "#e67e22",
     marginBottom: 8,
   },
   fireNumber: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#e67e22',
+    fontWeight: "bold",
+    color: "#e67e22",
     marginBottom: 8,
   },
   fireFormula: {
     fontSize: 12,
-    color: '#777',
-    textAlign: 'center',
+    color: "#777",
+    textAlign: "center",
   },
   expenseItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   expenseDetails: {
-    flexDirection: 'column',
+    flexDirection: "column",
   },
   expenseName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
   },
   expenseDate: {
     fontSize: 12,
-    color: '#777',
+    color: "#777",
     marginTop: 4,
   },
   expenseAmount: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#e67e22',
+    fontWeight: "bold",
+    color: "#e67e22",
   },
   filtersContainer: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   filterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
   filterItem: {
@@ -775,28 +911,28 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginBottom: 4,
   },
   filterPicker: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 6,
-    height: Platform.OS === 'ios' ? 150 : 50,
+    height: Platform.OS === "ios" ? 150 : 50,
   },
   pickerItem: {
     height: 120,
     fontSize: 16,
   },
   resetButton: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 6,
     padding: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   resetButtonText: {
-    color: '#666',
+    color: "#666",
     fontSize: 14,
   },
   filterSummary: {
@@ -804,106 +940,155 @@ const styles = StyleSheet.create({
   },
   filterSummaryText: {
     fontSize: 13,
-    color: '#888',
-    fontStyle: 'italic',
+    color: "#888",
+    fontStyle: "italic",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   errorText: {
     fontSize: 18,
-    color: 'red',
+    color: "red",
     marginBottom: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   errorSubtext: {
     fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
+    color: "#555",
+    textAlign: "center",
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 30,
   },
   emptyStateText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#64748b',
+    fontWeight: "bold",
+    color: "#64748b",
     marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#94a3b8',
-    textAlign: 'center',
+    color: "#94a3b8",
+    textAlign: "center",
   },
   scrollViewContent: {
-    paddingBottom: 80, 
+    paddingBottom: 80,
   },
   infoCard: {
-    backgroundColor: '#f8f8f8',
+    backgroundColor: "#f8f8f8",
     borderRadius: 8,
     padding: 16,
   },
   infoTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#444',
+    fontWeight: "bold",
+    color: "#444",
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 10,
     lineHeight: 20,
   },
   formula: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 6,
     padding: 12,
     marginVertical: 10,
   },
   formulaText: {
     fontSize: 13,
-    color: '#333',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: "#333",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
   infoExample: {
     fontSize: 13,
-    color: '#666',
-    fontStyle: 'italic',
+    color: "#666",
+    fontStyle: "italic",
     marginTop: 6,
   },
   toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
   },
   toggleActive: {
-    backgroundColor: '#f8f4e3',
-    borderColor: '#e67e22',
+    backgroundColor: "#f8f4e3",
+    borderColor: "#e67e22",
   },
   toggleText: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
+  },
+  // SIP Table Styles - Changed to white family
+  sipTableContainer: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: "#FFFFFF", // White background
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e67e22", // Light grey border
+    shadowColor: "#000", // Subtle shadow for depth
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  sipTableTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333333", // Dark grey for readability
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: "#F0F0F0", // Very light grey for internal borders
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  tableRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F5F5F5", // Even lighter grey for row separation
+  },
+  tableHeader: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: "#F8F8F8", // Light grey header background
+    color: "#555555", // Medium grey for header text
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 13,
+  },
+  tableCell: {
+    flex: 1,
+    padding: 10,
+    textAlign: "center",
+    fontSize: 14,
+    color: "#666666", // Slightly darker grey for cell text
+    backgroundColor: "#FFFFFF", // White cell background
   },
 });
 

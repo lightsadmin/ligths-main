@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -140,7 +141,7 @@ export default function GoalCalculator() {
         setUserName(defaultUsername);
 
         // In a real app, you would typically navigate to the login screen here:
-        // Alert.alert("Error", "User not found. Please login again.", [
+        // Alert.alert("Error", "User not found. Please log in again.", [
         //   { text: "OK", onPress: () => navigation.navigate('Login') }
         // ]);
       }
@@ -450,10 +451,7 @@ export default function GoalCalculator() {
 
     // Get dynamic investment data for the current goal
     const dynamicInvestments = editingGoalId
-      ? investmentsByGoal[editingGoalId] || {
-          totalInvested: 0,
-          monthlySip: 0,
-        }
+      ? investmentsByGoal[editingGoalId] || { totalInvested: 0, monthlySip: 0 }
       : { totalInvested: 0, monthlySip: 0 };
 
     // Calculate future value of the in-hand value (as a lumpsum)
@@ -469,11 +467,10 @@ export default function GoalCalculator() {
       futureCost - totalFutureValueOfSavings > 0
         ? futureCost - totalFutureValueOfSavings
         : 0;
-
     const months = y * 12;
     const monthlyRate = ret / 1200;
-
     let monthlySIP = 0;
+
     if (requiredAmount > 0 && monthlyRate > 0) {
       monthlySIP =
         (requiredAmount * monthlyRate) /
@@ -502,96 +499,115 @@ export default function GoalCalculator() {
       futureValueOfSavings: totalFutureValueOfSavings,
       monthlySIP: netNewMonthlySip > 0 ? netNewMonthlySip : 0,
     };
-
-    console.log("Saving goal for user:", userName);
-    console.log("Goal data being sent:", result);
-    console.log("API endpoint:", `${API_BASE_URL}/goals/${userName}`);
+    console.log("Calculated Result:", result);
 
     try {
-      setLoading(true);
-      let response;
+      const method = editingGoalId ? "PUT" : "POST";
+      const url = editingGoalId
+        ? `${API_BASE_URL}/goals/${userName}/${editingGoalId}`
+        : `${API_BASE_URL}/goals/${userName}`;
 
-      if (editingGoalId) {
-        // Update existing goal
-        console.log("Updating goal with ID:", editingGoalId);
-        response = await fetch(
-          `${API_BASE_URL}/goals/${userName}/${editingGoalId}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(result),
-          }
-        );
-      } else {
-        // Create new goal
-        console.log("Creating new goal");
-        response = await fetch(`${API_BASE_URL}/goals/${userName}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(result),
-        });
-      }
-
-      console.log("Response status:", response.status);
-      console.log("Response headers:", response.headers);
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(result),
+      });
 
       if (response.ok) {
         const savedGoal = await response.json();
-        console.log("Goal saved successfully:", savedGoal);
-
-        if (editingGoalId) {
-          // Update existing goal in state
-          setGoalResults((prevGoals) =>
-            prevGoals.map((goal) =>
-              goal._id === editingGoalId ? savedGoal : goal
-            )
-          );
-        } else {
-          // Add new goal to state
-          setGoalResults((prevGoals) => [...prevGoals, savedGoal]);
-          setActiveTabs((prev) => ({
-            ...prev,
-            [savedGoal._id]: "SIP Calculation",
-          }));
-        }
-
-        // Reset form
-        setGoalData({ ...GOAL_TEMPLATES[selectedGoal] });
-        setEditingGoalId(null);
-        setErrorFields([]);
-
+        console.log("Goal saved/updated:", savedGoal);
         Alert.alert(
           "Success",
-          editingGoalId
-            ? "Goal updated successfully!"
-            : "Goal created successfully!"
+          `Goal ${editingGoalId ? "updated" : "saved"} successfully!`
         );
+        fetchGoals(); // Refresh the list of goals
+        cancelEdit(); // Exit edit mode
       } else {
-        const errorText = await response.text();
-        console.error("Server response error:", errorText);
+        const errorData = await response.json();
         Alert.alert(
           "Error",
-          `Failed to save goal. Server responded with: ${response.status} - ${errorText}`
+          `Failed to ${editingGoalId ? "update" : "save"} goal: ${
+            errorData.error || response.statusText
+          }`
         );
       }
     } catch (error) {
-      console.error("Network error saving goal:", error);
+      console.error("Error saving/updating goal:", error);
       Alert.alert(
         "Error",
-        `Network error: ${error.message}. Please check your internet connection and try again.`
+        `Failed to ${editingGoalId ? "update" : "save"} goal.`
       );
-    } finally {
-      setLoading(false);
     }
   };
 
-  const getUniqueGoalTypes = () => {
-    const types = [...new Set(goalResults.map((goal) => goal.name))];
-    return ["All", ...types];
+  const chartConfig = {
+    backgroundGradientFrom: "#1E2923",
+    backgroundGradientFromOpacity: 0,
+    backgroundGradientTo: "#08130D",
+    backgroundGradientToOpacity: 0,
+    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    strokeWidth: 2, // optional, default 3
+    barPercentage: 0.5,
+    useShadowColorFromDataset: false, // optional
+  };
+
+  const getPieChartData = (goal) => {
+    const data = [];
+    if (goal.futureValueOfSavings > 0) {
+      data.push({
+        name: "Existing Savings",
+        population: parseFloat(goal.futureValueOfSavings.toFixed(0)),
+        color: "#60A5FA", // Blue for existing savings
+        legendFontColor: "#7F7F7F",
+        legendFontSize: 15,
+      });
+    }
+    if (goal.required > 0) {
+      data.push({
+        name: "Required Investment",
+        population: parseFloat(goal.required.toFixed(0)),
+        color: "#F87171", // Red for required investment
+        legendFontColor: "#7F7F7F",
+        legendFontSize: 15,
+      });
+    }
+    return data;
+  };
+
+  const getGoalCardColor = (goalName) => {
+    switch (goalName) {
+      case "B Education":
+        return "#6366F1"; // Indigo
+      case "B Marriage":
+        return "#EF4444"; // Red
+      case "Dream Home":
+        return "#22C55E"; // Green
+      case "Wealth Creation":
+        return "#F59E0B"; // Amber
+      case "Custom Goal":
+        return "#8B5CF6"; // Violet
+      default:
+        return "#64748B"; // Slate
+    }
+  };
+
+  const getGoalIcon = (goalName) => {
+    switch (goalName) {
+      case "B Education":
+        return "school";
+      case "B Marriage":
+        return "heart";
+      case "Dream Home":
+        return "home";
+      case "Wealth Creation":
+        return "trending-up";
+      case "Custom Goal":
+        return "star";
+      default:
+        return "bulb";
+    }
   };
 
   const getFilteredGoals = () => {
@@ -601,865 +617,798 @@ export default function GoalCalculator() {
     return goalResults.filter((goal) => goal.name === selectedFilter);
   };
 
-  const getPieChartData = (goal) => {
-    const data = [
-      {
-        name: "Amount Needed",
-        population: goal.required || 0,
-        color: "#ff6b6b",
-      },
-      {
-        name: "In Hand (Future Value)",
-        population: goal.futureValueOfSavings || 0,
-        color: "#4ecdc4",
-      },
-    ];
-
-    return data
-      .sort((a, b) => b.population - a.population)
-      .reverse()
-      .filter((item) => item.population > 0);
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
-  const filteredGoals = getFilteredGoals();
-
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      {/* Custom Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+  const renderGoalInputs = () => {
+    const g = goalData;
+    const commonInputs = (
+      <>
+        <View
+          style={[
+            styles.inputGroup,
+            errorFields.includes("presentCost") && styles.inputError,
+          ]}
         >
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Goal Calculator</Text>
-        <View style={styles.backButton} /> {/* Empty view for balance */}
-      </View>
+          <Text style={styles.label}>Present Cost of Goal (₹)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={g.presentCost}
+            onChangeText={(text) => updateGoal("presentCost", text)}
+            placeholder="e.g., 50,00,000"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Goal Selection Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="radio-button-on" size={24} color="#6366f1" />
-            <Text style={styles.cardTitle}>
-              {editingGoalId ? "Edit Your Goal" : "Select Your Goal"}
-            </Text>
-          </View>
-          {editingGoalId && (
-            <View style={styles.editingBanner}>
-              <Ionicons name="create" size={16} color="#f59e0b" />
-              <Text style={styles.editingText}>You are editing a goal</Text>
-              <TouchableOpacity
-                onPress={cancelEdit}
-                style={styles.cancelButton}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        <View
+          style={[
+            styles.inputGroup,
+            errorFields.includes("inflation") && styles.inputError,
+          ]}
+        >
+          <Text style={styles.label}>Expected Inflation Rate (%)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={g.inflation}
+            onChangeText={(text) => updateGoal("inflation", text)}
+            placeholder="e.g., 7.5"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Investment Type</Text>
           <View style={styles.pickerContainer}>
             <Picker
-              selectedValue={selectedGoal}
-              onValueChange={(val) => {
-                if (!editingGoalId) {
-                  setSelectedGoal(val);
-                  setGoalData({ ...GOAL_TEMPLATES[val] });
-                  setEditingGoalId(null);
-                  setErrorFields([]);
-                }
-              }}
+              selectedValue={g.investmentType}
+              onValueChange={(itemValue) =>
+                updateGoal("investmentType", itemValue)
+              }
               style={styles.picker}
-              enabled={!editingGoalId}
+              itemStyle={styles.pickerItem}
             >
-              {Object.keys(GOAL_TEMPLATES).map((g) => (
-                <Picker.Item key={g} label={g} value={g} />
+              {INVESTMENT_TYPES.map((type) => (
+                <Picker.Item
+                  key={type.value}
+                  label={type.label}
+                  value={type.value}
+                />
               ))}
             </Picker>
           </View>
         </View>
 
-        {/* Input Fields Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="calculator" size={24} color="#06b6d4" />
-            <Text style={styles.cardTitle}>Enter Details</Text>
-          </View>
-
-          {/* Custom Goal Name */}
-          {selectedGoal === "Custom" && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                <Ionicons name="create" size={16} color="#666" />
-                <Text> Custom Goal Name</Text>
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  errorFields.includes("customName") && styles.errorInput,
-                ]}
-                placeholder="e.g., Vacation Fund"
-                placeholderTextColor="#9ca3af"
-                value={goalData.customName}
-                onChangeText={(val) => updateGoal("customName", val)}
-              />
-            </View>
-          )}
-
-          {/* Present Cost */}
-          <View style={styles.inputGroup}>
+        {g.investmentType !== "Savings" && g.investmentType !== "FD" && (
+          <View
+            style={[
+              styles.inputGroup,
+              errorFields.includes("returnRate") && styles.inputError,
+            ]}
+          >
             <Text style={styles.label}>
-              <Ionicons name="cash" size={16} color="#666" />
-              <Text> Present Cost (₹)</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                errorFields.includes("presentCost") && styles.errorInput,
-              ]}
-              placeholder="e.g., 1000000"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              value={goalData.presentCost}
-              onChangeText={(val) => updateGoal("presentCost", val)}
-            />
-          </View>
-
-          {/* Years to Goal */}
-          {(selectedGoal === "Dream Home" || selectedGoal === "Custom") && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                <Ionicons name="calendar-outline" size={16} color="#666" />
-                <Text> Years to Goal</Text>
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  errorFields.includes("years") && styles.errorInput,
-                ]}
-                placeholder="e.g., 25"
-                placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
-                value={goalData.years}
-                onChangeText={(val) => updateGoal("years", val)}
-              />
-            </View>
-          )}
-
-          {/* Age Inputs for Education/Marriage */}
-          {(selectedGoal === "B Education" ||
-            selectedGoal === "B Marriage") && (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" />
-                  <Text> Current Age of Child</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    errorFields.includes("childCurrentAge") &&
-                      styles.errorInput,
-                  ]}
-                  placeholder="e.g., 5"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  value={goalData.childCurrentAge}
-                  onChangeText={(val) => updateGoal("childCurrentAge", val)}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" />
-                  <Text> Goal Age</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    errorFields.includes("goalAge") && styles.errorInput,
-                  ]}
-                  placeholder="e.g., 25"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  value={goalData.goalAge}
-                  onChangeText={(val) => updateGoal("goalAge", val)}
-                />
-              </View>
-            </>
-          )}
-
-          {/* Age Inputs for Wealth Creation */}
-          {selectedGoal === "Wealth Creation" && (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" />
-                  <Text> Current Age</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    errorFields.includes("currentAge") && styles.errorInput,
-                  ]}
-                  placeholder="e.g., 30"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  value={goalData.currentAge}
-                  onChangeText={(val) => updateGoal("currentAge", val)}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  <Ionicons name="person" size={16} color="#666" />
-                  <Text> Goal Age</Text>
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    errorFields.includes("goalAge") && styles.errorInput,
-                  ]}
-                  placeholder="e.g., 60"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                  value={goalData.goalAge}
-                  onChangeText={(val) => updateGoal("goalAge", val)}
-                />
-              </View>
-            </>
-          )}
-
-          {/* Inflation Rate (Non-Editable) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              <Ionicons name="trending-up" size={16} color="#666" />
-              <Text> Inflation Rate (%)</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, styles.disabledInput]}
-              value={goalData.inflation}
-              editable={false}
-            />
-          </View>
-
-          {/* In-hand Value */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              <Ionicons name="wallet" size={16} color="#666" />
-              <Text> In-hand Value (₹)</Text>
+              Expected Return Rate on Investment (%)
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., 200000 (Optional)"
-              placeholderTextColor="#9ca3af"
               keyboardType="numeric"
-              value={goalData.currentSip}
-              onChangeText={(val) => updateGoal("currentSip", val)}
-            />
-          </View>
-
-          {/* Investment Type */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              <Ionicons name="trending-up" size={16} color="#666" />
-              <Text> Investment Type</Text>
-            </Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={goalData.investmentType}
-                onValueChange={(val) => updateGoal("investmentType", val)}
-                style={styles.picker}
-              >
-                {INVESTMENT_TYPES.map((type) => (
-                  <Picker.Item
-                    key={type.value}
-                    label={type.label}
-                    value={type.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Expected Return */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              <Ionicons name="stats-chart" size={16} color="#666" /> Expected
-              Return (%)
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                (goalData.investmentType === "Savings" ||
-                  goalData.investmentType === "FD") &&
-                  styles.disabledInput,
-                errorFields.includes("returnRate") && styles.errorInput,
-              ]}
+              value={g.returnRate}
+              onChangeText={(text) => updateGoal("returnRate", text)}
               placeholder="e.g., 12"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              value={goalData.returnRate}
-              onChangeText={(val) => updateGoal("returnRate", val)}
-              editable={
-                !(
-                  goalData.investmentType === "Savings" ||
-                  goalData.investmentType === "FD"
-                )
-              }
+              placeholderTextColor="#94a3b8"
             />
-            {(goalData.investmentType === "Savings" ||
-              goalData.investmentType === "FD") && (
-              <Text style={styles.helperText}>
-                Return rate is 0% for Savings or FD type
-              </Text>
-            )}
           </View>
-
-          <TouchableOpacity
-            style={[styles.calculateButton, loading && styles.disabledButton]}
-            onPress={calculateGoal}
-            disabled={loading}
-          >
-            <Ionicons
-              name={editingGoalId ? "checkmark" : "calculator"}
-              size={20}
-              color="#fff"
-            />
-            <Text style={styles.calculateButtonText}>
-              {loading
-                ? "Processing..."
-                : editingGoalId
-                ? "Update Goal"
-                : "Calculate Goal"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Results Section */}
-        {goalResults.length > 0 && (
-          <>
-            <Text style={styles.resultsTitle}>Your Financial Goals</Text>
-            <View style={styles.filterContainer}>
-              <Text style={styles.filterLabel}>Filter by Goal:</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filterScrollView}
-              >
-                {getUniqueGoalTypes().map((goalType) => (
-                  <TouchableOpacity
-                    key={goalType}
-                    style={[
-                      styles.filterChip,
-                      selectedFilter === goalType && styles.filterChipActive,
-                    ]}
-                    onPress={() => setSelectedFilter(goalType)}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        selectedFilter === goalType &&
-                          styles.filterChipTextActive,
-                      ]}
-                    >
-                      {goalType}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </>
         )}
 
-        {/* Mapped Results */}
-        {filteredGoals.map((g) => {
-          const pieData = getPieChartData(g);
-          return (
-            <TouchableOpacity
-              key={g._id}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>
+            Current In-hand Value for this Goal (₹)
+          </Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={g.currentSip}
+            onChangeText={(text) => updateGoal("currentSip", text)}
+            placeholder="e.g., 10,000 (optional)"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+      </>
+    );
+
+    switch (selectedGoal) {
+      case "B Education":
+      case "B Marriage":
+        return (
+          <>
+            <View
               style={[
-                styles.resultCard,
-                editingGoalId === g._id && styles.editingCard,
+                styles.inputGroup,
+                errorFields.includes("childCurrentAge") && styles.inputError,
               ]}
-              onPress={() => editGoal(g)}
-              activeOpacity={0.7}
             >
-              {/* Result Card Header */}
-              <View style={styles.resultHeader}>
-                <View style={styles.resultTitleContainer}>
-                  <View>
-                    <Text style={styles.resultTitle}>{g.name}</Text>
-                    <Text style={styles.investmentTypeLabel}>
-                      {g.investmentType || "SIP/MF"} Investment
-                    </Text>
-                  </View>
-                  {editingGoalId === g._id && (
-                    <View style={styles.editingIndicator}>
-                      <Ionicons name="create" size={16} color="#f59e0b" />
-                    </View>
-                  )}
-                </View>
+              <Text style={styles.label}>Child's Current Age (Years)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.childCurrentAge}
+                onChangeText={(text) => updateGoal("childCurrentAge", text)}
+                placeholder="e.g., 5"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("goalAge") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Child's Age at Goal (Years)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.goalAge}
+                onChangeText={(text) => updateGoal("goalAge", text)}
+                placeholder="e.g., 18"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            {commonInputs}
+          </>
+        );
+      case "Dream Home":
+        return (
+          <>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("years") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Years to Goal</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.years}
+                onChangeText={(text) => updateGoal("years", text)}
+                placeholder="e.g., 10"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            {commonInputs}
+          </>
+        );
+      case "Wealth Creation":
+        return (
+          <>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("currentAge") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Your Current Age (Years)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.currentAge}
+                onChangeText={(text) => updateGoal("currentAge", text)}
+                placeholder="e.g., 30"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("goalAge") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Your Age at Goal (Years)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.goalAge}
+                onChangeText={(text) => updateGoal("goalAge", text)}
+                placeholder="e.g., 60"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            {commonInputs}
+          </>
+        );
+      case "Custom":
+        return (
+          <>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("customName") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Custom Goal Name</Text>
+              <TextInput
+                style={styles.input}
+                value={g.customName}
+                onChangeText={(text) => updateGoal("customName", text)}
+                placeholder="e.g., World Tour"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View
+              style={[
+                styles.inputGroup,
+                errorFields.includes("years") && styles.inputError,
+              ]}
+            >
+              <Text style={styles.label}>Years to Goal</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                value={g.years}
+                onChangeText={(text) => updateGoal("years", text)}
+                placeholder="e.g., 15"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            {commonInputs}
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.header}>Financial Goal Calculator</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>1. Select Goal Type</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedGoal}
+              onValueChange={(itemValue) => {
+                setSelectedGoal(itemValue);
+                setGoalData({ ...GOAL_TEMPLATES[itemValue] });
+                setEditingGoalId(null); // Exit edit mode when changing goal type
+                setErrorFields([]); // Clear errors
+              }}
+              style={styles.picker}
+              itemStyle={styles.pickerItem}
+            >
+              {Object.keys(GOAL_TEMPLATES).map((key) => (
+                <Picker.Item key={key} label={key} value={key} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>2. Enter Goal Details</Text>
+          {renderGoalInputs()}
+
+          <TouchableOpacity style={styles.button} onPress={calculateGoal}>
+            <Text style={styles.buttonText}>
+              {editingGoalId ? "Update Goal" : "Calculate & Save Goal"}
+            </Text>
+          </TouchableOpacity>
+          {editingGoalId && (
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={cancelEdit}
+            >
+              <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.sectionHeader}>Your Saved Goals</Text>
+
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterLabel}>Filter By:</Text>
+          <View style={styles.pickerContainerSmall}>
+            <Picker
+              selectedValue={selectedFilter}
+              onValueChange={(itemValue) => setSelectedFilter(itemValue)}
+              style={styles.pickerSmall}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="All Goals" value="All" />
+              {Object.keys(GOAL_TEMPLATES).map((key) => (
+                <Picker.Item key={key} label={key} value={key} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator
+            size="large"
+            color="#2563EB"
+            style={{ marginVertical: 20 }}
+          />
+        ) : getFilteredGoals().length === 0 ? (
+          <View style={styles.noGoalsContainer}>
+            <Ionicons name="documents-outline" size={50} color="#CBD5E1" />
+            <Text style={styles.noGoalsText}>No goals saved yet!</Text>
+            <Text style={styles.noGoalsSubText}>
+              Start by calculating your first financial goal above.
+            </Text>
+          </View>
+        ) : (
+          getFilteredGoals().map((goal) => (
+            <View key={goal._id} style={styles.goalCard}>
+              <View
+                style={[
+                  styles.goalCardHeader,
+                  { backgroundColor: getGoalCardColor(goal.name) },
+                ]}
+              >
+                <Ionicons
+                  name={getGoalIcon(goal.name)}
+                  size={24}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.goalCardTitle}>
+                  {goal.name === "Custom Goal" ? goal.customName : goal.name}
+                </Text>
                 <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    deleteGoal(g._id);
-                  }}
-                  style={styles.deleteButton}
+                  onPress={() => deleteGoal(goal._id)}
+                  style={styles.deleteIcon}
                 >
-                  <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                  <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
 
-              {/* Tab Navigation */}
-              <View style={styles.tabContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    activeTabs[g._id] === "SIP Calculation" &&
-                      styles.tabButtonActive,
-                  ]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setActiveTabs((prev) => ({
-                      ...prev,
-                      [g._id]: "SIP Calculation",
-                    }));
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.tabButtonText,
-                      activeTabs[g._id] === "SIP Calculation" &&
-                        styles.tabButtonTextActive,
-                    ]}
-                  >
-                    SIP Calculation
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    activeTabs[g._id] === "Pie Chart" && styles.tabButtonActive,
-                  ]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setActiveTabs((prev) => ({
-                      ...prev,
-                      [g._id]: "Pie Chart",
-                    }));
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.tabButtonText,
-                      activeTabs[g._id] === "Pie Chart" &&
-                        styles.tabButtonTextActive,
-                    ]}
-                  >
-                    Pie Chart
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Tab Content */}
-              {activeTabs[g._id] === "SIP Calculation" ? (
-                <View>
-                  <View style={styles.resultGrid}>
-                    <View style={styles.resultItem}>
-                      <Text style={styles.resultLabel}>Future Value</Text>
-                      <Text style={styles.resultValue}>
-                        ₹
-                        {(g.futureCost ?? 0).toLocaleString("en-IN", {
-                          maximumFractionDigits: 0,
-                        })}
+              <View style={styles.goalCardContent}>
+                <View style={styles.tabContainer}>
+                  {[
+                    "SIP Calculation",
+                    "Lumpsum Calculation",
+                    "Goal Summary",
+                  ].map((tab) => (
+                    <TouchableOpacity
+                      key={tab}
+                      style={[
+                        styles.tabButton,
+                        activeTabs[goal._id] === tab && styles.tabButtonActive,
+                      ]}
+                      onPress={() =>
+                        setActiveTabs((prev) => ({
+                          ...prev,
+                          [goal._id]: tab,
+                        }))
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.tabButtonText,
+                          activeTabs[goal._id] === tab &&
+                            styles.tabButtonTextActive,
+                        ]}
+                      >
+                        {tab}
                       </Text>
-                    </View>
-                    <View style={styles.resultItem}>
-                      <Text style={styles.resultLabel}>
-                        In-hand (Future Value)
-                      </Text>
-                      <Text style={styles.resultValue}>
-                        ₹
-                        {(g.futureValueOfSavings ?? 0).toLocaleString("en-IN", {
-                          maximumFractionDigits: 0,
-                        })}
-                      </Text>
-                    </View>
-                    <View style={styles.resultItem}>
-                      <Text style={styles.resultLabel}>Amount Needed</Text>
-                      <Text style={styles.resultValue}>
-                        ₹
-                        {(g.required ?? 0).toLocaleString("en-IN", {
-                          maximumFractionDigits: 0,
-                        })}
-                      </Text>
-                    </View>
-                    <View style={styles.resultItem}>
-                      <Text style={styles.resultLabel}>Time Frame</Text>
-                      <Text style={styles.resultValue}>{g.years} Years</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.sipHighlight}>
-                    <Ionicons name="repeat" size={20} color="#6366f1" />
-                    <Text style={styles.sipLabel}>
-                      {`Additional Monthly ${
-                        g.investmentType === "Savings" ||
-                        g.investmentType === "FD"
-                          ? "Savings"
-                          : "SIP"
-                      } Required`}
-                    </Text>
-                    <Text style={styles.sipAmount}>
-                      ₹
-                      {(g.monthlySIP ?? 0).toLocaleString("en-IN", {
-                        maximumFractionDigits: 0,
-                      })}
-                    </Text>
-                  </View>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              ) : (
-                <View style={styles.chartContainer}>
-                  <Text style={styles.chartTitle}>{g.name} Breakdown</Text>
-                  <PieChart
-                    data={pieData}
-                    width={screenWidth - 80}
-                    height={200}
-                    chartConfig={{
-                      backgroundColor: "#ffffff",
-                      backgroundGradientFrom: "#ffffff",
-                      backgroundGradientTo: "#ffffff",
-                      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                    }}
-                    accessor="population"
-                    backgroundColor="transparent"
-                    paddingLeft="15"
-                    center={[10, 10]}
-                    absolute
-                    hasLegend={false}
-                  />
-                  <View style={styles.legendContainer}>
-                    {pieData.map((item) => (
-                      <View key={item.name} style={styles.legendItem}>
-                        <View
-                          style={[
-                            styles.legendColorBox,
-                            { backgroundColor: item.color },
-                          ]}
-                        />
-                        <Text style={styles.legendText}>
-                          {`${item.name}: ₹${item.population.toLocaleString(
-                            "en-IN",
-                            {
-                              maximumFractionDigits: 0,
-                            }
-                          )}`}
+
+                {activeTabs[goal._id] === "Goal Summary" && (
+                  <View style={styles.tabContent}>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Present Cost:</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatCurrency(goal.presentCost)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Years to Goal:</Text>
+                      <Text style={styles.summaryValue}>
+                        {goal.years} Years
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Inflation Rate:</Text>
+                      <Text style={styles.summaryValue}>{goal.inflation}%</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Return Rate:</Text>
+                      <Text style={styles.summaryValue}>
+                        {goal.returnRate}%
+                      </Text>
+                    </View>
+                    {goal.currentSip > 0 && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>
+                          Current Savings:
+                        </Text>
+                        <Text style={styles.summaryValue}>
+                          {formatCurrency(goal.currentSip)}
                         </Text>
                       </View>
-                    ))}
-                  </View>
-                </View>
-              )}
+                    )}
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Future Value Needed:
+                      </Text>
+                      <Text style={styles.summaryValueImportant}>
+                        {formatCurrency(goal.futureCost)}
+                      </Text>
+                    </View>
+                    {goal.futureValueOfSavings > 0 && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>
+                          FV of Existing Savings:
+                        </Text>
+                        <Text style={styles.summaryValue}>
+                          {formatCurrency(goal.futureValueOfSavings)}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Net Amount Required:
+                      </Text>
+                      <Text style={styles.summaryValueImportant}>
+                        {formatCurrency(goal.required)}
+                      </Text>
+                    </View>
 
-              {/* Timestamp and Edit Hint */}
-              <View style={styles.timestamp}>
-                <Ionicons name="time-outline" size={14} color="#9ca3af" />
-                <Text style={styles.timestampText}>{g.calculatedAt}</Text>
-                <View style={styles.editHint}>
-                  <Ionicons
-                    name="hand-left-outline"
-                    size={14}
-                    color="#9ca3af"
-                  />
-                  <Text style={styles.editHintText}>Tap to edit</Text>
+                    {getPieChartData(goal).length > 0 && (
+                      <>
+                        <Text style={styles.chartTitle}>Allocation</Text>
+                        <PieChart
+                          data={getPieChartData(goal)}
+                          width={screenWidth - 60} // Adjust width for padding
+                          height={200}
+                          chartConfig={chartConfig}
+                          accessor={"population"}
+                          backgroundColor={"transparent"}
+                          paddingLeft={"15"}
+                          //absolute // Show actual values, not percentages
+                        />
+                        <View style={styles.legendContainer}>
+                          {getPieChartData(goal).map((item, index) => (
+                            <View key={index} style={styles.legendItem}>
+                              <View
+                                style={[
+                                  styles.legendColorBox,
+                                  { backgroundColor: item.color },
+                                ]}
+                              />
+                              <Text style={styles.legendText}>
+                                {item.name}: {formatCurrency(item.population)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </>
+                    )}
+                  </View>
+                )}
+
+                {activeTabs[goal._id] === "SIP Calculation" && (
+                  <View style={styles.tabContent}>
+                    <Text style={styles.tabContentText}>
+                      To achieve your goal of {formatCurrency(goal.futureCost)}{" "}
+                      in {goal.years} years (adjusting for {goal.inflation}%{" "}
+                      inflation and {goal.returnRate}% return), you need to save{" "}
+                      <Text style={styles.highlightText}>
+                        {formatCurrency(goal.monthlySIP)}
+                      </Text>{" "}
+                      per month.
+                    </Text>
+                    {goal.currentSip > 0 && (
+                      <Text style={styles.tabContentText}>
+                        This calculation considers your existing in-hand savings
+                        of {formatCurrency(goal.currentSip)}.
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {activeTabs[goal._id] === "Lumpsum Calculation" && (
+                  <View style={styles.tabContent}>
+                    <Text style={styles.tabContentText}>
+                      To achieve your goal of {formatCurrency(goal.futureCost)}{" "}
+                      in {goal.years} years (adjusting for {goal.inflation}%{" "}
+                      inflation and {goal.returnRate}% return), you need to
+                      invest a one-time lumpsum of{" "}
+                      <Text style={styles.highlightText}>
+                        {formatCurrency(
+                          goal.required /
+                            Math.pow(1 + goal.returnRate / 100, goal.years)
+                        )}
+                      </Text>{" "}
+                      today.
+                    </Text>
+                    {goal.currentSip > 0 && (
+                      <Text style={styles.tabContentText}>
+                        This calculation considers your existing in-hand savings
+                        of {formatCurrency(goal.currentSip)}.
+                      </Text>
+                    )}
+                  </View>
+                )}
+                <View style={styles.timestamp}>
+                  <Text style={styles.timestampText}>
+                    Last updated:{" "}
+                    {new Date(goal.updatedAt).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}{" "}
+                    {new Date(goal.updatedAt).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => editGoal(goal)}
+                    style={styles.editHint}
+                  >
+                    <Ionicons name="create-outline" size={16} color="#9ca3af" />
+                    <Text style={styles.editHintText}>Edit</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
-          );
-        })}
+            </View>
+          ))
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+  },
+  contentContainer: {
     padding: 16,
-    backgroundColor: "#f8fafc",
-    minHeight: "100%",
+    paddingBottom: 100, // Add padding for the bottom to ensure content isn't hidden by keyboard/tabs
+  },
+  header: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 24,
+    textAlign: "center",
   },
   card: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1f2937",
-  },
-  editingBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fef3c7",
-    borderRadius: 8,
-    padding: 12,
+    color: "#1E293B",
     marginBottom: 16,
-    gap: 8,
-  },
-  editingText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#92400e",
-    fontWeight: "500",
-  },
-  cancelButton: {
-    backgroundColor: "#f59e0b",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  cancelText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  pickerContainer: {
-    backgroundColor: "#f9fafb",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    overflow: "hidden",
-  },
-  picker: {
-    height: 50,
-    backgroundColor: "transparent",
   },
   inputGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "500",
-    color: "#374151",
+    color: "#475569",
     marginBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: "#CBD5E1",
     borderRadius: 8,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: "#ffffff",
-    color: "#1f2937",
+    color: "#1E293B",
+    backgroundColor: "#F1F5F9",
   },
-  errorInput: {
-    borderColor: "#ef4444",
-    backgroundColor: "#fef2f2",
+  inputError: {
+    borderColor: "#EF4444", // Red border for error
   },
-  disabledInput: {
-    backgroundColor: "#f9fafb",
-    color: "#9ca3af",
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    overflow: "hidden", // Ensures the picker's border-radius is respected
   },
-  helperText: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 4,
-    fontStyle: "italic",
+  picker: {
+    height: 50,
+    width: "100%",
+    color: "#1E293B",
   },
-  calculateButton: {
-    backgroundColor: "#6366f1",
-    flexDirection: "row",
+  pickerItem: {
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: "#2563EB",
+    borderRadius: 10,
+    paddingVertical: 14,
     alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
-    gap: 8,
+    marginTop: 20,
   },
-  disabledButton: {
-    backgroundColor: "#9ca3af",
-  },
-  calculateButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
     fontWeight: "600",
+  },
+  cancelButton: {
+    backgroundColor: "#E2E8F0",
+    marginTop: 10,
+  },
+  cancelButtonText: {
+    color: "#475569",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  sectionHeader: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginTop: 30,
+    marginBottom: 20,
+    textAlign: "center",
   },
   filterContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
-    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 3,
   },
   filterLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "500",
-    color: "#374151",
+    color: "#475569",
+    marginRight: 10,
   },
-  filterScrollView: {
+  pickerContainerSmall: {
     flex: 1,
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    gap: 6,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
+    backgroundColor: "#F1F5F9",
+    overflow: "hidden",
   },
-  filterChipActive: {
-    backgroundColor: "#6366f1",
-    borderColor: "#6366f1",
+  pickerSmall: {
+    height: 40, // Smaller height for filter picker
+    width: "100%",
+    color: "#1E293B",
   },
-  filterChipText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-  },
-  filterChipTextActive: {
-    color: "#ffffff",
-  },
-  resultCard: {
-    backgroundColor: "#ffffff",
+  goalCard: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: "hidden", // Ensures children respect borderRadius
   },
-  editingCard: {
-    borderColor: "#f59e0b",
-    backgroundColor: "#fffbeb",
-  },
-  resultHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  resultTitleContainer: {
+  goalCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    gap: 12,
+    padding: 15,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
-  resultTitle: {
+  goalCardTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1f2937",
+    color: "#FFFFFF",
+    marginLeft: 10,
+    flex: 1, // Take up remaining space
   },
-  investmentTypeLabel: {
-    fontSize: 12,
-    color: "#6366f1",
-    fontWeight: "500",
-    marginTop: 2,
+  deleteIcon: {
+    padding: 5,
   },
-  editingIndicator: {
-    backgroundColor: "#fef3c7",
-    borderRadius: 12,
-    padding: 4,
-    marginLeft: 8,
-  },
-  deleteButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#fef2f2",
+  goalCardContent: {
+    padding: 15,
   },
   tabContainer: {
     flexDirection: "row",
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    marginBottom: 15,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 8,
+    overflow: "hidden",
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    justifyContent: "center",
   },
   tabButtonActive: {
-    borderBottomColor: "#6366f1",
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
   },
   tabButtonText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#6b7280",
+    color: "#475569",
   },
   tabButtonTextActive: {
-    color: "#6366f1",
-    fontWeight: "600",
+    color: "#FFFFFF",
   },
-  resultGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 16,
+  tabContent: {
+    marginTop: 10,
   },
-  resultItem: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: "#f8fafc",
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: "#06b6d4",
-  },
-  resultLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  resultValue: {
+  tabContentText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
+    lineHeight: 24,
+    color: "#334155",
+    marginBottom: 10,
   },
-  sipHighlight: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ede9fe",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#6366f1",
-  },
-  sipLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#5b21b6",
-  },
-  sipAmount: {
-    fontSize: 18,
+  highlightText: {
     fontWeight: "700",
-    color: "#6366f1",
+    color: "#2563EB",
   },
-  chartContainer: {
-    alignItems: "center",
-    marginBottom: 16,
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  summaryLabel: {
+    fontSize: 15,
+    color: "#475569",
+    fontWeight: "500",
+  },
+  summaryValue: {
+    fontSize: 15,
+    color: "#1E293B",
+    fontWeight: "600",
+  },
+  summaryValueImportant: {
+    fontSize: 16,
+    color: "#2563EB",
+    fontWeight: "700",
   },
   chartTitle: {
     fontSize: 16,
@@ -1512,33 +1461,29 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     fontStyle: "italic",
   },
-  resultsTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 16,
-    paddingLeft: 4,
-  },
-  header: {
-    flexDirection: "row",
+  noGoalsContainer: {
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    justifyContent: "center",
+    marginTop: 50,
+    padding: 20,
     backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  headerTitle: {
+  noGoalsText: {
     fontSize: 18,
     fontWeight: "600",
     color: "#1E293B",
-    textAlign: "center",
+    marginTop: 15,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  noGoalsSubText: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 5,
   },
 });
