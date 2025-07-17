@@ -23,7 +23,6 @@ import {
   Feather,
   MaterialIcons,
   MaterialCommunityIcons,
-  Ionicons, // Added Ionicons
 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 
@@ -210,13 +209,9 @@ const TransactionsPage = ({ route, navigation }) => {
   };
 
   // Filter Transactions
-  const filteredTransactions = transactions.filter((transaction) => {
-    if (filter === "All") return true;
-    if (filter === "Investment") return transaction.type === "Investment";
-    if (filter === "Income") return transaction.type === "Income";
-    if (filter === "Expense") return transaction.type === "Expense";
-    return false;
-  });
+  const filteredTransactions = transactions.filter(
+    (transaction) => filter === "All" || transaction.type === filter
+  );
 
   // Get icon based on transaction type
   const getTransactionIcon = (type) => {
@@ -277,7 +272,7 @@ const TransactionsPage = ({ route, navigation }) => {
         {[
           { id: "All", label: "All" },
           { id: "Income", label: "Income" },
-          { id: "Investment", label: "Invest." },
+          { id: "Investment", label: "Invest" },
           { id: "Expense", label: "Expense" },
         ].map((type) => (
           <TouchableOpacity
@@ -348,130 +343,8 @@ const TransactionsPage = ({ route, navigation }) => {
           ItemSeparatorComponent={() => (
             <View style={{ height: 1, backgroundColor: "#E2E8F0" }} />
           )}
-          renderItem={({ item }) => {
-            if (!item) return null;
-            // FD/RD/Savings Investment Card (displayed like Income)
-            if (
-              item.type === "Investment" &&
-              (item.subType === "FD" ||
-                item.subType === "RD" ||
-                item.investmentType === "Fixed Deposit" ||
-                item.investmentType === "Recurring Deposit" ||
-                item.investmentType === "Savings") // Added Savings here
-            ) {
-              const isFD =
-                item.subType === "FD" ||
-                item.investmentType === "Fixed Deposit";
-              const isRD =
-                item.subType === "RD" ||
-                item.investmentType === "Recurring Deposit";
-              const isSavings = item.investmentType === "Savings";
-
-              return (
-                <TouchableOpacity
-                  style={[
-                    styles.fdRdCard,
-                    isFD && styles.fdCardBg,
-                    isRD && styles.rdCardBg,
-                    isSavings && styles.savingsCardBg, // Apply Savings specific background
-                  ]}
-                  onPress={() => {}}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.fdRdIconCircle}>
-                    <MaterialCommunityIcons
-                      name={
-                        isFD
-                          ? "bank"
-                          : isRD
-                          ? "trending-up"
-                          : isSavings // Icon for Savings
-                          ? "piggy-bank-outline"
-                          : "chart-line"
-                      }
-                      size={28}
-                      color={
-                        isFD
-                          ? "#2563eb"
-                          : isRD
-                          ? "#16a34a"
-                          : isSavings // Color for Savings icon
-                          ? "#f59e0b"
-                          : "#3B82F6"
-                      }
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fdRdTitle} numberOfLines={1}>
-                      {isFD
-                        ? "Fixed Deposit"
-                        : isRD
-                        ? "Recurring Deposit"
-                        : isSavings // Title for Savings
-                        ? "Savings Account"
-                        : item.investmentType || item.subType}
-                    </Text>
-                    <Text style={styles.fdRdSubtitle} numberOfLines={2}>
-                      {/* Display relevant info as subtitle */}
-                      {isSavings
-                        ? `Initial: ₹${parseFloat(item.amount).toLocaleString(
-                            "en-IN"
-                          )}`
-                        : item.name}
-                    </Text>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginTop: 4,
-                      }}
-                    >
-                      {isFD || isRD ? (
-                        <>
-                          <Text
-                            style={styles.fdRdMeta}
-                          >{`Amount: ₹${item.amount}`}</Text>
-                          {item.interestRate && (
-                            <Text
-                              style={styles.fdRdMeta}
-                            >{`Rate: ${item.interestRate}%`}</Text>
-                          )}
-                          {item.duration && (
-                            <Text
-                              style={styles.fdRdMeta}
-                            >{`Tenure: ${item.duration} mo`}</Text>
-                          )}
-                        </>
-                      ) : isSavings ? (
-                        <>
-                          {item.interestRate && (
-                            <Text
-                              style={styles.fdRdMeta}
-                            >{`Interest: ${item.interestRate}%`}</Text>
-                          )}
-                          {item.maturityDate && (
-                            <Text style={styles.fdRdMeta}>
-                              {`Maturity: ${new Date(
-                                item.maturityDate
-                              ).toLocaleDateString("en-GB")}`}
-                            </Text>
-                          )}
-                        </>
-                      ) : null}
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.deleteIconContainer}
-                    onPress={() => deleteTransaction(item._id, item.name)}
-                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                  >
-                    <Feather name="trash-2" size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              );
-            }
-            // Other investment types and regular transactions
-            return (
+          renderItem={({ item }) =>
+            item ? (
               <TouchableOpacity
                 style={styles.transactionItem}
                 onPress={() => {}}
@@ -482,8 +355,7 @@ const TransactionsPage = ({ route, navigation }) => {
                 </View>
                 <View style={styles.transactionMiddleContent}>
                   <Text style={styles.transactionName} numberOfLines={1}>
-                    {/* Display "Savings" if investmentType is Savings, otherwise item.name */}
-                    {item.investmentType === "Savings" ? "Savings" : item.name}
+                    {item.name}
                   </Text>
                   <View style={styles.transactionMetaContainer}>
                     {getMethodIcon(item.method)}
@@ -500,6 +372,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     )}
                   </View>
                 </View>
+
                 <View style={styles.transactionRightContent}>
                   <Text
                     style={[
@@ -509,7 +382,9 @@ const TransactionsPage = ({ route, navigation }) => {
                       item.type === "Investment" && styles.investmentAmount,
                     ]}
                   >
-                    {`₹${item.amount}`}
+                    {item.type === "Expense"
+                      ? `-₹${item.amount}`
+                      : `₹${item.amount}`}
                   </Text>
                   <TouchableOpacity
                     style={styles.deleteIconContainer}
@@ -520,10 +395,11 @@ const TransactionsPage = ({ route, navigation }) => {
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
-            );
-          }}
+            ) : null
+          }
         />
       )}
+
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => setActionMenuVisible(true)}
@@ -553,6 +429,7 @@ const TransactionsPage = ({ route, navigation }) => {
                   <AntDesign name="close" size={24} color="#64748B" />
                 </TouchableOpacity>
               </View>
+
               <ScrollView
                 style={styles.formScrollView}
                 contentContainerStyle={styles.formScrollContent}
@@ -571,6 +448,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     }
                   />
                 </View>
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Amount (₹)</Text>
                   <TextInput
@@ -584,6 +462,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     }
                   />
                 </View>
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Transaction Type</Text>
                   <View style={styles.pickerContainer}>
@@ -605,10 +484,10 @@ const TransactionsPage = ({ route, navigation }) => {
                     </Picker>
                   </View>
                 </View>
+
                 {newTransaction.type && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>
-                      {" "}
                       {newTransaction.type === "Income"
                         ? "Income Type"
                         : newTransaction.type === "Expense"
@@ -632,6 +511,7 @@ const TransactionsPage = ({ route, navigation }) => {
                           <Picker.Item label="Passive" value="Passive" />
                         </Picker>
                       )}
+
                       {newTransaction.type === "Expense" && (
                         <Picker
                           selectedValue={newTransaction.subType}
@@ -655,6 +535,7 @@ const TransactionsPage = ({ route, navigation }) => {
                           <Picker.Item label="Mandatory" value="Mandatory" />
                         </Picker>
                       )}
+
                       {newTransaction.type === "Investment" && (
                         <Picker
                           selectedValue={newTransaction.subType}
@@ -682,6 +563,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     </View>
                   </View>
                 )}
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Payment Method</Text>
                   <View style={styles.pickerContainer}>
@@ -703,8 +585,10 @@ const TransactionsPage = ({ route, navigation }) => {
                     </Picker>
                   </View>
                 </View>
+
                 <View style={{ height: 20 }} />
               </ScrollView>
+
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -712,6 +596,7 @@ const TransactionsPage = ({ route, navigation }) => {
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.saveButton}
                   onPress={addTransaction}
@@ -743,6 +628,7 @@ const TransactionsPage = ({ route, navigation }) => {
         >
           <View style={styles.actionMenuContainer}>
             <Text style={styles.actionMenuTitle}>Add Transaction</Text>
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -753,6 +639,7 @@ const TransactionsPage = ({ route, navigation }) => {
               <MaterialIcons name="arrow-circle-up" size={24} color="#EF4444" />
               <Text style={styles.actionMenuItemText}>Add Expense</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -767,6 +654,7 @@ const TransactionsPage = ({ route, navigation }) => {
               />
               <Text style={styles.actionMenuItemText}>Add Income</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.actionMenuItem}
               onPress={() => {
@@ -781,6 +669,7 @@ const TransactionsPage = ({ route, navigation }) => {
               />
               <Text style={styles.actionMenuItemText}>Add Investment</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.actionMenuCancelButton}
               onPress={() => setActionMenuVisible(false)}
@@ -802,105 +691,89 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center", // Center the title and date
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: "#fff",
-    elevation: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
   },
   backButton: {
-    position: "absolute", // Position absolutely to the left
-    left: 24,
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    // backgroundColor: '#f0f0f0', // Optional: for debugging touch area
-    // borderRadius: 20, // Optional: for debugging touch area
+    padding: 8,
   },
   headerTextContainer: {
-    alignItems: "center", // Center text within its container
+    marginLeft: 8,
+    flex: 1,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1e293b",
-    marginBottom: 4, // Space between title and date
+    color: "#1E293B",
   },
   headerDate: {
     fontSize: 14,
-    color: "#64748b",
-    fontWeight: "500",
+    color: "#64748B",
+    marginTop: 2,
   },
   filterContainer: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
+    padding: 12,
+    paddingHorizontal: 8,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderBottomColor: "#E2E8F0",
   },
   filterButton: {
+    flex: 1,
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "#E2E8F0",
-  },
-  activeFilter: {
-    backgroundColor: "#2563EB", // Default active color (blue)
-  },
-  activeIncomeFilter: {
-    backgroundColor: "#10B981", // Green for Income
-  },
-  activeInvestmentFilter: {
-    backgroundColor: "#3B82F6", // Blue for Investment
-  },
-  activeExpenseFilter: {
-    backgroundColor: "#EF4444", // Red for Expense
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    marginHorizontal: 2,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
   },
   filterText: {
-    color: "#475569",
-    fontWeight: "600",
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748B",
+    textAlign: "center",
+  },
+  activeFilter: {
+    backgroundColor: "#E0F2FE",
+  },
+  activeIncomeFilter: {
+    backgroundColor: "#DCFCE7",
+  },
+  activeInvestmentFilter: {
+    backgroundColor: "#DBEAFE",
+  },
+  activeExpenseFilter: {
+    backgroundColor: "#FEE2E2",
   },
   activeFilterText: {
-    color: "#FFFFFF",
+    color: "#0F172A",
+    fontWeight: "600",
   },
   listContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 80, // Space for the floating button
+    paddingBottom: 100, // Give more space at bottom
   },
   transactionItem: {
     flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 12, // Space between items
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    padding: 16,
+    // Removed card styling
   },
   transactionLeftContent: {
     marginRight: 12,
+    justifyContent: "center",
   },
   transactionMiddleContent: {
     flex: 1,
+    justifyContent: "center",
+  },
+  transactionRightContent: {
+    alignItems: "flex-end",
+    height: "100%",
   },
   transactionName: {
     fontSize: 16,
@@ -916,21 +789,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748B",
     marginLeft: 4,
+    marginRight: 0, // Make sure there's no extra margin
+    flex: 0, // Allow meta text to shrink if needed
   },
   metaDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#CBD5E1",
-    marginHorizontal: 8,
-  },
-  transactionRightContent: {
-    alignItems: "flex-end",
-    marginLeft: 12,
+    marginHorizontal: 4,
   },
   transactionAmount: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     marginBottom: 4,
   },
   incomeAmount: {
@@ -943,61 +814,24 @@ const styles = StyleSheet.create({
     color: "#3B82F6",
   },
   deleteIconContainer: {
-    padding: 5, // Make the touchable area larger
+    padding: 8, // Increased touch area
   },
-  floatingButton: {
+  addButton: {
     position: "absolute",
-    bottom: 25,
-    right: 25,
-    backgroundColor: "#2563EB",
+    bottom: Platform.OS === "ios" ? 90 : 80,
+    right: 20,
+    backgroundColor: "#2563eb",
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: "#1e40af",
     shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-    margin: 24,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1e293b",
-  },
-  emptySubtext: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-  },
-  emptyButton: {
-    backgroundColor: "#2563EB",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  emptyButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "500",
-    fontSize: 14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+    elevation: 5,
+    zIndex: 1000,
   },
   loadingContainer: {
     flex: 1,
@@ -1006,147 +840,163 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
-    color: "#475569",
+    color: "#64748B",
   },
-
-  // Modal Styles
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  emptySubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+  },
+  emptyButton: {
+    marginTop: 24,
+    backgroundColor: "#2563EB",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0, 0, 0, 0.4)", // Dim background
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === "ios" ? 32 : 24,
-    maxHeight: "80%", // Limit height to prevent overflow
+    padding: 20,
+    maxHeight: "90%",
+  },
+  formScrollView: {
+    maxHeight: Platform.OS === "ios" ? 500 : 450,
+  },
+  formScrollContent: {
+    paddingBottom: 10,
   },
   modalHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1E293B",
   },
   modalCloseButton: {
-    padding: 8,
-  },
-  formScrollView: {
-    flexGrow: 1,
-  },
-  formScrollContent: {
-    paddingVertical: 20,
+    padding: 4,
+    hitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#475569",
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#64748B",
+    marginBottom: 6,
   },
   input: {
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     color: "#1E293B",
-    backgroundColor: "#F8FAFC",
   },
   pickerContainer: {
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
-    overflow: "hidden", // Ensures the picker's own border radius is respected
+    borderRadius: 8,
+    overflow: "hidden",
   },
   picker: {
-    height: 50, // Standard height for pickers
-    width: "100%",
+    height: 50,
+    color: "#1E293B",
   },
   buttonContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+    paddingTop: 16,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginRight: 8,
     alignItems: "center",
-    marginRight: 10,
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
     color: "#64748B",
+    fontWeight: "600",
+    fontSize: 15,
   },
   saveButton: {
     flex: 1,
     backgroundColor: "#2563EB",
-    borderRadius: 10,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginLeft: 8,
     alignItems: "center",
-    marginLeft: 10,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
     color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 15,
   },
 
-  // Action Menu Modal Styles
+  // Action Menu Styles
   actionMenuOverlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-end",
   },
   actionMenuContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
-    width: "85%", // Make it a bit wider
-    alignItems: "stretch", // Stretch items to fill width
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 6,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   actionMenuTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#1E293B",
-    marginBottom: 20,
+    marginBottom: 16,
     textAlign: "center",
   },
   actionMenuItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
-    marginBottom: 12, // Space between menu items
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
   actionMenuItemText: {
     fontSize: 16,
@@ -1164,57 +1014,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#64748B",
-  },
-
-  // FD/RD/Savings Card Styles
-  fdRdCard: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  fdCardBg: {
-    backgroundColor: "#E0F7FA",
-  },
-  rdCardBg: {
-    backgroundColor: "#F3E5F5",
-  },
-  savingsCardBg: {
-    backgroundColor: "#FFFBEB", // A light yellow for savings, matching the general app theme for warnings/info
-  },
-  fdRdIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  fdRdTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  fdRdSubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-  },
-  fdRdMeta: {
-    fontSize: 12,
-    color: "#475569",
-    marginRight: 12,
   },
 });
 

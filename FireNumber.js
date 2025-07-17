@@ -151,6 +151,7 @@ const FireNumber = () => {
     try {
       // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
+
       if (!userInfoString) {
         setError("User not logged in");
         setLoading(false);
@@ -325,7 +326,7 @@ const FireNumber = () => {
     }
   }, [yearlyExpense, yearsToRetirement, selectedCountry, inflationData]);
 
-  // Calculate FIRE Number
+  // Calculate FIRE Number (still inflation-adjusted for display)
   useEffect(() => {
     if (futureAnnualExpense && safeWithdrawalRate) {
       const swr = parseFloat(safeWithdrawalRate) / 100;
@@ -334,21 +335,26 @@ const FireNumber = () => {
     }
   }, [futureAnnualExpense, safeWithdrawalRate]);
 
-  // Calculate SIP amounts
+  // Calculate SIP amounts (now targeting non-inflation-adjusted FIRE number)
   useEffect(() => {
-    if (fireNumber && yearsToRetirement && inflationData.length > 0) {
-      const targetAmount = parseFloat(fireNumber);
+    if (yearlyExpense && safeWithdrawalRate && yearsToRetirement) {
+      // Calculate FIRE number based on CURRENT yearly expense (without inflation for SIP target)
+      const presentValueFIRENumber =
+        parseFloat(yearlyExpense) / (parseFloat(safeWithdrawalRate) / 100);
+
       const n = parseInt(yearsToRetirement) * 12; // Number of months
 
       const calculateSIP = (annualInterestRate) => {
         const monthlyInterestRate = annualInterestRate / 100 / 12;
         if (n === 0 || monthlyInterestRate === 0) {
-          return targetAmount / (n || 1); // Avoid division by zero, handle n=0 case
+          // If years to retirement is 0, SIP is simply the full target amount.
+          // If monthlyInterestRate is 0, simple division.
+          return presentValueFIRENumber / (n || 1);
         }
         // SIP formula: P = FV * i / ((1 + i)^n - 1)
-        // Where P = SIP amount, FV = Future Value (FIRE Number), i = monthly interest rate, n = number of months
+        // Where P = SIP amount, FV = Future Value (non-inflated FIRE Number), i = monthly interest rate, n = number of months
         const sip =
-          (targetAmount * monthlyInterestRate) /
+          (presentValueFIRENumber * monthlyInterestRate) /
           (Math.pow(1 + monthlyInterestRate, n) - 1);
         return sip > 0 ? sip.toFixed(2) : "0.00"; // Ensure non-negative and formatted
       };
@@ -361,7 +367,7 @@ const FireNumber = () => {
       setSip10Percent("0.00");
       setSip12Percent("0.00");
     }
-  }, [fireNumber, yearsToRetirement, inflationData]); // Depend on fireNumber and yearsToRetirement
+  }, [yearlyExpense, yearsToRetirement, safeWithdrawalRate]); // Dependencies changed to yearlyExpense and safeWithdrawalRate
 
   // Reset filters
   const resetFilters = () => {
@@ -565,7 +571,7 @@ const FireNumber = () => {
             {/* SIP Calculation Table */}
             <View style={styles.sipTableContainer}>
               <Text style={styles.sipTableTitle}>
-                Monthly SIP to reach FIRE Number
+                Monthly SIP to reach FIRE Number (Current Value Target)
               </Text>
               <View style={styles.table}>
                 <View style={styles.tableRow}>
@@ -1041,54 +1047,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
   },
-  // SIP Table Styles - Changed to white family
+  // SIP Table Styles - Simplified design
   sipTableContainer: {
     marginTop: 20,
-    padding: 15,
+    paddingHorizontal: 0, // Removed horizontal padding to make it flow with card
+    paddingVertical: 10, // Reduced vertical padding
     backgroundColor: "#FFFFFF", // White background
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e67e22", // Light grey border
-    shadowColor: "#000", // Subtle shadow for depth
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    // Removed border, shadow, and elevation for a simpler look
   },
   sipTableTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333333", // Dark grey for readability
+    color: "#333333",
     marginBottom: 10,
     textAlign: "center",
   },
   table: {
-    borderWidth: 1,
-    borderColor: "#F0F0F0", // Very light grey for internal borders
-    borderRadius: 8,
+    // Removed border and border-radius for a simpler look
     overflow: "hidden",
   },
   tableRow: {
     flexDirection: "row",
+    justifyContent: "space-between", // Ensure content spreads out
+    alignItems: "center",
+    paddingVertical: 8, // Reduced padding
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5", // Even lighter grey for row separation
+    borderBottomColor: "#F5F5F5", // Very subtle separator
   },
   tableHeader: {
     flex: 1,
-    padding: 10,
-    backgroundColor: "#F8F8F8", // Light grey header background
-    color: "#555555", // Medium grey for header text
+    padding: 5, // Reduced padding
+    backgroundColor: "transparent", // Transparent background
+    color: "#555555",
     fontWeight: "bold",
     textAlign: "center",
     fontSize: 13,
   },
   tableCell: {
     flex: 1,
-    padding: 10,
+    padding: 5, // Reduced padding
     textAlign: "center",
     fontSize: 14,
-    color: "#666666", // Slightly darker grey for cell text
-    backgroundColor: "#FFFFFF", // White cell background
+    color: "#666666",
+    backgroundColor: "transparent", // Transparent background
   },
 });
 

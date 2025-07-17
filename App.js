@@ -39,9 +39,11 @@ import Expenses from "./Expenses";
 import Investment from "./Investment";
 import FDScreen from "./FDScreen";
 import RDScreen from "./RDScreen";
-import SavingsScreen from "./SavingsScreen"; // <--- ADD THIS IMPORT
 import GoalCalculator from "./GoalCalculator";
 import InvestmentNavigation from "./InvestmentNavigation";
+// ADD: Import the new screens
+import MFScreen from "./MFScreen"; // You need to create this file
+import StocksScreen from "./StocksScreen"; // You need to create this file
 
 const Tab = createBottomTabNavigator();
 const MainStack = createStackNavigator();
@@ -101,7 +103,6 @@ const headerOptions = (title, showBackButton = true) => ({
 });
 
 // Calendar Stack Navigator
-// Calendar Stack Navigator
 const CalendarStackNavigator = () => (
   <CalendarStack.Navigator>
     <CalendarStack.Screen
@@ -112,7 +113,7 @@ const CalendarStackNavigator = () => (
     <CalendarStack.Screen
       name="DateExpenses"
       component={DateExpenses}
-      // options={headerOptions("Daily Transactions")}
+      options={headerOptions("Daily Transactions")}
     />
     <CalendarStack.Screen
       name="Income"
@@ -135,7 +136,9 @@ const CalendarStackNavigator = () => (
     />
     <CalendarStack.Screen name="FDScreen" component={FDScreen} />
     <CalendarStack.Screen name="RDScreen" component={RDScreen} />
-    <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
+    {/* ADD: Register new screens */}
+    <CalendarStack.Screen name="MFScreen" component={MFScreen} />
+    <CalendarStack.Screen name="StocksScreen" component={StocksScreen} />
   </CalendarStack.Navigator>
 );
 
@@ -158,12 +161,6 @@ const InvestmentStackNavigator = () => (
       component={RDScreen}
       options={{ headerShown: false }}
     />
-    <InvestmentStack.Screen
-      name="SavingsScreen"
-      component={SavingsScreen}
-      options={{ headerShown: false }}
-    />{" "}
-    {/* <--- ADDED THIS LINE to InvestmentStack as well for consistency, if used directly */}
   </InvestmentStack.Navigator>
 );
 
@@ -271,11 +268,6 @@ const App = () => {
             name="MainApp"
             component={MainApp}
             options={{ gestureEnabled: false }} // Prevent swiping back to Auth stack
-          />
-          <MainStack.Screen
-            name="InvestmentNavigation"
-            component={InvestmentNavigation}
-            options={{ headerShown: false }}
           />
         </MainStack.Navigator>
       </NavigationContainer>
