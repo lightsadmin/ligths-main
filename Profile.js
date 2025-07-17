@@ -2,795 +2,323 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  SafeAreaView,
-  StatusBar, // Ensure StatusBar is imported
-  Dimensions,
-  Platform,
-  Modal,
+  FlatList,
   TextInput,
-  KeyboardAvoidingView,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
   Alert,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  ScrollView,
+  StatusBar,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
+import { EventRegister } from "react-native-event-listeners";
 
-const { width } = Dimensions.get("window");
 const API_URL = "https://ligths-backend.onrender.com";
 
-const ProfilePage = ({ navigation }) => {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editableProfile, setEditableProfile] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
+// Predefined goals to be added to the list
+const predefinedGoals = [
+  { _id: 'goal_education', name: 'B Education' },
+  { _id: 'goal_marriage', name: 'B Marriage' },
+  { _id: 'goal_dream_house', name: 'Dream House' },
+  { _id: 'goal_wealth_creation', name: 'Wealth Creation' },
+];
 
-  // 🌐 Fetch profile from backend
-  const fetchProfile = async () => {
+export default function RDScreen({ navigation }) {
+  const [investments, setInvestments] = useState([]);
+  const [monthlyDeposit, setMonthlyDeposit] = useState("");
+  const [interestRate, setInterestRate] = useState("");
+  const [duration, setDuration] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [goals, setGoals] = useState(predefinedGoals); // Initialize with predefined goals
+
+  useEffect(() => {
+    fetchInvestments();
+    fetchGoals();
+  }, []);
+
+  const fetchInvestments = async () => {
     try {
       setLoading(true);
-      const userInfo = await AsyncStorage.getItem("userInfo");
-      if (!userInfo) {
-        alert("User not logged in. Please log in again.");
-        navigation.replace("Login"); // Redirect to login page
+      const userInfoString = await AsyncStorage.getItem("userInfo");
+      if (!userInfoString) {
+        Alert.alert("Error", "User not logged in.");
+        setLoading(false);
         return;
       }
-
-      const parsedInfo = JSON.parse(userInfo);
-      if (!parsedInfo?.user?.username && !parsedInfo?.user?.userName) {
-        alert("Invalid user data. Please log in again.");
-        navigation.replace("Login");
+      const parsedInfo = JSON.parse(userInfoString);
+      const token = parsedInfo.token;
+      if (!token) {
+        Alert.alert("Error", "Authentication token not found.");
+        setLoading(false);
         return;
       }
-
-      const username = parsedInfo.user.username || parsedInfo.user.userName;
-      const apiUrl = `${API_URL}/profile/${username}`;
-
-      console.log(`Fetching profile for: ${username}`);
-      const response = await axios.get(apiUrl);
-      setProfile(response.data);
-      setEditableProfile(response.data); // Initialize editable profile
-    } catch (err) {
-      console.error("❌ Error fetching profile:", err);
-      setError("Failed to load profile. Please try again later.");
+      const response = await fetch(`${API_URL}/investments`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+      const data = await response.json();
+      const rdInvestments = data.filter((item) => item.investmentType === "Recurring Deposit");
+      setInvestments(rdInvestments);
+    } catch (error) {
+      console.error("Error fetching investments:", error);
+      Alert.alert("Error", "Failed to fetch investments.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  // 🔒 Sign-out function
-  const handleSignOut = async () => {
+  const fetchGoals = async () => {
     try {
-      await AsyncStorage.removeItem("userInfo");
-      // Use navigation.reset to completely reset the navigation state
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Auth" }],
-      });
-      // Don't show an alert here since we're navigating away
-    } catch (err) {
-      console.error("❌ Error signing out:", err);
-      alert("Failed to sign out. Please try again.");
-    }
-  };
-
-  // 📝 Handle profile update
-  const handleUpdateProfile = async () => {
-    try {
-      setIsSaving(true);
-
-      // Basic validation
-      if (
-        !editableProfile.firstName?.trim() ||
-        !editableProfile.lastName?.trim()
-      ) {
-        Alert.alert("Error", "First name and last name are required.");
-        setIsSaving(false);
-        return;
-      }
-
       const userInfo = await AsyncStorage.getItem("userInfo");
-      if (!userInfo) {
-        Alert.alert("Error", "User not logged in. Please log in again.");
-        setIsSaving(false);
-        return;
-      }
-
       const parsedInfo = JSON.parse(userInfo);
-      const username = parsedInfo.user.username || parsedInfo.user.userName;
-
-      // Call API to update profile
-      const response = await axios.put(
-        `${API_URL}/profile/${username}`,
-        editableProfile
-      );
-
-      if (response.status === 200) {
-        // Update local state
-        setProfile(editableProfile);
-
-        // Update AsyncStorage user data
-        const updatedUserInfo = {
-          ...parsedInfo,
-          user: {
-            ...parsedInfo.user,
-            firstName: editableProfile.firstName,
-            lastName: editableProfile.lastName,
-            phoneNumber: editableProfile.phoneNumber,
-            age: editableProfile.age,
-            retirementAge: editableProfile.retirementAge,
-            country: editableProfile.country,
-          },
-        };
-
-        await AsyncStorage.setItem("userInfo", JSON.stringify(updatedUserInfo));
-
-        setEditModalVisible(false);
-        Alert.alert("Success", "Profile updated successfully!");
+      const username = parsedInfo?.user?.username;
+      const response = await fetch(`${API_URL}/goals/${username}`);
+      if (response.ok) {
+        const userGoals = await response.json();
+        // Combine predefined goals with user-created goals
+        setGoals([...predefinedGoals, ...userGoals]);
       }
     } catch (error) {
-      console.error("Error updating profile:", error);
-      Alert.alert(
-        "Update Failed",
-        error.response?.data?.error ||
-          "Failed to update profile. Please try again."
-      );
-    } finally {
-      setIsSaving(false);
+      console.error("Error fetching goals:", error);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
-  }
+  const addRD = async () => {
+    if (!monthlyDeposit || !interestRate || !duration) {
+      Alert.alert("Error", "Please enter all required fields");
+      return;
+    }
+    try {
+      setLoading(true);
+      const userInfoString = await AsyncStorage.getItem("userInfo");
+      if (!userInfoString) {
+        Alert.alert("Error", "User not logged in.");
+        setLoading(false);
+        return;
+      }
+      const parsedInfo = JSON.parse(userInfoString);
+      const token = parsedInfo.token;
+      if (!token) {
+        Alert.alert("Error", "Authentication token not found.");
+        setLoading(false);
+        return;
+      }
 
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+      const maturityDate = new Date();
+      maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
+      const startDate = new Date();
 
-  // Get user initials for avatar
-  const getInitials = () => {
-    if (!profile) return "U";
-    const firstInitial = profile.firstName ? profile.firstName[0] : "";
-    const lastInitial = profile.lastName ? profile.lastName[0] : "";
-    return (firstInitial + lastInitial).toUpperCase();
+      // Find the goal name to add to the description
+      const linkedGoal = goals.find(g => g._id === selectedGoal);
+      const goalName = linkedGoal ? (linkedGoal.name === "Custom Goal" ? linkedGoal.customName : linkedGoal.name) : '';
+
+      const newRD = {
+        name: `RD - ${monthlyDeposit}/month for ${duration} months`,
+        amount: parseFloat(monthlyDeposit),
+        currentAmount: parseFloat(monthlyDeposit),
+        interestRate: parseFloat(interestRate),
+        goalId: selectedGoal,
+        investmentType: "Recurring Deposit",
+        startDate: startDate.toISOString(),
+        maturityDate: maturityDate.toISOString(),
+        compoundingFrequency: "quarterly",
+        description: `₹${monthlyDeposit} monthly for ${duration} months at ${interestRate}%${goalName ? ` for ${goalName}` : ''}`,
+        monthlyDeposit: parseFloat(monthlyDeposit),
+        duration: parseInt(duration),
+      };
+
+      const response = await fetch(`${API_URL}/investment`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(newRD),
+      });
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+      setMonthlyDeposit("");
+      setInterestRate("");
+      setDuration("");
+      setSelectedGoal(null);
+      Alert.alert("Success", "Recurring deposit added successfully");
+      EventRegister.emit("investmentAdded", { type: "Investment", subType: "RD", date: startDate.toISOString().split("T")[0], amount: parseFloat(monthlyDeposit) });
+      
+      try {
+        const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
+        const transactionData = { name: newRD.name, amount: parseFloat(monthlyDeposit), type: "Investment", subType: "RD", method: "Bank", date: startDate.toISOString().split("T")[0] };
+        await fetch(`${API_URL}/transactions/${username}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(transactionData) });
+      } catch (err) {
+        console.error("Error adding RD transaction for calendar:", err);
+      }
+      fetchInvestments();
+    } catch (error) {
+      console.error("Error adding investment:", error);
+      Alert.alert("Error", "Failed to add investment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Group profile details into sections
-  const personalDetails = [
-    { icon: "person-outline", label: "First Name", value: profile.firstName },
-    { icon: "person-outline", label: "Last Name", value: profile.lastName },
-    { icon: "at-outline", label: "Username", value: profile.userName },
-  ];
+  const calculateMaturityAmount = (deposit, rate, months) => {
+    const d = parseFloat(deposit), r = parseFloat(rate) / 100 / 12, n = parseInt(months);
+    return d * ((Math.pow(1 + r, n) - 1) / r);
+  };
 
-  const contactDetails = [
-    { icon: "mail-outline", label: "Email", value: profile.email },
-    { icon: "call-outline", label: "Phone Number", value: profile.phoneNumber },
-    { icon: "globe-outline", label: "Country", value: profile.country },
-  ];
+  const calculateCurrentValue = (deposit, rate, startDate, duration) => {
+    const d = parseFloat(deposit), r = parseFloat(rate) / 100 / 12, totalMonths = parseInt(duration);
+    const start = new Date(startDate), now = new Date();
+    const elapsedMonths = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    const n = Math.min(Math.max(elapsedMonths, 1), totalMonths);
+    return d * ((Math.pow(1 + r, n) - 1) / r);
+  };
 
-  const financialDetails = [
-    { icon: "calendar-outline", label: "Age", value: profile.age?.toString() },
-    {
-      icon: "time-outline",
-      label: "Retirement Age",
-      value: profile.retirementAge?.toString(),
-    },
-  ];
+  const deleteInvestment = async (id) => {
+    Alert.alert("Delete Investment", "Are you sure you want to delete this recurring deposit?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          setLoading(true);
+          const userInfoString = await AsyncStorage.getItem("userInfo");
+          const parsedInfo = JSON.parse(userInfoString);
+          const token = parsedInfo.token;
+          if (!token) {
+            Alert.alert("Error", "Authentication token not found.");
+            setLoading(false);
+            return;
+          }
+          const response = await fetch(`${API_URL}/investment/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) throw new Error(`API Error: ${response.status}`);
+          setInvestments(investments.filter((item) => item._id !== id));
+          Alert.alert("Success", "Investment deleted successfully");
+        } catch (error) {
+          console.error("Error deleting investment:", error);
+          Alert.alert("Error", "Failed to delete investment");
+        } finally {
+          setLoading(false);
+        }
+      }},
+    ]);
+  };
+
+  if (loading && investments.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#16a34a" />
+        <Text style={styles.loadingText}>Loading investments...</Text>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-
-      {/* Header */}
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.profileSummary}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>{getInitials()}</Text>
-          </View>
-          <Text style={styles.userName}>
-            {profile.firstName} {profile.lastName}
-          </Text>
-          <Text style={styles.userHandle}>@{profile.userName}</Text>
-        </View>
-
-        {/* Personal Information Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="person" size={20} color="#2563EB" />
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-          </View>
-
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoidContainer}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.card}>
-            {personalDetails.map((detail, index) => (
-              <ProfileDetailItem
-                key={index}
-                icon={detail.icon}
-                label={detail.label}
-                value={detail.value}
-                isLast={index === personalDetails.length - 1}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Contact Information Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="call" size={20} color="#2563EB" />
-            <Text style={styles.sectionTitle}>Contact Information</Text>
-          </View>
-
-          <View style={styles.card}>
-            {contactDetails.map((detail, index) => (
-              <ProfileDetailItem
-                key={index}
-                icon={detail.icon}
-                label={detail.label}
-                value={detail.value}
-                isLast={index === contactDetails.length - 1}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Financial Information Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="wallet" size={20} color="#2563EB" />
-            <Text style={styles.sectionTitle}>Financial Information</Text>
-          </View>
-
-          <View style={styles.card}>
-            {financialDetails.map((detail, index) => (
-              <ProfileDetailItem
-                key={index}
-                icon={detail.icon}
-                label={detail.label}
-                value={detail.value}
-                isLast={index === financialDetails.length - 1}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Account Actions */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="settings-outline" size={20} color="#2563EB" />
-            <Text style={styles.sectionTitle}>Account</Text>
-          </View>
-
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => setEditModalVisible(true)}
-            >
-              <Ionicons name="create-outline" size={22} color="#1E293B" />
-              <Text style={styles.actionButtonText}>Edit Profile</Text>
-              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="key-outline" size={22} color="#1E293B" />
-              <Text style={styles.actionButtonText}>Change Password</Text>
-              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color="#1E293B"
-              />
-              <Text style={styles.actionButtonText}>Notifications</Text>
-              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Sign Out Button */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.versionText}>LightsON v1.0.0</Text>
-      </ScrollView>
-
-      {/* Edit Profile Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={editModalVisible}
-        onRequestClose={() => setEditModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setEditModalVisible(false)}
-              >
-                <Ionicons name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Add Recurring Deposit</Text>
+            <Text style={styles.inputLabel}>Monthly Deposit (₹)</Text>
+            <TextInput style={styles.input} value={monthlyDeposit} onChangeText={setMonthlyDeposit} placeholder="Enter monthly deposit amount" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+            <Text style={styles.inputLabel}>Interest Rate (%)</Text>
+            <TextInput style={styles.input} value={interestRate} onChangeText={setInterestRate} placeholder="Enter annual interest rate" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+            <Text style={styles.inputLabel}>Duration (months)</Text>
+            <TextInput style={styles.input} value={duration} onChangeText={setDuration} placeholder="Enter duration in months" keyboardType="numeric" placeholderTextColor="#94a3b8" />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Link to Goal (Optional)</Text>
+              <View style={styles.pickerContainer}>
+                <Picker selectedValue={selectedGoal} onValueChange={(value) => setSelectedGoal(value)} style={styles.picker}>
+                  <Picker.Item label="Select a goal..." value={null} />
+                  {goals.map((goal) => <Picker.Item key={goal._id} label={goal.name === "Custom Goal" ? goal.customName : goal.name} value={goal._id} />)}
+                </Picker>
+              </View>
             </View>
-
-            <ScrollView style={styles.modalScrollView}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>First Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your first name"
-                  value={editableProfile.firstName}
-                  onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, firstName: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Last Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your last name"
-                  value={editableProfile.lastName}
-                  onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, lastName: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Phone Number</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your phone number"
-                  keyboardType="phone-pad"
-                  value={editableProfile.phoneNumber}
-                  onChangeText={(text) =>
-                    setEditableProfile({
-                      ...editableProfile,
-                      phoneNumber: text,
-                    })
-                  }
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Country</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your country"
-                  value={editableProfile.country}
-                  onChangeText={(text) =>
-                    setEditableProfile({ ...editableProfile, country: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Age</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your age"
-                  keyboardType="numeric"
-                  value={editableProfile.age?.toString()}
-                  onChangeText={(text) =>
-                    setEditableProfile({
-                      ...editableProfile,
-                      age: text ? parseInt(text) : "",
-                    })
-                  }
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Retirement Age</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your retirement age"
-                  keyboardType="numeric"
-                  value={editableProfile.retirementAge?.toString()}
-                  onChangeText={(text) =>
-                    setEditableProfile({
-                      ...editableProfile,
-                      retirementAge: text ? parseInt(text) : "",
-                    })
-                  }
-                />
-              </View>
-
-              <View style={styles.readOnlyInputGroup}>
-                <Text style={styles.inputLabel}>Email (read only)</Text>
-                <View style={styles.readOnlyInput}>
-                  <Text style={styles.readOnlyText}>
-                    {editableProfile.email}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.readOnlyInputGroup}>
-                <Text style={styles.inputLabel}>Username (read only)</Text>
-                <View style={styles.readOnlyInput}>
-                  <Text style={styles.readOnlyText}>
-                    {editableProfile.userName}
-                  </Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  // Reset to original values and close modal
-                  setEditableProfile(profile);
-                  setEditModalVisible(false);
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleUpdateProfile}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={[styles.addButton, (!monthlyDeposit || !interestRate || !duration) && styles.disabledButton]} onPress={addRD} disabled={loading || !monthlyDeposit || !interestRate || !duration}>
+              {loading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.addButtonText}>Add Recurring Deposit</Text>}
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          <Text style={styles.sectionTitle}>Your Recurring Deposits</Text>
+          {investments.length === 0 ? (
+            <View style={styles.emptyContainer}><Ionicons name="wallet-outline" size={64} color="#cbd5e1" /><Text style={styles.emptyText}>No recurring deposits found</Text><Text style={styles.emptySubtext}>Add your first RD using the form above</Text></View>
+          ) : (
+            <FlatList
+              data={investments}
+              keyExtractor={(item) => item._id}
+              scrollEnabled={false}
+              renderItem={({ item }) => {
+                const monthlyDeposit = item.monthlyDeposit || item.amount;
+                const duration = item.duration || 12;
+                const maturityAmount = calculateMaturityAmount(monthlyDeposit, item.interestRate, duration);
+                const currentValue = calculateCurrentValue(monthlyDeposit, item.interestRate, item.startDate, duration);
+                const linkedGoal = goals.find(g => g._id === item.goalId);
+                return (
+                  <View style={styles.rdCard}>
+                    <View style={styles.rdHeader}><Text style={styles.depositAmount}>₹{parseFloat(monthlyDeposit).toLocaleString("en-IN")}/month</Text><View style={styles.durationBadge}><Text style={styles.durationText}>{duration} months</Text></View></View>
+                    <View style={styles.rdDetails}>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Interest Rate:</Text><Text style={styles.detailValue}>{item.interestRate}%</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Current Value:</Text><Text style={styles.currentValue}>₹{Math.round(currentValue).toLocaleString("en-IN")}</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Total Investment:</Text><Text style={styles.detailValue}>₹{(monthlyDeposit * duration).toLocaleString("en-IN")}</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Maturity Value:</Text><Text style={styles.maturityValue}>₹{Math.round(maturityAmount).toLocaleString("en-IN")}</Text></View>
+                    </View>
+                    {linkedGoal && (
+                      <View style={styles.goalLink}>
+                        <Ionicons name="flag-outline" size={16} color="#059669" />
+                        <Text style={styles.goalText}>
+                          {linkedGoal.name === "Custom Goal" ? linkedGoal.customName : linkedGoal.name}
+                        </Text>
+                      </View>
+                    )}
+                    <TouchableOpacity style={styles.deleteButton} onPress={() => deleteInvestment(item._id)}><Ionicons name="trash-outline" size={20} color="#FFFFFF" /><Text style={styles.deleteButtonText}>Delete</Text></TouchableOpacity>
+                  </View>
+                );
+              }}
+            />
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
-
-// 📌 Profile Detail Item Component
-const ProfileDetailItem = ({ icon, label, value, isLast }) => (
-  <>
-    <View style={styles.detailItem}>
-      <View style={styles.detailIconContainer}>
-        <Ionicons name={icon} size={20} color="#64748B" />
-      </View>
-      <View style={styles.detailContent}>
-        <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={styles.detailValue}>{value || "N/A"}</Text>
-      </View>
-    </View>
-    {!isLast && <View style={styles.divider} />}
-  </>
-);
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-    paddingBottom: Platform.OS === "ios" ? 90 : 70,
-  },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "left", // Centered the title
-    paddingBottom: 12, // Maintain bottom padding
-    paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-    // Dynamically adjust paddingTop to account for status bar
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 16 : 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1E293B",
-  },
-  container: {
-    padding: 16,
-    backgroundColor: "#F8FAFC",
-    flexGrow: 1,
-  },
-  profileSummary: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#DBEAFE",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  avatarText: {
-    fontSize: 30,
-    fontWeight: "bold",
-    color: "#2563EB",
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1E293B",
-  },
-  userHandle: {
-    fontSize: 14,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0F172A",
-    marginLeft: 8,
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 4,
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  detailItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-  },
-  detailIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  detailContent: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: "#64748B",
-  },
-  detailValue: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#1E293B",
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-    marginLeft: 52,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-  },
-  actionButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1E293B",
-    marginLeft: 12,
-  },
-  signOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#EF4444",
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  signOutText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    padding: 24,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: "#2563EB",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  versionText: {
-    textAlign: "center",
-    color: "#94A3B8",
-    fontSize: 12,
-    marginBottom: 16,
-  },
-
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    maxHeight: "90%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1E293B",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalScrollView: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    maxHeight: Platform.OS === "ios" ? 500 : 450,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#64748B",
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#1E293B",
-  },
-  readOnlyInputGroup: {
-    marginBottom: 16,
-  },
-  readOnlyInput: {
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  readOnlyText: {
-    fontSize: 16,
-    color: "#64748B",
-  },
-  modalFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: "#F1F5F9",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginRight: 8,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  saveButton: {
-    flex: 1,
-    backgroundColor: "#2563EB",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc", marginBottom: 80 },
+  keyboardAvoidContainer: { flex: 1 },
+  scrollContent: { padding: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: "700", marginBottom: 16, color: "#1e293b" },
+  card: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 3 },
+  inputLabel: { fontSize: 14, fontWeight: "600", marginBottom: 8, color: "#475569" },
+  input: { borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 16, backgroundColor: "#f8fafc", color: "#1e293b" },
+  addButton: { backgroundColor: "#16a34a", borderRadius: 8, padding: 14, alignItems: "center", marginTop: 8 },
+  disabledButton: { backgroundColor: "#86efac" },
+  addButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  rdCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginVertical: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  rdHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  depositAmount: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
+  durationBadge: { backgroundColor: "#e8f5e9", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 20 },
+  durationText: { color: "#16a34a", fontWeight: "600", fontSize: 14 },
+  rdDetails: { borderTopWidth: 1, borderTopColor: "#f1f5f9", paddingTop: 12 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  detailLabel: { color: "#64748b", fontSize: 14 },
+  detailValue: { color: "#1e293b", fontWeight: "500", fontSize: 14 },
+  currentValue: { color: "#2563eb", fontWeight: "600", fontSize: 16 },
+  maturityValue: { color: "#16a34a", fontWeight: "700", fontSize: 16 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc" },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
+  emptyContainer: { backgroundColor: "#fff", borderRadius: 16, padding: 24, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  emptyText: { marginTop: 16, fontSize: 18, fontWeight: "600", color: "#1e293b" },
+  emptySubtext: { marginTop: 8, fontSize: 14, color: "#64748b", textAlign: "center" },
+  deleteButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#ef4444", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16, marginTop: 16 },
+  deleteButtonText: { color: "#FFFFFF", fontWeight: "500", fontSize: 14, marginLeft: 8 },
+  inputGroup: { marginBottom: 16 },
+  pickerContainer: { backgroundColor: "#f8fafc", borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", marginBottom: 16, overflow: "hidden" },
+  picker: { height: 50 },
+  goalLink: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#dcfce7', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginTop: 12 },
+  goalText: { marginLeft: 8, fontSize: 14, color: '#166534', fontWeight: '600' },
 });
-
-export default ProfilePage;

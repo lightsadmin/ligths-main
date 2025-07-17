@@ -22,6 +22,14 @@ import { Picker } from "@react-native-picker/picker";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
+// Predefined goals to be added to the list
+const predefinedGoals = [
+  { _id: "goal_education", name: "B Education" },
+  { _id: "goal_marriage", name: "B Marriage" },
+  { _id: "goal_dream_house", name: "Dream House" },
+  { _id: "goal_wealth_creation", name: "Wealth Creation" },
+];
+
 export default function FDScreen({ navigation }) {
   const [investments, setInvestments] = useState([]);
   const [amount, setAmount] = useState("");
@@ -31,7 +39,7 @@ export default function FDScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
-  const [goals, setGoals] = useState([]);
+  const [goals, setGoals] = useState(predefinedGoals); // Initialize with predefined goals
 
   useEffect(() => {
     fetchInvestments();
@@ -41,18 +49,14 @@ export default function FDScreen({ navigation }) {
   const fetchInvestments = async () => {
     try {
       setLoading(true);
-
-      // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
         Alert.alert("Error", "User not logged in. Please log in again.");
         setLoading(false);
         return;
       }
-
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-
       if (!token) {
         Alert.alert(
           "Error",
@@ -61,8 +65,6 @@ export default function FDScreen({ navigation }) {
         setLoading(false);
         return;
       }
-
-      // Call the API with token
       const response = await fetch(`${API_URL}/investments`, {
         method: "GET",
         headers: {
@@ -70,21 +72,16 @@ export default function FDScreen({ navigation }) {
           "Content-Type": "application/json",
         },
       });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
       const data = await response.json();
-      // Filter FD investments
       const fdInvestments = data.filter(
         (item) => item.investmentType === "Fixed Deposit"
       );
       setInvestments(fdInvestments);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching investments:", error);
       Alert.alert("Error", "Failed to fetch investments. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -94,14 +91,15 @@ export default function FDScreen({ navigation }) {
       const userInfo = await AsyncStorage.getItem("userInfo");
       const parsedInfo = JSON.parse(userInfo);
       const username = parsedInfo?.user?.username;
-
       const response = await fetch(`${API_URL}/goals/${username}`);
       if (response.ok) {
-        const goalsData = await response.json();
-        setGoals(goalsData);
+        const userGoals = await response.json();
+        // Combine predefined goals with user-created goals
+        setGoals([...predefinedGoals, ...userGoals]);
       }
     } catch (error) {
       console.error("Error fetching goals:", error);
+      // If fetching fails, the state will retain the predefined goals
     }
   };
 
@@ -110,44 +108,43 @@ export default function FDScreen({ navigation }) {
       Alert.alert("Error", "Please enter amount and interest rate");
       return;
     }
-
     try {
       setLoading(true);
-
-      // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
       if (!userInfoString) {
-        Alert.alert("Error", "User not logged in. Please log in again.");
+        Alert.alert("Error", "User not logged in.");
         setLoading(false);
         return;
       }
-
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-
       if (!token) {
-        Alert.alert(
-          "Error",
-          "Authentication token not found. Please log in again."
-        );
+        Alert.alert("Error", "Authentication token not found.");
         setLoading(false);
         return;
       }
 
-      // Create new FD investment object
+      // Find the goal name to add to the description
+      const linkedGoal = goals.find((g) => g._id === selectedGoal);
+      const goalName = linkedGoal
+        ? linkedGoal.name === "Custom Goal"
+          ? linkedGoal.customName
+          : linkedGoal.name
+        : "";
+
       const newFD = {
         name: `FD - ${formatDate(maturityDate)}`,
         amount: parseFloat(amount),
-        currentAmount: parseFloat(amount), // Initially same as amount
+        currentAmount: parseFloat(amount),
         interestRate: parseFloat(interestRate),
         investmentType: "Fixed Deposit",
         startDate: new Date().toISOString(),
         maturityDate: maturityDate.toISOString(),
-        compoundingFrequency: "yearly", // Most FDs compound annually
+        compoundingFrequency: "yearly",
         description: `Fixed Deposit at ${interestRate}% maturing on ${formatDate(
           maturityDate
-        )}`,
-        goalId: selectedGoal, // Add this
+        )}${goalName ? ` for ${goalName}` : ""}`,
+        goalId: selectedGoal,
       };
 
       const response = await fetch(`${API_URL}/investment`, {
@@ -158,20 +155,13 @@ export default function FDScreen({ navigation }) {
         },
         body: JSON.stringify(newFD),
       });
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      // Reset form
       setAmount("");
       setInterestRate("");
       setMaturityDate(new Date());
-      setSelectedGoal(null); // Reset selected goal
-
+      setSelectedGoal(null);
       Alert.alert("Success", "Fixed deposit added successfully");
-
-      // Add this event dispatch
       EventRegister.emit("investmentAdded", {
         type: "Investment",
         subType: "FD",
@@ -179,10 +169,7 @@ export default function FDScreen({ navigation }) {
         amount: parseFloat(amount),
       });
 
-      // Also add a transaction for calendar color logic
       try {
-        const userInfo = await AsyncStorage.getItem("userInfo");
-        const parsedInfo = JSON.parse(userInfo);
         const username =
           parsedInfo?.user?.username || parsedInfo?.user?.userName;
         const transactionData = {
@@ -201,12 +188,11 @@ export default function FDScreen({ navigation }) {
       } catch (err) {
         console.error("Error adding FD transaction for calendar:", err);
       }
-
-      // Refresh investments list
       fetchInvestments();
     } catch (error) {
       console.error("Error adding investment:", error);
       Alert.alert("Error", "Failed to add investment. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
@@ -217,151 +203,68 @@ export default function FDScreen({ navigation }) {
     setMaturityDate(currentDate);
   };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString("en-GB", {
+  const formatDate = (date) =>
+    date.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
-  };
 
-  // Calculate current amount based on the principal, interest rate, and time passed
   const calculateCurrentAmount = (
     principal,
     interestRate,
     startDate,
     maturityDate
   ) => {
-    // Convert strings to numbers if needed
-    principal = parseFloat(principal);
-    interestRate = parseFloat(interestRate);
-
-    // Convert dates to Date objects if they're strings
-    const startDateObj =
-      typeof startDate === "string" ? new Date(startDate) : startDate;
-    const maturityDateObj =
-      typeof maturityDate === "string" ? new Date(maturityDate) : maturityDate;
-    const currentDate = new Date();
-
-    // Calculate total duration in years
-    const totalDurationMs = maturityDateObj - startDateObj;
-    const totalDurationYears = totalDurationMs / (1000 * 60 * 60 * 24 * 365);
-
-    // Calculate elapsed duration in years
-    const elapsedDurationMs = currentDate - startDateObj;
-    const elapsedDurationYears =
-      elapsedDurationMs / (1000 * 60 * 60 * 24 * 365);
-
-    // Calculate current amount using compound interest formula
-    // A = P(1 + r)^t where r is annual interest rate and t is time in years
-    const annualRate = interestRate / 100;
-
-    // If maturity date is in the past, return the full maturity amount
-    if (currentDate > maturityDateObj) {
-      return principal * Math.pow(1 + annualRate, totalDurationYears);
-    }
-
-    // If we haven't reached maturity, calculate based on elapsed time
-    return principal * Math.pow(1 + annualRate, elapsedDurationYears);
+    const p = parseFloat(principal),
+      r = parseFloat(interestRate) / 100;
+    const start = new Date(startDate),
+      maturity = new Date(maturityDate),
+      now = new Date();
+    const totalDurationYears = (maturity - start) / (1000 * 60 * 60 * 24 * 365);
+    const elapsedDurationYears = (now - start) / (1000 * 60 * 60 * 24 * 365);
+    if (now > maturity) return p * Math.pow(1 + r, totalDurationYears);
+    return p * Math.pow(1 + r, elapsedDurationYears);
   };
 
-  // Delete investment
   const deleteInvestment = async (id) => {
-    try {
-      // Get user info from AsyncStorage
-      const userInfoString = await AsyncStorage.getItem("userInfo");
-      if (!userInfoString) {
-        Alert.alert("Error", "User not logged in. Please log in again.");
-        return;
-      }
-
-      const parsedInfo = JSON.parse(userInfoString);
-      const token = parsedInfo.token;
-
-      if (!token) {
-        Alert.alert(
-          "Error",
-          "Authentication token not found. Please log in again."
-        );
-        return;
-      }
-
-      // Confirmation dialog
-      Alert.alert(
-        "Delete Investment",
-        "Are you sure you want to delete this investment?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                setLoading(true);
-
-                const response = await fetch(`${API_URL}/investment/${id}`, {
-                  method: "DELETE",
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                  },
-                });
-
-                if (!response.ok) {
-                  throw new Error(`API Error: ${response.status}`);
-                }
-
-                // Update local state
-                setInvestments(investments.filter((item) => item._id !== id));
-                Alert.alert("Success", "Investment deleted successfully");
+    Alert.alert(
+      "Delete Investment",
+      "Are you sure you want to delete this investment?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const userInfoString = await AsyncStorage.getItem("userInfo");
+              const parsedInfo = JSON.parse(userInfoString);
+              const token = parsedInfo.token;
+              if (!token) {
+                Alert.alert("Error", "Authentication token not found.");
                 setLoading(false);
-              } catch (error) {
-                console.error("Error deleting investment:", error);
-                Alert.alert("Error", "Failed to delete investment");
-                setLoading(false);
+                return;
               }
-            },
+              const response = await fetch(`${API_URL}/investment/${id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!response.ok)
+                throw new Error(`API Error: ${response.status}`);
+              setInvestments(investments.filter((item) => item._id !== id));
+              Alert.alert("Success", "Investment deleted successfully");
+            } catch (error) {
+              console.error("Error deleting investment:", error);
+              Alert.alert("Error", "Failed to delete investment");
+            } finally {
+              setLoading(false);
+            }
           },
-        ]
-      );
-    } catch (error) {
-      console.error("Error preparing delete:", error);
-      Alert.alert("Error", "An error occurred");
-    }
-  };
-
-  const handleSubmit = async () => {
-    try {
-      const response = await fetch(`${API_URL}/investment`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          type: "Investment",
-          subType: "FD",
-          investmentType: "Fixed Deposit",
-          amount: parseFloat(amount),
-          date: startDate,
-          userName: userName,
-          goalId: selectedGoal, // Add this
-          // ...other fields
-        }),
-      });
-
-      if (response.ok) {
-        // Emit the event for calendar update
-        EventRegister.emit("investmentAdded", {
-          type: "Investment",
-          subType: "FD",
-          date: startDate,
-          amount: parseFloat(amount),
-        });
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error("Error adding FD:", error);
-    }
+      ]
+    );
   };
 
   if (loading && investments.length === 0) {
@@ -376,19 +279,6 @@ export default function FDScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-
-      {/* Add a custom header */}
-      {/* <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fixed Deposit</Text>
-        <View style={styles.backButton} />
-      </View> */}
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidContainer}
@@ -399,7 +289,6 @@ export default function FDScreen({ navigation }) {
         >
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Add Fixed Deposit</Text>
-
             <Text style={styles.inputLabel}>Amount (₹)</Text>
             <TextInput
               style={styles.input}
@@ -409,7 +298,6 @@ export default function FDScreen({ navigation }) {
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
-
             <Text style={styles.inputLabel}>Interest Rate (%)</Text>
             <TextInput
               style={styles.input}
@@ -419,7 +307,6 @@ export default function FDScreen({ navigation }) {
               keyboardType="numeric"
               placeholderTextColor="#94a3b8"
             />
-
             <Text style={styles.inputLabel}>Maturity Date</Text>
             <TouchableOpacity
               style={styles.dateButton}
@@ -430,7 +317,6 @@ export default function FDScreen({ navigation }) {
                 {formatDate(maturityDate)}
               </Text>
             </TouchableOpacity>
-
             {showDatePicker && (
               <DateTimePicker
                 value={maturityDate}
@@ -440,16 +326,15 @@ export default function FDScreen({ navigation }) {
                 minimumDate={new Date()}
               />
             )}
-
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Link to Goal (Optional)</Text>
+              <Text style={styles.inputLabel}>Link to Goal (Optional)</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedGoal}
                   onValueChange={(value) => setSelectedGoal(value)}
                   style={styles.picker}
                 >
-                  <Picker.Item label="Select a goal" value={null} />
+                  <Picker.Item label="Select a goal..." value={null} />
                   {goals.map((goal) => (
                     <Picker.Item
                       key={goal._id}
@@ -464,7 +349,6 @@ export default function FDScreen({ navigation }) {
                 </Picker>
               </View>
             </View>
-
             <TouchableOpacity
               style={[
                 styles.addButton,
@@ -480,9 +364,7 @@ export default function FDScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </View>
-
           <Text style={styles.sectionTitle}>Your Fixed Deposits</Text>
-
           {investments.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="wallet-outline" size={64} color="#cbd5e1" />
@@ -497,17 +379,14 @@ export default function FDScreen({ navigation }) {
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
               renderItem={({ item }) => {
-                // Calculate current amount based on current app logic
                 const currentAmount = item.currentAmount;
-
-                // Calculate maturity amount
                 const maturityAmount = calculateCurrentAmount(
                   item.amount,
                   item.interestRate,
                   item.startDate,
                   item.maturityDate
                 );
-
+                const linkedGoal = goals.find((g) => g._id === item.goalId);
                 return (
                   <View style={styles.fdCard}>
                     <View style={styles.fdHeader}>
@@ -520,14 +399,12 @@ export default function FDScreen({ navigation }) {
                         </Text>
                       </View>
                     </View>
-
                     <View style={styles.fdDetails}>
                       <Text style={styles.detailLabel}>Current Value:</Text>
                       <Text style={styles.currentAmount}>
                         ₹{Math.round(currentAmount).toLocaleString("en-IN")}
                       </Text>
                     </View>
-
                     <View style={styles.fdDetails}>
                       <Text style={styles.detailLabel}>
                         Expected Maturity Value:
@@ -536,21 +413,29 @@ export default function FDScreen({ navigation }) {
                         ₹{Math.round(maturityAmount).toLocaleString("en-IN")}
                       </Text>
                     </View>
-
                     <View style={styles.fdDetails}>
                       <Text style={styles.detailLabel}>Maturity Date:</Text>
                       <Text style={styles.detailValue}>
                         {new Date(item.maturityDate).toLocaleDateString(
                           "en-GB",
-                          {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          }
+                          { day: "2-digit", month: "short", year: "numeric" }
                         )}
                       </Text>
                     </View>
-
+                    {linkedGoal && (
+                      <View style={styles.goalLink}>
+                        <Ionicons
+                          name="flag-outline"
+                          size={16}
+                          color="#475569"
+                        />
+                        <Text style={styles.goalText}>
+                          {linkedGoal.name === "Custom Goal"
+                            ? linkedGoal.customName
+                            : linkedGoal.name}
+                        </Text>
+                      </View>
+                    )}
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => deleteInvestment(item._id)}
@@ -574,22 +459,14 @@ export default function FDScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-    marginBottom: 80,
-  },
-  keyboardAvoidContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc", marginBottom: 80 },
+  keyboardAvoidContainer: { flex: 1 },
+  scrollContent: { padding: 16 },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 16,
-    color: "#1e293b",
+    color: "#000000ff",
   },
   card: {
     backgroundColor: "#fff",
@@ -628,11 +505,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: "#f8fafc",
   },
-  dateButtonText: {
-    fontSize: 16,
-    color: "#1e293b",
-    marginLeft: 8,
-  },
+  dateButtonText: { fontSize: 16, color: "#1e293b", marginLeft: 8 },
   addButton: {
     backgroundColor: "#3498db",
     borderRadius: 8,
@@ -640,14 +513,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  disabledButton: {
-    backgroundColor: "#b2d1e8",
-  },
-  addButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  disabledButton: { backgroundColor: "#b2d1e8" },
+  addButtonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
   fdCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -665,22 +532,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  fdAmount: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1e293b",
-  },
+  fdAmount: { fontSize: 20, fontWeight: "bold", color: "#1e293b" },
   interestBadge: {
     backgroundColor: "#e1f5fe",
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 20,
   },
-  interestText: {
-    color: "#0288d1",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  interestText: { color: "#0288d1", fontWeight: "600", fontSize: 14 },
   fdDetails: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -689,36 +548,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  detailLabel: {
-    color: "#64748b",
-    fontSize: 14,
-  },
-  detailValue: {
-    color: "#1e293b",
-    fontWeight: "500",
-    fontSize: 14,
-  },
-  currentAmount: {
-    color: "#2563eb",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  maturityAmount: {
-    color: "#16a34a",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  detailLabel: { color: "#64748b", fontSize: 14 },
+  detailValue: { color: "#1e293b", fontWeight: "500", fontSize: 14 },
+  currentAmount: { color: "#2563eb", fontWeight: "600", fontSize: 16 },
+  maturityAmount: { color: "#16a34a", fontWeight: "700", fontSize: 16 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f8fafc",
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#64748b",
-  },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
   emptyContainer: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -759,37 +599,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E293B",
-    textAlign: "center",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#475569",
-  },
+  inputGroup: { marginBottom: 16 },
   pickerContainer: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -797,8 +607,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#f8fafc",
   },
-  picker: {
-    height: 50,
-    width: "100%",
+  picker: { height: 50, width: "100%" },
+  goalLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  goalText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#475569",
+    fontWeight: "500",
   },
 });
