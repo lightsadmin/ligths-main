@@ -12,33 +12,31 @@ import {
   Alert,
   RefreshControl,
   TouchableOpacity,
+  Linking,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native"; // Import useNavigation
 
 const API_URL = "https://ligths-backend.onrender.com";
 
 const FireNumber = () => {
-  // User input states
+  const navigation = useNavigation(); // Initialize navigation
+
+  // ... (all existing states remain the same) ...
   const [currentAge, setCurrentAge] = useState("");
   const [retirementAge, setRetirementAge] = useState("");
   const [monthlyExpense, setMonthlyExpense] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("India");
   const [safeWithdrawalRate, setSafeWithdrawalRate] = useState("4");
-
-  // Calculated values
   const [yearsToRetirement, setYearsToRetirement] = useState("");
   const [yearlyExpense, setYearlyExpense] = useState("");
   const [futureAnnualExpense, setFutureAnnualExpense] = useState("");
   const [fireNumber, setFireNumber] = useState("");
-
-  // SIP Calculation States
   const [sip8Percent, setSip8Percent] = useState("0.00");
   const [sip10Percent, setSip10Percent] = useState("0.00");
   const [sip12Percent, setSip12Percent] = useState("0.00");
-
-  // Data states
   const [expenses, setExpenses] = useState([]);
   const [filteredExpenses, setFilteredExpenses] = useState([]);
   const [uniqueDays, setUniqueDays] = useState(0);
@@ -49,13 +47,11 @@ const FireNumber = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [includeToday, setIncludeToday] = useState(true);
-
-  // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [filterMonth, setFilterMonth] = useState("All");
   const [filterYear, setFilterYear] = useState("All");
 
-  // Get inflation rate from selected country
+  // ... (all existing functions remain the same) ...
   const getInflationRate = () => {
     const countryData = inflationData.find(
       (country) => country.country_name === selectedCountry
@@ -63,7 +59,6 @@ const FireNumber = () => {
     return countryData ? countryData.AVG : 0;
   };
 
-  // Get available years and months for filters
   const availableFilters = useMemo(() => {
     if (!expenses || expenses.length === 0) {
       return { years: [], months: [] };
@@ -76,15 +71,12 @@ const FireNumber = () => {
           return date.getFullYear();
         })
       ),
-    ].sort((a, b) => b - a); // Sort descending
+    ].sort((a, b) => b - a);
 
     const months = [
       { name: "January", value: 0 },
       { name: "February", value: 1 },
       { name: "March", value: 2 },
-      { name: "April", value: 3 },
-      { name: "May", value: 4 },
-      { name: "June", value: 5 },
       { name: "April", value: 3 },
       { name: "May", value: 4 },
       { name: "June", value: 5 },
@@ -99,7 +91,6 @@ const FireNumber = () => {
     return { years, months };
   }, [expenses]);
 
-  // Apply filters to expenses
   useEffect(() => {
     if (!expenses || expenses.length === 0) {
       setFilteredExpenses([]);
@@ -107,36 +98,25 @@ const FireNumber = () => {
     }
 
     let result = [...expenses];
-
-    // Filter by year if not "All"
     if (filterYear !== "All") {
       const yearNum = parseInt(filterYear);
-      result = result.filter((expense) => {
-        const date = new Date(expense.date);
-        return date.getFullYear() === yearNum;
-      });
+      result = result.filter(
+        (expense) => new Date(expense.date).getFullYear() === yearNum
+      );
     }
-
-    // Filter by month if not "All"
     if (filterMonth !== "All") {
       const monthNum = parseInt(filterMonth);
-      result = result.filter((expense) => {
-        const date = new Date(expense.date);
-        return date.getMonth() === monthNum;
-      });
+      result = result.filter(
+        (expense) => new Date(expense.date).getMonth() === monthNum
+      );
     }
-
     setFilteredExpenses(result);
   }, [expenses, filterYear, filterMonth]);
 
   const fetchInflationData = async () => {
     try {
       const response = await fetch(`${API_URL}/api/inflation-data`);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch inflation data");
-      }
-
+      if (!response.ok) throw new Error("Failed to fetch inflation data");
       const data = await response.json();
       setInflationData(data);
       return true;
@@ -149,55 +129,43 @@ const FireNumber = () => {
 
   const fetchUserData = async () => {
     try {
-      // Get user info from AsyncStorage
       const userInfoString = await AsyncStorage.getItem("userInfo");
-
       if (!userInfoString) {
         setError("User not logged in");
         setLoading(false);
         return false;
       }
-
       const parsedInfo = JSON.parse(userInfoString);
       setUserInfo(parsedInfo);
 
-      // Get username
       const username =
         parsedInfo?.user?.username ||
         parsedInfo?.user?.userName ||
         parsedInfo?.username ||
         parsedInfo?.userName;
-
       if (!username) {
         setError("Username not found");
         setLoading(false);
         return false;
       }
 
-      // Set current age and retirement age from user profile
       if (parsedInfo?.user?.age || parsedInfo?.age) {
         setCurrentAge(String(parsedInfo?.user?.age || parsedInfo?.age));
       }
-
       if (parsedInfo?.user?.retirementAge || parsedInfo?.retirementAge) {
         setRetirementAge(
           String(parsedInfo?.user?.retirementAge || parsedInfo?.retirementAge)
         );
       }
 
-      // Fetch monthly essential expenses - include today's expenses
       const monthlyResponse = await fetch(
         `${API_URL}/transactions/${username}/monthly-essential?includeToday=${includeToday}`
       );
-
       if (monthlyResponse.ok) {
         const monthlyData = await monthlyResponse.json();
         setExpenses(monthlyData.expenses);
         setFilteredExpenses(monthlyData.expenses);
-
-        // Use daily average from backend
         if (monthlyData.expenses && monthlyData.expenses.length > 0) {
-          // Get unique days count
           const uniqueDaysCount =
             monthlyData.uniqueDays ||
             new Set(
@@ -205,10 +173,7 @@ const FireNumber = () => {
                 expense.date.substring(0, 10)
               )
             ).size;
-
           setUniqueDays(uniqueDaysCount);
-
-          // Calculate total amount
           const totalAmount = parseFloat(
             monthlyData.totalAmount ||
               monthlyData.expenses.reduce(
@@ -216,18 +181,9 @@ const FireNumber = () => {
                 0
               )
           );
-
-          // Set daily average - JUST divide by days (no multiplication by 30)
           const dailyAvg = totalAmount / uniqueDaysCount;
           setDailyAverage(dailyAvg.toFixed(2));
-
-          // Set monthly expense to the daily average (as requested - no multiplication by 30)
           setMonthlyExpense(dailyAvg.toFixed(2));
-
-          console.log(`Total amount: ₹${totalAmount}`);
-          console.log(`Number of expenses: ${monthlyData.expenses.length}`);
-          console.log(`Number of unique days: ${uniqueDaysCount}`);
-          console.log(`Daily average: ₹${dailyAvg.toFixed(2)}`);
         } else {
           setMonthlyExpense("0.00");
           setDailyAverage("0.00");
@@ -236,7 +192,6 @@ const FireNumber = () => {
       } else {
         throw new Error("Failed to fetch monthly expenses");
       }
-
       return true;
     } catch (err) {
       console.error("Error fetching user data:", err);
@@ -246,60 +201,43 @@ const FireNumber = () => {
 
   const getExpensesSummary = () => {
     if (expenses.length === 0) return "No essential expenses recorded";
-
-    // Get earliest and latest dates
     const sortedExpenses = [...expenses].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
     );
-
     const earliestDate = new Date(sortedExpenses[0].date);
     const latestDate = new Date(sortedExpenses[sortedExpenses.length - 1].date);
-
     const formattedEarliest = earliestDate.toLocaleDateString("en-IN", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-
     const formattedLatest = latestDate.toLocaleDateString("en-IN", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-
-    const totalAmount = expenses.reduce(
-      (sum, expense) => sum + expense.amount,
-      0
-    );
-
     return `${expenses.length} expenses across ${uniqueDays} days (avg ₹${dailyAverage}/day) from ${formattedEarliest} to ${formattedLatest}`;
   };
 
-  // Load all required data on component mount
   useEffect(() => {
     const loadAllData = async () => {
       setLoading(true);
       const inflationLoaded = await fetchInflationData();
       const userDataLoaded = await fetchUserData();
-
       if (inflationLoaded && userDataLoaded) {
         setError(null);
       }
-
       setLoading(false);
     };
-
     loadAllData();
   }, [includeToday]);
 
-  // Refresh data
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchUserData();
     setRefreshing(false);
   };
 
-  // Calculate years to retirement
   useEffect(() => {
     if (currentAge && retirementAge) {
       const years = parseInt(retirementAge) - parseInt(currentAge);
@@ -307,15 +245,13 @@ const FireNumber = () => {
     }
   }, [currentAge, retirementAge]);
 
-  // Calculate yearly expense
   useEffect(() => {
     if (monthlyExpense) {
-      const yearly = parseFloat(monthlyExpense) * 365; // Daily average * 365 for yearly
+      const yearly = parseFloat(monthlyExpense) * 365;
       setYearlyExpense(yearly.toFixed(2));
     }
   }, [monthlyExpense]);
 
-  // Calculate future annual expense using country's AVG inflation rate
   useEffect(() => {
     if (yearlyExpense && yearsToRetirement && inflationData.length > 0) {
       const inflation = getInflationRate() / 100;
@@ -326,7 +262,6 @@ const FireNumber = () => {
     }
   }, [yearlyExpense, yearsToRetirement, selectedCountry, inflationData]);
 
-  // Calculate FIRE Number (still inflation-adjusted for display)
   useEffect(() => {
     if (futureAnnualExpense && safeWithdrawalRate) {
       const swr = parseFloat(safeWithdrawalRate) / 100;
@@ -335,30 +270,19 @@ const FireNumber = () => {
     }
   }, [futureAnnualExpense, safeWithdrawalRate]);
 
-  // Calculate SIP amounts (now targeting non-inflation-adjusted FIRE number)
   useEffect(() => {
-    if (yearlyExpense && safeWithdrawalRate && yearsToRetirement) {
-      // Calculate FIRE number based on CURRENT yearly expense (without inflation for SIP target)
-      const presentValueFIRENumber =
-        parseFloat(yearlyExpense) / (parseFloat(safeWithdrawalRate) / 100);
-
-      const n = parseInt(yearsToRetirement) * 12; // Number of months
-
+    if (fireNumber && yearsToRetirement) {
+      const futureValueTarget = parseFloat(fireNumber);
+      const n = parseInt(yearsToRetirement) * 12;
       const calculateSIP = (annualInterestRate) => {
         const monthlyInterestRate = annualInterestRate / 100 / 12;
-        if (n === 0 || monthlyInterestRate === 0) {
-          // If years to retirement is 0, SIP is simply the full target amount.
-          // If monthlyInterestRate is 0, simple division.
-          return presentValueFIRENumber / (n || 1);
-        }
-        // SIP formula: P = FV * i / ((1 + i)^n - 1)
-        // Where P = SIP amount, FV = Future Value (non-inflated FIRE Number), i = monthly interest rate, n = number of months
+        if (n <= 0) return 0;
+        if (monthlyInterestRate === 0) return futureValueTarget / n;
         const sip =
-          (presentValueFIRENumber * monthlyInterestRate) /
+          (futureValueTarget * monthlyInterestRate) /
           (Math.pow(1 + monthlyInterestRate, n) - 1);
-        return sip > 0 ? sip.toFixed(2) : "0.00"; // Ensure non-negative and formatted
+        return sip > 0 ? sip.toFixed(2) : "0.00";
       };
-
       setSip8Percent(calculateSIP(8));
       setSip10Percent(calculateSIP(10));
       setSip12Percent(calculateSIP(12));
@@ -367,22 +291,28 @@ const FireNumber = () => {
       setSip10Percent("0.00");
       setSip12Percent("0.00");
     }
-  }, [yearlyExpense, yearsToRetirement, safeWithdrawalRate]); // Dependencies changed to yearlyExpense and safeWithdrawalRate
+  }, [fireNumber, yearsToRetirement]);
 
-  // Reset filters
   const resetFilters = () => {
     setFilterMonth("All");
     setFilterYear("All");
   };
 
-  // Toggle filters visibility
   const toggleFilters = () => {
     setShowFilters(!showFilters);
   };
 
-  // Toggle including today's expenses
   const toggleIncludeToday = () => {
     setIncludeToday(!includeToday);
+  };
+
+  const handleLinkPress = async (url) => {
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert(`Don't know how to open this URL: ${url}`);
+    }
   };
 
   if (loading) {
@@ -411,6 +341,17 @@ const FireNumber = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerIconContainer}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Firenumber</Text>
+          <View style={styles.headerIconContainer} />
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
@@ -418,13 +359,6 @@ const FireNumber = () => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          <View style={styles.header}>
-            <Text style={styles.title}>FIRE Number Calculator</Text>
-            <Text style={styles.subtitle}>
-              Financial Independence, Retire Early
-            </Text>
-          </View>
-
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Basic Information</Text>
 
@@ -563,15 +497,11 @@ const FireNumber = () => {
               <Text style={styles.fireNumber}>
                 {fireNumber ? `₹${formatCurrency(fireNumber)}` : "₹0.00"}
               </Text>
-              {/* <Text style={styles.fireFormula}>
-                Future Annual Expense / Safe Withdrawal Rate
-              </Text> */}
             </View>
 
-            {/* SIP Calculation Table */}
             <View style={styles.sipTableContainer}>
               <Text style={styles.sipTableTitle}>
-                Monthly SIP to reach FIRE Number (Current Value Target)
+                Monthly SIP to reach FIRE Number
               </Text>
               <View style={styles.table}>
                 <View style={styles.tableRow}>
@@ -598,7 +528,46 @@ const FireNumber = () => {
                 </View>
               </View>
             </View>
-            {/* End SIP Calculation Table */}
+          </View>
+
+          <View style={styles.investmentCard}>
+            <Ionicons name="rocket-outline" size={32} color="#10B981" />
+            <Text style={styles.investmentTitle}>Ready to Invest?</Text>
+            <Text style={styles.investmentText}>
+              Your FIRE number is a great starting point. The next step is to
+              put your money to work. Start your investment journey today with
+              one of our trusted partners.
+            </Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.mfButton]}
+                onPress={() =>
+                  handleLinkPress("https://www.assetplus.in/mfd/ARN-249206")
+                }
+              >
+                <Ionicons
+                  name="leaf-outline"
+                  size={20}
+                  color="#FFFFFF"
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.buttonText}>Invest in Mutual Funds</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.stocksButton]}
+                onPress={() =>
+                  handleLinkPress("https://upstox.com/open-account/?f=5LBM8X")
+                }
+              >
+                <Ionicons
+                  name="analytics-outline"
+                  size={20}
+                  color="#FFFFFF"
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.buttonText}>Invest in Stocks</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.card}>
@@ -700,35 +669,12 @@ const FireNumber = () => {
               </View>
             )}
           </View>
-
-          {/* <View style={styles.card}>
-            <Text style={styles.sectionTitle}>About the Calculation</Text>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoTitle}>Daily Average Method</Text>
-              <Text style={styles.infoText}>
-                Your average daily expense is calculated by dividing the total
-                essential expenses by the number of unique days with expenses.
-              </Text>
-
-              <View style={styles.formula}>
-                <Text style={styles.formulaText}>
-                  Daily Average = Total Essential Expenses ÷ Days with Expenses
-                </Text>
-              </View>
-
-              <Text style={styles.infoExample}>
-                Example: If you spent ₹10,000 across 3 days, your daily average
-                is ₹3,333.
-              </Text>
-            </View>
-          </View> */}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-// Helper functions
 const formatCurrency = (value) => {
   return parseFloat(value).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -757,31 +703,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  headerIconContainer: {
+    width: 24, // Matches icon size to ensure proper centering
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#e67e22",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#555",
-    marginBottom: 20,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 20,
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginTop: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -868,11 +817,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#e67e22",
     marginBottom: 8,
-  },
-  fireFormula: {
-    fontSize: 12,
-    color: "#777",
-    textAlign: "center",
   },
   expenseItem: {
     flexDirection: "row",
@@ -996,40 +940,6 @@ const styles = StyleSheet.create({
   scrollViewContent: {
     paddingBottom: 80,
   },
-  infoCard: {
-    backgroundColor: "#f8f8f8",
-    borderRadius: 8,
-    padding: 16,
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#444",
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 10,
-    lineHeight: 20,
-  },
-  formula: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 6,
-    padding: 12,
-    marginVertical: 10,
-  },
-  formulaText: {
-    fontSize: 13,
-    color: "#333",
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-  infoExample: {
-    fontSize: 13,
-    color: "#666",
-    fontStyle: "italic",
-    marginTop: 6,
-  },
   toggleButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1047,13 +957,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
   },
-  // SIP Table Styles - Simplified design
   sipTableContainer: {
     marginTop: 20,
-    paddingHorizontal: 0, // Removed horizontal padding to make it flow with card
-    paddingVertical: 10, // Reduced vertical padding
-    backgroundColor: "#FFFFFF", // White background
-    // Removed border, shadow, and elevation for a simpler look
   },
   sipTableTitle: {
     fontSize: 16,
@@ -1063,21 +968,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   table: {
-    // Removed border and border-radius for a simpler look
     overflow: "hidden",
   },
   tableRow: {
     flexDirection: "row",
-    justifyContent: "space-between", // Ensure content spreads out
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8, // Reduced padding
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5", // Very subtle separator
+    borderBottomColor: "#F5F5F5",
   },
   tableHeader: {
     flex: 1,
-    padding: 5, // Reduced padding
-    backgroundColor: "transparent", // Transparent background
+    padding: 5,
+    backgroundColor: "transparent",
     color: "#555555",
     fontWeight: "bold",
     textAlign: "center",
@@ -1085,11 +989,75 @@ const styles = StyleSheet.create({
   },
   tableCell: {
     flex: 1,
-    padding: 5, // Reduced padding
+    padding: 5,
     textAlign: "center",
     fontSize: 14,
     color: "#666666",
-    backgroundColor: "transparent", // Transparent background
+    backgroundColor: "transparent",
+  },
+  investmentCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  investmentTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  investmentText: {
+    fontSize: 14,
+    color: "#4B5563",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1.5,
+    elevation: 2,
+  },
+  mfButton: {
+    backgroundColor: "#10B981",
+    marginRight: 8,
+  },
+  stocksButton: {
+    backgroundColor: "#3B82F6",
+    marginLeft: 8,
+  },
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
 });
 

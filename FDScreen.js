@@ -22,14 +22,6 @@ import { Picker } from "@react-native-picker/picker";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
-// Predefined goals to be added to the list
-const predefinedGoals = [
-  { _id: "goal_education", name: "B Education" },
-  { _id: "goal_marriage", name: "B Marriage" },
-  { _id: "goal_dream_house", name: "Dream House" },
-  { _id: "goal_wealth_creation", name: "Wealth Creation" },
-];
-
 export default function FDScreen({ navigation }) {
   const [investments, setInvestments] = useState([]);
   const [amount, setAmount] = useState("");
@@ -39,7 +31,7 @@ export default function FDScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
-  const [goals, setGoals] = useState(predefinedGoals); // Initialize with predefined goals
+  const [goals, setGoals] = useState([]); // Initialize with empty array
 
   useEffect(() => {
     fetchInvestments();
@@ -94,12 +86,11 @@ export default function FDScreen({ navigation }) {
       const response = await fetch(`${API_URL}/goals/${username}`);
       if (response.ok) {
         const userGoals = await response.json();
-        // Combine predefined goals with user-created goals
-        setGoals([...predefinedGoals, ...userGoals]);
+        // Set goals with only the fetched user goals
+        setGoals(userGoals);
       }
     } catch (error) {
       console.error("Error fetching goals:", error);
-      // If fetching fails, the state will retain the predefined goals
     }
   };
 

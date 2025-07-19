@@ -326,18 +326,6 @@ export default function RDScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Add a custom header
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recurring Deposit</Text>
-        <View style={styles.backButton} />
-      </View> */}
-
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidContainer}
@@ -438,18 +426,13 @@ export default function RDScreen({ navigation }) {
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
               renderItem={({ item }) => {
-                // Get the monthly deposit, duration from item properties or from description
                 const monthlyDeposit = item.monthlyDeposit || item.amount;
-                const duration = item.duration || 12; // Default to 12 if not specified
-
-                // Calculate maturity amount
+                const duration = item.duration || 12;
                 const maturityAmount = calculateMaturityAmount(
                   monthlyDeposit,
                   item.interestRate,
                   duration
                 );
-
-                // Calculate current value
                 const currentValue = calculateCurrentValue(
                   monthlyDeposit,
                   item.interestRate,
@@ -535,6 +518,7 @@ export default function RDScreen({ navigation }) {
   );
 }
 
+// styles remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
