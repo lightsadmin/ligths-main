@@ -17,6 +17,33 @@ import {
 
 const { width } = Dimensions.get("window");
 
+const investmentTypes = [
+  {
+    title: "Equity",
+    description: "Stocks and equity mutual funds for long-term growth",
+    color: "#3B82F6",
+    icon: <FontAwesome5 name="chart-line" size={24} color="white" />,
+  },
+  {
+    title: "Debt",
+    description: "Bonds and fixed income for stability and regular income",
+    color: "#10B981",
+    icon: <FontAwesome5 name="money-bill-wave" size={24} color="white" />,
+  },
+  {
+    title: "Gold",
+    description: "Physical gold, gold ETFs and sovereign gold bonds",
+    color: "#F59E0B",
+    icon: <FontAwesome5 name="coins" size={24} color="white" />,
+  },
+  {
+    title: "Real Estate",
+    description: "Property and REITs for asset appreciation",
+    color: "#8B5CF6",
+    icon: <FontAwesome5 name="building" size={24} color="white" />,
+  },
+];
+
 const Investment = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -25,7 +52,7 @@ const Investment = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* FD/RD Cards - InvestmentNavigation style */}
+        {/* FD/RD Cards */}
         <View style={{ padding: 16, paddingTop: 32 }}>
           <TouchableOpacity
             style={[styles.fdRdCard, styles.fdCardBg]}
@@ -77,72 +104,101 @@ const Investment = ({ navigation }) => {
             </View>
             <Ionicons name="chevron-forward" size={24} color="#64748B" />
           </TouchableOpacity>
-        </View>
 
-        {/* Notify Section */}
-        <View style={styles.notifySection}>
-          <Image
-            source={{
-              uri: "https://cdn-icons-png.flaticon.com/512/3592/3592189.png",
-            }} // Placeholder image
-            style={{ width: 80, height: 80, marginBottom: 12 }}
-          />
-          <Text style={styles.notifyText}>
-            Set up notifications for your investments. Get alerts on maturity,
-            interest payments, and more.
-          </Text>
-          <TouchableOpacity style={styles.notifyButton}>
-            <Text style={styles.notifyButtonText}>Set up Notifications</Text>
+          {/* Added Mutual Funds Card */}
+          <TouchableOpacity
+            style={[styles.fdRdCard, styles.mfCardBg]}
+            onPress={() => navigation.navigate("MFScreen")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.fdRdIconCircle}>
+              <Ionicons name="podium" size={28} color="#ef4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fdRdTitle}>Mutual Funds</Text>
+              <Text style={styles.fdRdSubtitle}>
+                Diversify your portfolio with various mutual funds
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#64748B" />
+          </TouchableOpacity>
+
+          {/* Added Stocks Card */}
+          <TouchableOpacity
+            style={[styles.fdRdCard, styles.stocksCardBg]}
+            onPress={() => navigation.navigate("StocksScreen")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.fdRdIconCircle}>
+              <Ionicons name="analytics" size={28} color="#8b5cf6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fdRdTitle}>Stocks</Text>
+              <Text style={styles.fdRdSubtitle}>
+                Invest in company shares and grow your wealth
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#64748B" />
           </TouchableOpacity>
         </View>
 
-        {/* Financial Tips Section */}
+        {/* Featured Investment Types */}
+        <View style={styles.cardSection}>
+          <Text style={styles.sectionTitle}>Featured Investment Types</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cardContainer}
+          >
+            {investmentTypes.map((item, index) => (
+              <TouchableOpacity key={index} style={styles.card}>
+                <View
+                  style={[
+                    styles.cardIconContainer,
+                    { backgroundColor: item.color },
+                  ]}
+                >
+                  {item.icon}
+                </View>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.cardDescription}>{item.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Investment Tips Section */}
         <View style={styles.tipsSection}>
-          <Text style={styles.tipsTitle}>Financial Tips for You</Text>
+          <Text style={styles.sectionTitle}>Investment Tips</Text>
           <View style={styles.tipCard}>
-            <Ionicons
-              name="bulb-outline"
-              size={24}
-              color="#2563EB"
-              style={styles.tipIcon}
-            />
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitleCard}>Diversify Your Portfolio</Text>
-              <Text style={styles.tipDescription}>
-                Don't put all your eggs in one basket. Spread your investments
-                across different asset classes.
-              </Text>
+            <View style={styles.tipHeader}>
+              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
+              <Text style={styles.tipTitle}>Start Early</Text>
             </View>
+            <Text style={styles.tipContent}>
+              The power of compounding works best over long periods. Starting
+              early, even with small amounts, can lead to significant growth.
+            </Text>
           </View>
           <View style={styles.tipCard}>
-            <Ionicons
-              name="cash-outline"
-              size={24}
-              color="#16A34A"
-              style={styles.tipIcon}
-            />
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitleCard}>Start Early</Text>
-              <Text style={styles.tipDescription}>
-                The power of compounding works best over time. Start investing
-                as early as possible.
-              </Text>
+            <View style={styles.tipHeader}>
+              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
+              <Text style={styles.tipTitle}>Diversify Your Portfolio</Text>
             </View>
+            <Text style={styles.tipContent}>
+              Don't put all your eggs in one basket. Spread your investments
+              across different asset classes to reduce risk.
+            </Text>
           </View>
           <View style={styles.tipCard}>
-            <Ionicons
-              name="wallet-outline"
-              size={24}
-              color="#F59E0B"
-              style={styles.tipIcon}
-            />
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitleCard}>Set Clear Goals</Text>
-              <Text style={styles.tipDescription}>
-                Define what you're saving for, whether it's a house, retirement,
-                or education.
-              </Text>
+            <View style={styles.tipHeader}>
+              <FontAwesome5 name="lightbulb" size={18} color="#F59E0B" />
+              <Text style={styles.tipTitle}>Invest Regularly</Text>
             </View>
+            <Text style={styles.tipContent}>
+              Consistent investing through SIPs (Systematic Investment Plans)
+              can help navigate market volatility through rupee-cost averaging.
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -170,24 +226,30 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1, // Reduced shadow for a softer look
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   fdCardBg: {
-    backgroundColor: "#E0F7FA", // Light blue, slightly different from the image but fits theme
+    backgroundColor: "#E0F7FA",
   },
   rdCardBg: {
-    backgroundColor: "#F3E5F5", // Light purple
+    backgroundColor: "#F3E5F5",
   },
   savingsCardBg: {
-    backgroundColor: "#FFFBEB", // Light yellow
+    backgroundColor: "#FFFBEB",
+  },
+  mfCardBg: {
+    backgroundColor: "#fee2e2", // Light red
+  },
+  stocksCardBg: {
+    backgroundColor: "#ede9fe", // Light purple
   },
   fdRdIconCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FFFFFF", // Icon circle background
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -208,78 +270,80 @@ const styles = StyleSheet.create({
     color: "#64748B",
     lineHeight: 18,
   },
-  notifySection: {
-    backgroundColor: "#EFF6FF", // Light blue background
+  cardSection: {
     padding: 16,
-    marginHorizontal: 16,
-    borderRadius: 16,
-    flexDirection: "column",
-    alignItems: "center",
-    marginBottom: 16,
   },
-  notifyText: {
-    fontSize: 14,
-    color: "#1E293B",
-    textAlign: "center",
-    marginVertical: 12,
-    lineHeight: 20,
-  },
-  notifyButton: {
-    backgroundColor: "#2563EB",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  notifyButtonText: {
-    color: "#FFFFFF",
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  cardContainer: {
+    paddingVertical: 8,
+    paddingBottom: 16,
+  },
+  card: {
+    width: width * 0.75,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  cardDescription: {
     fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
   },
   tipsSection: {
     padding: 16,
     marginBottom: 24,
   },
-  tipsTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 16,
-    textAlign: "center",
-  },
   tipCard: {
-    flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    alignItems: "flex-start",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowColor: "#64748B",
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
   },
-  tipIcon: {
-    marginRight: 12,
-    marginTop: 2,
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitleCard: {
+  tipTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1E293B",
-    marginBottom: 4,
+    marginLeft: 8,
   },
-  tipDescription: {
-    fontSize: 13,
+  tipContent: {
+    fontSize: 14,
     color: "#64748B",
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });
 

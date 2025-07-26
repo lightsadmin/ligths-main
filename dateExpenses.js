@@ -48,11 +48,133 @@ const TransactionsPage = ({ route, navigation }) => {
     method: "",
     date: selectedDate,
   });
+  const [isEditing, setIsEditing] = useState(false); // State to track edit mode
+  const [currentTransactionId, setCurrentTransactionId] = useState(null); // State for ID of transaction being edited
 
   useEffect(() => {
     fetchTransactions();
   }, [selectedDate]);
 
+  // Add or Update Transaction (used by modal for generic transactions)
+  const handleSaveTransaction = async () => {
+    if (
+      !newTransaction.name ||
+      !newTransaction.amount ||
+      !newTransaction.type ||
+      !newTransaction.method
+    ) {
+      Alert.alert(
+        "Missing Information",
+        "Please fill out all required fields."
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const userInfo = await AsyncStorage.getItem("userInfo");
+      if (!userInfo) {
+        Alert.alert("Session Expired", "Please log in again to continue.");
+        return;
+      }
+      const parsedInfo = JSON.parse(userInfo);
+      const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
+
+      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing
+        ? `${API_URL}/transactions/${username}/${currentTransactionId}`
+        : `${API_URL}/transactions/${username}`;
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTransaction),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        await fetchTransactions(); // Refresh the list
+        // Reset form and modal states
+        setNewTransaction({
+          name: "",
+          amount: "",
+          type: "",
+          subType: "",
+          method: "",
+          date: selectedDate,
+        });
+        setModalVisible(false);
+        setIsEditing(false);
+        setCurrentTransactionId(null);
+        Alert.alert(
+          "Success",
+          `Transaction ${isEditing ? "updated" : "added"} successfully!`
+        );
+      } else {
+        Alert.alert("Error", result.error || "Error saving transaction.");
+      }
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      Alert.alert("Network Error", "Could not connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to handle navigation to specific edit screens
+  const handleEditTransaction = (transaction) => {
+    const commonParams = {
+      editItem: transaction, // Pass the entire transaction object for editing
+      date: selectedDate, // Ensure the date is available if needed by the edit screen
+      fromDailyTransactions: true, // A flag to indicate where the navigation originated
+    };
+
+    // Determine target screen based on type and subType
+    if (transaction.type === "Expense") {
+      navigation.navigate("Expenses", commonParams);
+    } else if (transaction.type === "Income") {
+      navigation.navigate("Income", commonParams);
+    } else if (transaction.type === "Investment") {
+      if (transaction.subType === "FD") {
+        navigation.navigate("FDScreen", commonParams);
+      } else if (transaction.subType === "RD") {
+        navigation.navigate("RDScreen", commonParams);
+      } else if (transaction.subType === "Savings") {
+        navigation.navigate("SavingsScreen", commonParams);
+      } else {
+        // Fallback for other investment types not directly handled by a specific screen
+        // In this case, open the generic modal for editing
+        setNewTransaction({
+          name: transaction.name,
+          amount: transaction.amount.toString(),
+          type: transaction.type,
+          subType: transaction.subType || "",
+          method: transaction.method,
+          date: transaction.date,
+        });
+        setIsEditing(true);
+        setCurrentTransactionId(transaction._id);
+        setModalVisible(true);
+      }
+    } else {
+      // For types not explicitly handled (e.g., if you had other base types)
+      // or to handle potential existing "non-type" transactions for editing
+      setNewTransaction({
+        name: transaction.name,
+        amount: transaction.amount.toString(),
+        type: transaction.type,
+        subType: transaction.subType || "",
+        method: transaction.method,
+        date: transaction.date,
+      });
+      setIsEditing(true);
+      setCurrentTransactionId(transaction._id);
+      setModalVisible(true);
+    }
+  };
+
+  // Fetch Transactions
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -60,6 +182,7 @@ const TransactionsPage = ({ route, navigation }) => {
 
       if (!userInfo) {
         Alert.alert("Session Expired", "Please log in again to continue.");
+        // navigation.navigate("Login"); // Uncomment if you have a Login route
         return;
       }
 
@@ -68,6 +191,7 @@ const TransactionsPage = ({ route, navigation }) => {
 
       if (!username) {
         Alert.alert("Error", "Username not found. Please log in again.");
+        // navigation.navigate("Login"); // Uncomment if you have a Login route
         return;
       }
 
@@ -96,61 +220,6 @@ const TransactionsPage = ({ route, navigation }) => {
     }
   };
 
-  // Add Transaction
-  const addTransaction = async () => {
-    if (
-      !newTransaction.name ||
-      !newTransaction.amount ||
-      !newTransaction.type ||
-      !newTransaction.method
-    ) {
-      Alert.alert(
-        "Missing Information",
-        "Please fill out all required fields."
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const userInfo = await AsyncStorage.getItem("userInfo");
-      if (!userInfo) {
-        Alert.alert("Session Expired", "Please log in again to continue.");
-        return;
-      }
-      const parsedInfo = JSON.parse(userInfo);
-      const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-
-      const response = await fetch(`${API_URL}/transactions/${username}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTransaction),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        await fetchTransactions();
-        setNewTransaction({
-          name: "",
-          amount: "",
-          type: "",
-          subType: "",
-          method: "",
-          date: selectedDate,
-        });
-        setModalVisible(false);
-      } else {
-        Alert.alert("Error", result.error || "Error adding transaction.");
-      }
-    } catch (error) {
-      console.error("Error adding transaction:", error);
-      Alert.alert("Network Error", "Could not connect to the server.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Delete Transaction with confirmation
   const deleteTransaction = async (id, name) => {
     Alert.alert(
@@ -170,6 +239,7 @@ const TransactionsPage = ({ route, navigation }) => {
                   "Session Expired",
                   "Please log in again to continue."
                 );
+                // navigation.navigate("Login"); // Uncomment if you have a Login route
                 return;
               }
 
@@ -255,18 +325,7 @@ const TransactionsPage = ({ route, navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#F8FAFC" barStyle="dark-content" />
 
-      {/* <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="arrow-left" size={24} color="#1E293B" />
-        </TouchableOpacity>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>Transactions</Text>
-          <Text style={styles.headerDate}>{formatDate(selectedDate)}</Text>
-        </View>
-      </View> */}
+      {/* Header section commented out */}
 
       <View style={styles.filterContainer}>
         {[
@@ -386,13 +445,22 @@ const TransactionsPage = ({ route, navigation }) => {
                       ? `-₹${item.amount}`
                       : `₹${item.amount}`}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.deleteIconContainer}
-                    onPress={() => deleteTransaction(item._id, item.name)}
-                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                  >
-                    <Feather name="trash-2" size={16} color="#EF4444" />
-                  </TouchableOpacity>
+                  <View style={styles.actionIconsContainer}>
+                    <TouchableOpacity
+                      style={styles.editIconContainer}
+                      onPress={() => handleEditTransaction(item)}
+                      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                    >
+                      <Feather name="edit" size={16} color="#2563EB" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteIconContainer}
+                      onPress={() => deleteTransaction(item._id, item.name)}
+                      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                    >
+                      <Feather name="trash-2" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </TouchableOpacity>
             ) : null
@@ -402,17 +470,42 @@ const TransactionsPage = ({ route, navigation }) => {
 
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => setActionMenuVisible(true)}
+        onPress={() => {
+          setIsEditing(false); // Ensure we are in add mode
+          setNewTransaction({
+            // Reset form for new transaction
+            name: "",
+            amount: "",
+            type: "",
+            subType: "",
+            method: "",
+            date: selectedDate,
+          });
+          setActionMenuVisible(true); // Open the action menu
+        }}
       >
         <AntDesign name="plus" size={24} color="white" />
       </TouchableOpacity>
 
-      {/* Add Transaction Modal */}
+      {/* Add/Edit Transaction Modal (used for generic/unhandled types) */}
       <Modal
         visible={modalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => {
+          setModalVisible(false);
+          setIsEditing(false); // Exit edit mode on close
+          setCurrentTransactionId(null); // Clear editing ID
+          setNewTransaction({
+            // Reset form
+            name: "",
+            amount: "",
+            type: "",
+            subType: "",
+            method: "",
+            date: selectedDate,
+          });
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -421,10 +514,24 @@ const TransactionsPage = ({ route, navigation }) => {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Transaction</Text>
+                <Text style={styles.modalTitle}>
+                  {isEditing ? "Edit Transaction" : "Add Transaction"}
+                </Text>
                 <TouchableOpacity
                   style={styles.modalCloseButton}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setIsEditing(false);
+                    setCurrentTransactionId(null);
+                    setNewTransaction({
+                      name: "",
+                      amount: "",
+                      type: "",
+                      subType: "",
+                      method: "",
+                      date: selectedDate,
+                    });
+                  }}
                 >
                   <AntDesign name="close" size={24} color="#64748B" />
                 </TouchableOpacity>
@@ -592,20 +699,35 @@ const TransactionsPage = ({ route, navigation }) => {
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setIsEditing(false); // Exit edit mode on cancel
+                    setCurrentTransactionId(null);
+                    setNewTransaction({
+                      // Reset form
+                      name: "",
+                      amount: "",
+                      type: "",
+                      subType: "",
+                      method: "",
+                      date: selectedDate,
+                    });
+                  }}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.saveButton}
-                  onPress={addTransaction}
+                  onPress={handleSaveTransaction} // Use the new handleSaveTransaction
                   disabled={loading}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <Text style={styles.saveButtonText}>
+                      {isEditing ? "Update" : "Save"}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -614,7 +736,7 @@ const TransactionsPage = ({ route, navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Action Menu Modal */}
+      {/* Action Menu Modal for Add */}
       <Modal
         visible={actionMenuVisible}
         animationType="fade"
@@ -633,6 +755,7 @@ const TransactionsPage = ({ route, navigation }) => {
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
+                // Navigate to Expenses screen, passing the selected date
                 navigation.navigate("Expenses", { date: selectedDate });
               }}
             >
@@ -644,6 +767,7 @@ const TransactionsPage = ({ route, navigation }) => {
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
+                // Navigate to Income screen, passing the selected date
                 navigation.navigate("Income", { date: selectedDate });
               }}
             >
@@ -659,6 +783,10 @@ const TransactionsPage = ({ route, navigation }) => {
               style={styles.actionMenuItem}
               onPress={() => {
                 setActionMenuVisible(false);
+                // Navigate to a general Investment screen, passing the selected date
+                // Or, if you have a specific screen like 'InvestmentSelector'
+                // where users choose FD/RD/Savings, navigate there.
+                // For now, assuming a general 'Investment' screen exists.
                 navigation.navigate("Investment", { date: selectedDate });
               }}
             >
@@ -774,6 +902,9 @@ const styles = StyleSheet.create({
   transactionRightContent: {
     alignItems: "flex-end",
     height: "100%",
+    flexDirection: "row", // Align icons horizontally
+    alignItems: "center", // Center icons vertically
+    justifyContent: "flex-end", // Push icons to the right
   },
   transactionName: {
     fontSize: 16,
@@ -803,6 +934,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 4,
+    // Adjust margin/padding for alignment with icons if needed
+    marginRight: 10, // Give some space from icons
   },
   incomeAmount: {
     color: "#10B981",
@@ -812,6 +945,16 @@ const styles = StyleSheet.create({
   },
   investmentAmount: {
     color: "#3B82F6",
+  },
+  actionIconsContainer: {
+    // New style for the container holding edit and delete
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 10, // Space between amount and icons
+  },
+  editIconContainer: {
+    // New style for edit icon touch area
+    padding: 8,
   },
   deleteIconContainer: {
     padding: 8, // Increased touch area

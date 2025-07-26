@@ -411,9 +411,16 @@ export default function SavingsScreen({ navigation }) {
                     <Picker.Item
                       key={goal._id}
                       label={
-                        goal.name === "Custom Goal"
+                        // Display description (Goal Name)
+                        goal.description && goal.description.trim() !== ""
+                          ? `${goal.description} (${
+                              goal.name === "Custom Goal"
+                                ? goal.customName
+                                : goal.name
+                            })`
+                          : goal.name === "Custom Goal"
                           ? goal.customName
-                          : goal.name
+                          : goal.name // Fallback if no description
                       }
                       value={goal._id}
                     />
@@ -475,6 +482,21 @@ export default function SavingsScreen({ navigation }) {
                   startDate
                 );
 
+                // Find the linked goal object
+                const linkedGoal = goals.find((g) => g._id === item.goalId);
+                const goalDisplayName = linkedGoal
+                  ? linkedGoal.description &&
+                    linkedGoal.description.trim() !== ""
+                    ? `${linkedGoal.description} (${
+                        linkedGoal.name === "Custom Goal"
+                          ? linkedGoal.customName
+                          : linkedGoal.name
+                      })`
+                    : linkedGoal.name === "Custom Goal"
+                    ? linkedGoal.customName
+                    : linkedGoal.name
+                  : "Not Linked"; // Changed to "Not Linked"
+
                 return (
                   <View style={styles.savingsCard}>
                     <View style={styles.savingsHeader}>
@@ -521,13 +543,10 @@ export default function SavingsScreen({ navigation }) {
                         </Text>
                       </View>
                     )}
-                    {item.goalId && (
+                    {item.goalId && ( // Only display if goalId exists
                       <View style={styles.goalLink}>
                         <Text style={styles.goalLabel}>Linked Goal:</Text>
-                        <Text style={styles.goalValue}>
-                          {goals.find((g) => g._id === item.goalId)?.name ||
-                            "Unknown Goal"}
-                        </Text>
+                        <Text style={styles.goalValue}>{goalDisplayName}</Text>
                       </View>
                     )}
 
@@ -779,20 +798,20 @@ const styles = StyleSheet.create({
   goalLink: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fffbeb",
+    backgroundColor: "#fffbeb", // Light orange for Savings goals
     padding: 8,
     borderRadius: 8,
     marginTop: 12,
   },
   goalLabel: {
     fontSize: 14,
-    color: "#b45309",
+    color: "#b45309", // Darker orange
     fontWeight: "500",
     marginRight: 8,
   },
   goalValue: {
     fontSize: 14,
-    color: "#d97706",
+    color: "#d97706", // Medium orange
     fontWeight: "600",
   },
 });

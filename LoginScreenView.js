@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -15,21 +14,20 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
-  Dimensions, 
-  ScrollView
+  Dimensions,
+  ScrollView,
 } from "react-native";
 import { FontAwesome, Feather } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
-
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import { makeRedirectUri } from "expo-auth-session";
 
 // Required for Expo auth session
 WebBrowser.maybeCompleteAuthSession();
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function LoginScreenView({ navigation }) {
   const [username, setUsername] = useState("");
@@ -39,45 +37,55 @@ export default function LoginScreenView({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
-
-
   // Replace your current Google auth request with this corrected version
-const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-  // Keep client IDs
-  expoClientId: '127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com',
-  iosClientId: '127526920655-vasj6bu62742mgdihjv9b2ospqtn89b5.apps.googleusercontent.com',
-  androidClientId: '127526920655-kljosph2pjt31blojea2egji9shlm8vc.apps.googleusercontent.com',
-  // webClientId: '127526920655-2olu84ptdkitf8mdkntclmfgu0gbofb7.apps.googleusercontent.com',
-  webClientId: '127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com',
-  scopes: ['profile', 'email'],
-});
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    // Keep client IDs
+    expoClientId:
+      "127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com",
+    iosClientId:
+      "127526920655-vasj6bu62742mgdihjv9b2ospqtn89b5.apps.googleusercontent.com",
+    androidClientId:
+      "127526920655-kljosph2pjt31blojea2egji9shlm8vc.apps.googleusercontent.com",
+    // webClientId: '127526920655-2olu84ptdkitf8mdkntclmfgu0gbofb7.apps.googleusercontent.com',
+    webClientId:
+      "127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com",
+    scopes: ["profile", "email"],
+  });
 
   // Fix how you handle success response
-useEffect(() => {
-  console.log("FULL Auth response type:", response?.type);
-  console.log("FULL Auth response:", JSON.stringify(response, null, 2));
-  
-  if (response?.type === 'success') {
-    // Check which token is available
-    const token = response.authentication?.accessToken || response.params?.access_token || response.params?.id_token;
-    
-    if (token) {
-      console.log("Auth success with token:", token.substring(0, 10) + "...");
-      handleGoogleSignIn(token);
-    } else {
-      console.error("Auth success but no token found");
-      setError("Authentication succeeded but no token was received");
+  useEffect(() => {
+    console.log("FULL Auth response type:", response?.type);
+    console.log("FULL Auth response:", JSON.stringify(response, null, 2));
+
+    if (response?.type === "success") {
+      // Check which token is available
+      const token =
+        response.authentication?.accessToken ||
+        response.params?.access_token ||
+        response.params?.id_token;
+
+      if (token) {
+        console.log("Auth success with token:", token.substring(0, 10) + "...");
+        handleGoogleSignIn(token);
+      } else {
+        console.error("Auth success but no token found");
+        setError("Authentication succeeded but no token was received");
+      }
+    } else if (response?.type === "error") {
+      console.error("Auth error code:", response.error?.code);
+      console.error("Auth error message:", response.error?.message);
+      console.error(
+        "Auth error details:",
+        JSON.stringify(response.error, null, 2)
+      );
+      setError(
+        "Google auth error: " + (response.error?.message || "Unknown error")
+      );
+    } else if (response?.type === "dismiss") {
+      console.log("User dismissed the auth flow");
+      setError("Authentication was cancelled.");
     }
-  } else if (response?.type === 'error') {
-    console.error("Auth error code:", response.error?.code);
-    console.error("Auth error message:", response.error?.message);
-    console.error("Auth error details:", JSON.stringify(response.error, null, 2));
-    setError("Google auth error: " + (response.error?.message || "Unknown error"));
-  } else if (response?.type === 'dismiss') {
-    console.log("User dismissed the auth flow");
-    setError("Authentication was cancelled.");
-  }
-}, [response]);
+  }, [response]);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -99,76 +107,84 @@ useEffect(() => {
   }, []);
 
   // Handle Google sign-in with both access_token and id_token support
-const handleGoogleSignIn = async (token) => {
-  setError("");
-  setGoogleLoading(true);
-  
-  try {
-    let userInfo;
-    
-    // If the token looks like a JWT (id_token), decode it
-    if (token.split('.').length === 3) {
-      try {
-        // Simple JWT decoding
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        
-        userInfo = JSON.parse(jsonPayload);
-        console.log("Decoded JWT token:", userInfo);
-      } catch (e) {
-        console.error("Failed to decode JWT:", e);
-        // Fall back to API request if decoding fails
+  const handleGoogleSignIn = async (token) => {
+    setError("");
+    setGoogleLoading(true);
+
+    try {
+      let userInfo;
+
+      // If the token looks like a JWT (id_token), decode it
+      if (token.split(".").length === 3) {
+        try {
+          // Simple JWT decoding
+          const base64Url = token.split(".")[1];
+          const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split("")
+              .map(function (c) {
+                return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+              })
+              .join("")
+          );
+
+          userInfo = JSON.parse(jsonPayload);
+          console.log("Decoded JWT token:", userInfo);
+        } catch (e) {
+          console.error("Failed to decode JWT:", e);
+          // Fall back to API request if decoding fails
+        }
       }
-    }
-    
-    // If we don't have userInfo from JWT, fetch it from Google API
-    if (!userInfo) {
-      // Get user info from Google
-      const userInfoResponse = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!userInfoResponse.ok) {
-        throw new Error(`Google API error: ${await userInfoResponse.text()}`);
+
+      // If we don't have userInfo from JWT, fetch it from Google API
+      if (!userInfo) {
+        // Get user info from Google
+        const userInfoResponse = await fetch(
+          "https://www.googleapis.com/userinfo/v2/me",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!userInfoResponse.ok) {
+          throw new Error(`Google API error: ${await userInfoResponse.text()}`);
+        }
+
+        userInfo = await userInfoResponse.json();
+        console.log("Google user info from API:", userInfo);
       }
-      
-      userInfo = await userInfoResponse.json();
-      console.log("Google user info from API:", userInfo);
-    }
-    
-    // Proceed with your existing backend call
-    const response = await axios.post(
-      "https://ligths-backend.onrender.com/api/google-auth",
-      {
-        googleId: userInfo.sub || userInfo.id,
-        email: userInfo.email,
-        name: userInfo.name,
-        picture: userInfo.picture,
+
+      // Proceed with your existing backend call
+      const response = await axios.post(
+        "https://ligths-backend.onrender.com/api/google-auth",
+        {
+          googleId: userInfo.sub || userInfo.id,
+          email: userInfo.email,
+          name: userInfo.name,
+          picture: userInfo.picture,
+        }
+      );
+
+      if (response.data) {
+        console.log("✅ Google Login Successful:", response.data);
+
+        // Store user info in AsyncStorage
+        await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
+
+        Alert.alert("Login Success", "Redirecting to home...");
+        navigation.navigate("MainApp", {
+          screen: "Calendar",
+          params: { screen: "CalendarMain" },
+        });
       }
-    );
-    
-    if (response.data) {
-      console.log("✅ Google Login Successful:", response.data);
-      
-      // Store user info in AsyncStorage
-      await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
-      
-      Alert.alert("Login Success", "Redirecting to home...");
-      navigation.navigate("MainApp", {
-        screen: "Calendar",
-        params: { screen: "CalendarMain" },
-      });
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+      setError("Failed to sign in with Google: " + error.message);
+    } finally {
+      setGoogleLoading(false);
     }
-  } catch (error) {
-    console.error("Google sign-in error:", error);
-    setError("Failed to sign in with Google: " + error.message);
-  } finally {
-    setGoogleLoading(false);
-  }
-};
+  };
 
   // Handle regular login
   const handleLogin = async () => {
@@ -177,7 +193,7 @@ const handleGoogleSignIn = async (token) => {
       setError("Username and password are required");
       return;
     }
-    
+
     setError("");
     setLoading(true);
 
@@ -226,119 +242,135 @@ const handleGoogleSignIn = async (token) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
-      <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollViewContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.container}>
-            <View style={styles.headerContainer}>
-              <Image source={require("./assets/logo.png")} style={styles.logo} />
-              <Text style={styles.title}>Welcome back!</Text>
-              <Text style={styles.subtitle}>
-                Log in to your Ligths<Text style={styles.brandHighlight}>ON</Text> account
-              </Text>
-            </View>
-
-            <View style={styles.formContainer}>
-              <View style={styles.inputContainer}>
-                <Feather name="user" size={20} color="#64748B" style={styles.inputIcon} />
-                <TextInput
-                  placeholder="Username"
-                  style={styles.input}
-                  placeholderTextColor="#94A3B8"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.container}>
+              <View style={styles.headerContainer}>
+                <Image
+                  source={require("./assets/logo.png")}
+                  style={styles.logo}
                 />
+                <Text style={styles.title}>Welcome back!</Text>
+                <Text style={styles.subtitle}>
+                  Log in to your Ligths
+                  <Text style={styles.brandHighlight}>ON</Text> account
+                </Text>
               </View>
 
-              <View style={styles.inputContainer}>
-                <Feather name="lock" size={20} color="#64748B" style={styles.inputIcon} />
-                <TextInput
-                  placeholder="Password"
-                  style={styles.input}
-                  secureTextEntry={!showPassword}
-                  placeholderTextColor="#94A3B8"
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
+              <View style={styles.formContainer}>
+                <View style={styles.inputContainer}>
                   <Feather
-                    name={showPassword ? "eye-off" : "eye"}
+                    name="user"
                     size={20}
                     color="#64748B"
+                    style={styles.inputIcon}
                   />
+                  <TextInput
+                    placeholder="Username"
+                    style={styles.input}
+                    placeholderTextColor="#94A3B8"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Feather
+                    name="lock"
+                    size={20}
+                    color="#64748B"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    placeholder="Password"
+                    style={styles.input}
+                    secureTextEntry={!showPassword}
+                    placeholderTextColor="#94A3B8"
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                <TouchableOpacity style={styles.forgotPasswordContainer}>
+                  <Text style={styles.forgotPassword}>Forgot Password?</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.loginButton}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.loginButtonText}>Log In</Text>
+                  )}
                 </TouchableOpacity>
               </View>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <TouchableOpacity style={styles.forgotPasswordContainer}>
-                <Text style={styles.forgotPassword}>Forgot Password?</Text>
-              </TouchableOpacity>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
               <TouchableOpacity
-                style={styles.loginButton}
-                onPress={handleLogin}
-                disabled={loading}
+                style={styles.googleButton}
+                onPress={() => {
+                  console.log("Starting Google Auth...");
+                  // Try this simplified approach which often works better
+                  promptAsync();
+                }}
+                disabled={googleLoading || !request}
               >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                {googleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Log In</Text>
+                  <View style={styles.googleButtonContent}>
+                    <View style={styles.googleIconContainer}>
+                      <FontAwesome name="google" size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.googleButtonText}>
+                      Continue with Google
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
-            </View>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity 
-              style={styles.googleButton}
-              onPress={() => {
-                console.log("Starting Google Auth...");
-                // Try this simplified approach which often works better
-                promptAsync();
-              }}
-              disabled={googleLoading || !request}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <View style={styles.googleButtonContent}>
-                  <View style={styles.googleIconContainer}>
-                    <FontAwesome name="google" size={18} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.footer}>
-              <Text style={styles.signupText}>
-                Don't have an account?{" "}
-                <Text
-                  style={styles.signupLink}
-                  onPress={() => navigation.navigate("SignUp")}
-                >
-                  Sign Up
+              <View style={styles.footer}>
+                <Text style={styles.signupText}>
+                  Don't have an account?{" "}
+                  <Text
+                    style={styles.signupLink}
+                    onPress={() => navigation.navigate("SignUp")}
+                  >
+                    Sign Up
+                  </Text>
                 </Text>
-              </Text>
+              </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
+          </TouchableWithoutFeedback>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -353,7 +385,7 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },
-   scrollViewContent: {
+  scrollViewContent: {
     flexGrow: 1,
     paddingBottom: 20,
   },
@@ -501,7 +533,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   footer: {
-    marginTop: 'auto',
+    marginTop: "auto",
     marginBottom: 36,
     alignItems: "center",
   },

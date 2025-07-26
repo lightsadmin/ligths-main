@@ -8,29 +8,14 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
+import {
+  Ionicons,
+  FontAwesome5,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
-
-const investmentOptions = [
-  {
-    id: "fd",
-    title: "Fixed Deposit",
-    description: "Track your FD investments and calculate returns",
-    icon: "business",
-    screen: "FDScreen",
-    color: "#2563eb",
-  },
-  {
-    id: "rd",
-    title: "Recurring Deposit",
-    description: "Manage your RD investments and monitor growth",
-    icon: "trending-up",
-    screen: "RDScreen",
-    color: "#16a34a",
-  },
-];
 
 const investmentTypes = [
   {
@@ -61,7 +46,6 @@ const investmentTypes = [
 
 const InvestmentNavigation = () => {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState("fd");
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -73,13 +57,11 @@ const InvestmentNavigation = () => {
         {/* Investment Category Cards */}
         <View style={{ padding: 16, paddingTop: 32 }}>
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.fdCardBg]}
             onPress={() => navigation.navigate("FDScreen")}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.bankIconCircle, { backgroundColor: "#2563eb20" }]}
-            >
+            <View style={styles.bankIconCircle}>
               <Ionicons name="business" size={28} color="#2563eb" />
             </View>
             <View style={{ flex: 1 }}>
@@ -91,13 +73,11 @@ const InvestmentNavigation = () => {
             <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.rdCardBg]}
             onPress={() => navigation.navigate("RDScreen")}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.bankIconCircle, { backgroundColor: "#16a34a20" }]}
-            >
+            <View style={styles.bankIconCircle}>
               <Ionicons name="trending-up" size={28} color="#16a34a" />
             </View>
             <View style={{ flex: 1 }}>
@@ -109,13 +89,27 @@ const InvestmentNavigation = () => {
             <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.savingsCardBg]}
+            onPress={() => navigation.navigate("SavingsScreen")}
+            activeOpacity={0.8}
+          >
+            <View style={styles.bankIconCircle}>
+              <MaterialCommunityIcons name="bank" size={28} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bankCardTitle}>Savings</Text>
+              <Text style={styles.bankCardDesc}>
+                Track your savings and see simple returns
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.bankCard, styles.mfCardBg]}
             onPress={() => navigation.navigate("MFScreen")}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.bankIconCircle, { backgroundColor: "#ef444420" }]}
-            >
+            <View style={styles.bankIconCircle}>
               <Ionicons name="podium" size={28} color="#ef4444" />
             </View>
             <View style={{ flex: 1 }}>
@@ -127,13 +121,11 @@ const InvestmentNavigation = () => {
             <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.bankCard}
+            style={[styles.bankCard, styles.stocksCardBg]}
             onPress={() => navigation.navigate("StocksScreen")}
             activeOpacity={0.8}
           >
-            <View
-              style={[styles.bankIconCircle, { backgroundColor: "#8b5cf620" }]}
-            >
+            <View style={styles.bankIconCircle}>
               <Ionicons name="analytics" size={28} color="#8b5cf6" />
             </View>
             <View style={{ flex: 1 }}>
@@ -182,7 +174,7 @@ const InvestmentNavigation = () => {
           </ScrollView>
         </View>
 
-        {/* Investment Tips -- MOVED TO BE DIRECTLY BELOW INVESTMENT TYPES */}
+        {/* Investment Tips */}
         <View style={styles.tipsSection}>
           <Text style={styles.sectionTitle}>Investment Tips</Text>
           <View style={styles.tipCard}>
@@ -241,7 +233,6 @@ const styles = StyleSheet.create({
   bankCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -251,6 +242,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  fdCardBg: {
+    backgroundColor: "#E0F7FA",
+  },
+  rdCardBg: {
+    backgroundColor: "#F3E5F5",
+  },
+  savingsCardBg: {
+    backgroundColor: "#FFFBEB",
+  },
+  mfCardBg: {
+    backgroundColor: "#fee2e2",
+  },
+  stocksCardBg: {
+    backgroundColor: "#ede9fe",
+  },
   bankIconCircle: {
     width: 48,
     height: 48,
@@ -258,6 +264,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
+    backgroundColor: "#FFFFFF",
   },
   bankCardTitle: {
     fontSize: 16,
@@ -335,41 +342,6 @@ const styles = StyleSheet.create({
     color: "#64748B",
     lineHeight: 20,
   },
-  tabRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
-    marginBottom: 8,
-    gap: 12,
-  },
-  tabButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E5E7EB",
-    paddingVertical: 10,
-    paddingHorizontal: 28,
-    borderRadius: 24,
-    marginHorizontal: 4,
-  },
-  activeTabButton: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#2563eb",
-    shadowColor: "#64748B",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabButtonText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  activeTabButtonText: {
-    color: "#2563eb",
-  },
   cardIconContainer: {
     width: 48,
     height: 48,
@@ -377,7 +349,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
-    backgroundColor: "#F1F5F9", // subtle background for icon
   },
   cardTitle: {
     fontSize: 16,

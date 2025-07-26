@@ -32,7 +32,7 @@ import RegisterScreenView from "./RegisterScreen";
 import CalendarMain from "./calendarmain";
 import DateExpenses from "./dateExpenses";
 import FireNumber from "./FireNumber";
-import Simulator from "./Simulator";
+// import Simulator from "./Simulator"; // Removed
 import Profile from "./Profile";
 import Income from "./Income";
 import Expenses from "./Expenses";
@@ -41,9 +41,9 @@ import FDScreen from "./FDScreen";
 import RDScreen from "./RDScreen";
 import GoalCalculator from "./GoalCalculator";
 import InvestmentNavigation from "./InvestmentNavigation";
-// ADD: Import the new screens
-import MFScreen from "./MFScreen"; // You need to create this file
-import StocksScreen from "./StocksScreen"; // You need to create this file
+import MFScreen from "./MFScreen";
+import StocksScreen from "./StocksScreen";
+import SavingsScreen from "./SavingsScreen";
 
 const Tab = createBottomTabNavigator();
 const MainStack = createStackNavigator();
@@ -63,9 +63,7 @@ const getTabBarIcon = (route, color, size) => {
           color={color}
         />
       );
-    case "Simulator":
-      return <MaterialIcons name="trending-up" size={size} color={color} />;
-    // CHANGED: Icon for the Calculator tab to better reflect "Goals"
+    // REMOVED: Simulator case
     case "Calculator":
       return (
         <MaterialCommunityIcons
@@ -136,9 +134,9 @@ const CalendarStackNavigator = () => (
     />
     <CalendarStack.Screen name="FDScreen" component={FDScreen} />
     <CalendarStack.Screen name="RDScreen" component={RDScreen} />
-    {/* ADD: Register new screens */}
     <CalendarStack.Screen name="MFScreen" component={MFScreen} />
     <CalendarStack.Screen name="StocksScreen" component={StocksScreen} />
+    <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
   </CalendarStack.Navigator>
 );
 
@@ -208,7 +206,6 @@ const MainApp = () => {
         }}
         listeners={({ navigation, route }) => ({
           tabPress: (e) => {
-            // Always reset to root of Calendar stack
             navigation.navigate("Calendar", { screen: "CalendarMain" });
           },
         })}
@@ -222,15 +219,7 @@ const MainApp = () => {
           },
         })}
       />
-      <Tab.Screen
-        name="Simulator"
-        component={Simulator}
-        listeners={({ navigation, route }) => ({
-          tabPress: (e) => {
-            navigation.navigate("Simulator");
-          },
-        })}
-      />
+      {/* REMOVED: Simulator Tab Screen */}
       <Tab.Screen
         name="Calculator"
         component={GoalCalculator}
@@ -252,7 +241,6 @@ const MainApp = () => {
           },
         })}
       />
-      {/* REMOVE the Investment tab here */}
     </Tab.Navigator>
   );
 };

@@ -38,6 +38,7 @@ const GOAL_TEMPLATES = {
     returnRate: "",
     currentSip: "",
     investmentType: "SIP/MF",
+    description: "",
   },
   "B Marriage": {
     name: "B Marriage",
@@ -48,6 +49,7 @@ const GOAL_TEMPLATES = {
     returnRate: "",
     currentSip: "",
     investmentType: "SIP/MF",
+    description: "",
   },
   "Dream Home": {
     name: "Dream Home",
@@ -57,6 +59,7 @@ const GOAL_TEMPLATES = {
     returnRate: "",
     currentSip: "",
     investmentType: "SIP/MF",
+    description: "",
   },
   "Wealth Creation": {
     name: "Wealth Creation",
@@ -67,6 +70,17 @@ const GOAL_TEMPLATES = {
     returnRate: "",
     currentSip: "",
     investmentType: "SIP/MF",
+    description: "",
+  },
+  "FIRE Number": {
+    name: "FIRE Number",
+    presentCost: "",
+    years: "",
+    inflation: "7.5",
+    returnRate: "",
+    currentSip: "",
+    investmentType: "SIP/MF",
+    description: "",
   },
   Custom: {
     name: "Custom Goal",
@@ -77,13 +91,13 @@ const GOAL_TEMPLATES = {
     returnRate: "",
     currentSip: "",
     investmentType: "SIP/MF",
+    description: "",
   },
 };
 
 const INVESTMENT_TYPES = [
   { label: "SIP/MF", value: "SIP/MF" },
   { label: "FD", value: "FD" },
-  // { label: "RD", value: "RD" },
   { label: "Stocks", value: "Stocks" },
   { label: "Savings", value: "Savings" },
 ];
@@ -264,6 +278,11 @@ export default function GoalCalculator() {
       fieldValue: g.presentCost,
     });
     requiredFields.push({
+      key: "description",
+      value: g.description,
+      fieldValue: g.description,
+    });
+    requiredFields.push({
       key: "inflation",
       value: inf,
       fieldValue: g.inflation,
@@ -291,7 +310,11 @@ export default function GoalCalculator() {
         value: parseFloat(g.currentAge),
         fieldValue: g.currentAge,
       });
-    } else if (g.name === "Dream Home" || g.name === "Custom Goal") {
+    } else if (
+      g.name === "Dream Home" ||
+      g.name === "Custom Goal" ||
+      g.name === "FIRE Number"
+    ) {
       requiredFields.push({
         key: "years",
         value: parseFloat(g.years),
@@ -315,7 +338,7 @@ export default function GoalCalculator() {
     }
 
     const invalidFields = requiredFields.filter((field) => {
-      if (field.key === "customName") {
+      if (field.key === "customName" || field.key === "description") {
         return !field.fieldValue || field.fieldValue.trim() === "";
       } else {
         return (
@@ -337,6 +360,8 @@ export default function GoalCalculator() {
             switch (field) {
               case "presentCost":
                 return "• Present Cost";
+              case "description":
+                return "• Description";
               case "goalAge":
                 return "• Goal Age";
               case "childCurrentAge":
@@ -401,6 +426,7 @@ export default function GoalCalculator() {
     const result = {
       name: g.name,
       customName: g.customName,
+      description: g.description,
       presentCost: cost,
       childCurrentAge: parseFloat(g.childCurrentAge) || null,
       goalAge: parseFloat(g.goalAge) || null,
@@ -433,7 +459,7 @@ export default function GoalCalculator() {
           "Success",
           `Goal ${editingGoalId ? "updated" : "saved"} successfully!`
         );
-        fetchGoals();
+        await fetchGoals();
         cancelEdit();
       } else {
         const errorData = await response.json();
@@ -471,6 +497,7 @@ export default function GoalCalculator() {
     setGoalData({
       name: goal.name,
       customName: goal.customName || "",
+      description: goal.description || "",
       presentCost: goal.presentCost?.toString() || "",
       childCurrentAge: goal.childCurrentAge?.toString() || "",
       goalAge: goal.goalAge?.toString() || "",
@@ -535,13 +562,15 @@ export default function GoalCalculator() {
         return "home";
       case "Wealth Creation":
         return "trending-up";
+      case "FIRE Number":
+        return "flame";
       case "Custom Goal":
         return "star";
       default:
         return "bulb";
     }
   };
-  
+
   const getFilterLabels = () => {
     const labels = new Map();
     goalResults.forEach((goal) => {
@@ -578,23 +607,41 @@ export default function GoalCalculator() {
   const renderGoalInputs = () => {
     const g = goalData;
 
-    const presentCostInput = (
-      <View
-        style={[
-          styles.inputGroup,
-          errorFields.includes("presentCost") && styles.errorInput,
-        ]}
-      >
-        <Text style={styles.label}>Present Cost of Goal (₹)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={g.presentCost}
-          onChangeText={(text) => updateGoal("presentCost", text)}
-          placeholder="e.g., 50,00,000"
-          placeholderTextColor="#9ca3af"
-        />
-      </View>
+    const commonInputs = (
+      <>
+        <View
+          style={[
+            styles.inputGroup,
+            errorFields.includes("presentCost") && styles.errorInput,
+          ]}
+        >
+          <Text style={styles.label}>Present Cost of Goal (₹)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={g.presentCost}
+            onChangeText={(text) => updateGoal("presentCost", text)}
+            placeholder="e.g., 50,00,000"
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+
+        <View
+          style={[
+            styles.inputGroup,
+            errorFields.includes("description") && styles.errorInput,
+          ]}
+        >
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            style={styles.input}
+            value={g.description}
+            onChangeText={(text) => updateGoal("description", text)}
+            placeholder="e.g., For my child's higher education"
+            placeholderTextColor="#9ca3af"
+          />
+        </View>
+      </>
     );
 
     const otherInputs = (
@@ -676,7 +723,7 @@ export default function GoalCalculator() {
       case "B Marriage":
         return (
           <>
-            {presentCostInput}
+            {commonInputs}
             <View
               style={[
                 styles.inputGroup,
@@ -713,9 +760,10 @@ export default function GoalCalculator() {
           </>
         );
       case "Dream Home":
+      case "FIRE Number":
         return (
           <>
-            {presentCostInput}
+            {commonInputs}
             <View
               style={[
                 styles.inputGroup,
@@ -738,7 +786,7 @@ export default function GoalCalculator() {
       case "Wealth Creation":
         return (
           <>
-            {presentCostInput}
+            {commonInputs}
             <View
               style={[
                 styles.inputGroup,
@@ -777,7 +825,7 @@ export default function GoalCalculator() {
       case "Custom":
         return (
           <>
-            {presentCostInput}
+            {commonInputs}
             <View
               style={[
                 styles.inputGroup,
@@ -966,14 +1014,26 @@ export default function GoalCalculator() {
                     size={24}
                     color="#1f2937"
                   />
-                  <View>
+                  <View style={{ flex: 1 }}>
+                    {/* UPDATED LOGIC FOR TITLE */}
                     <Text style={styles.resultTitle}>
+                      {/* Check if description exists and is not just whitespace. If so, use it. */}
+                      {
+                        goal.description && goal.description.trim() !== ""
+                          ? goal.description
+                          : goal.name === "Custom Goal"
+                          ? goal.customName
+                          : goal.name // Fallback to goal name
+                      }
+                    </Text>
+                    {/* UPDATED LOGIC FOR SUBTITLE */}
+                    <Text style={styles.resultSubtitle}>
+                      {/* Always show goal name/custom name */}
                       {goal.name === "Custom Goal"
                         ? goal.customName
                         : goal.name}
-                    </Text>
-                    <Text style={styles.resultSubtitle}>
-                      {goal.investmentType} • {goal.years} years
+                      {/* Add investment type and years only if goal name is displayed or there's a description */}
+                      {` • ${goal.investmentType} • ${goal.years} years`}
                     </Text>
                   </View>
                 </View>
@@ -1021,7 +1081,10 @@ export default function GoalCalculator() {
                 {activeTabs[goal._id] === "Pie Chart" && (
                   <View style={styles.chartContainer}>
                     <Text style={styles.chartTitle}>
-                      {goal.name === "Custom Goal"
+                      {/* Updated logic for chart title */}
+                      {goal.description && goal.description.trim() !== ""
+                        ? goal.description
+                        : goal.name === "Custom Goal"
                         ? goal.customName
                         : goal.name}{" "}
                       Breakdown
@@ -1299,6 +1362,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#1f2937",
+    flexShrink: 1,
   },
   resultSubtitle: {
     fontSize: 12,
@@ -1474,25 +1538,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
-  noChartContainer: {
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  noChartText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6b7280",
-  },
-  noChartSubText: {
-    fontSize: 12,
-    color: "#9ca3af",
-    textAlign: "center",
-    marginTop: 4,
-  },
   buttonIcon: {
     marginRight: 8,
   },
@@ -1535,4 +1580,3 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
-

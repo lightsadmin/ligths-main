@@ -17,7 +17,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { EventRegister } from "react-native-event-listeners"; // Import EventRegister
+import { EventRegister } from "react-native-event-listeners";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
@@ -29,7 +29,7 @@ export default function RDScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goals, setGoals] = useState([]);
-  const [linkedGoal, setLinkedGoal] = useState(null);
+  // const [linkedGoal, setLinkedGoal] = useState(null); // This state isn't directly used for display
 
   useEffect(() => {
     fetchInvestments();
@@ -140,7 +140,7 @@ export default function RDScreen({ navigation }) {
 
       // Create new RD investment object
       const newRD = {
-        name: `RD - ${monthlyDeposit}/month for ${duration} months`,
+        name: `RD - ${monthlyDeposit}/month for ${duration} months`, // This name is for the backend
         amount: parseFloat(monthlyDeposit), // Monthly amount
         currentAmount: parseFloat(monthlyDeposit), // Initially just the first deposit
         interestRate: parseFloat(interestRate),
@@ -149,7 +149,7 @@ export default function RDScreen({ navigation }) {
         startDate: startDate.toISOString(), // Use defined startDate
         maturityDate: maturityDate.toISOString(),
         compoundingFrequency: "quarterly", // Most RDs compound quarterly
-        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`,
+        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`, // This description is for backend too
       };
 
       // Add custom fields for RD
@@ -326,6 +326,18 @@ export default function RDScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
+      {/* Add a custom header
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Recurring Deposit</Text>
+        <View style={styles.backButton} />
+      </View> */}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidContainer}
@@ -380,9 +392,16 @@ export default function RDScreen({ navigation }) {
                     <Picker.Item
                       key={goal._id}
                       label={
-                        goal.name === "Custom Goal"
+                        // Display description (Goal Name)
+                        goal.description && goal.description.trim() !== ""
+                          ? `${goal.description} (${
+                              goal.name === "Custom Goal"
+                                ? goal.customName
+                                : goal.name
+                            })`
+                          : goal.name === "Custom Goal"
                           ? goal.customName
-                          : goal.name
+                          : goal.name // Fallback if no description
                       }
                       value={goal._id}
                     />
@@ -426,19 +445,39 @@ export default function RDScreen({ navigation }) {
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
               renderItem={({ item }) => {
+                // Get the monthly deposit, duration from item properties or from description
                 const monthlyDeposit = item.monthlyDeposit || item.amount;
-                const duration = item.duration || 12;
+                const duration = item.duration || 12; // Default to 12 if not specified
+
+                // Calculate maturity amount
                 const maturityAmount = calculateMaturityAmount(
                   monthlyDeposit,
                   item.interestRate,
                   duration
                 );
+
+                // Calculate current value
                 const currentValue = calculateCurrentValue(
                   monthlyDeposit,
                   item.interestRate,
                   item.startDate,
                   duration
                 );
+
+                // Find the linked goal object
+                const linkedGoal = goals.find((g) => g._id === item.goalId);
+                const goalDisplayName = linkedGoal
+                  ? linkedGoal.description &&
+                    linkedGoal.description.trim() !== ""
+                    ? `${linkedGoal.description} (${
+                        linkedGoal.name === "Custom Goal"
+                          ? linkedGoal.customName
+                          : linkedGoal.name
+                      })`
+                    : linkedGoal.name === "Custom Goal"
+                    ? linkedGoal.customName
+                    : linkedGoal.name
+                  : "Not Linked"; // Changed to "Not Linked"
 
                 return (
                   <View style={styles.rdCard}>
@@ -486,13 +525,10 @@ export default function RDScreen({ navigation }) {
                       </View>
                     </View>
 
-                    {item.goalId && (
+                    {item.goalId && ( // Only display if goalId exists
                       <View style={styles.goalLink}>
                         <Text style={styles.goalLabel}>Linked Goal:</Text>
-                        <Text style={styles.goalValue}>
-                          {goals.find((g) => g._id === item.goalId)?.name ||
-                            "Unknown Goal"}
-                        </Text>
+                        <Text style={styles.goalValue}>{goalDisplayName}</Text>
                       </View>
                     )}
 
@@ -518,7 +554,6 @@ export default function RDScreen({ navigation }) {
   );
 }
 
-// styles remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -727,11 +762,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginBottom: 8,
     color: "#475569",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    overflow: "hidden",
-    marginBottom: 16,
   },
   pickerContainer: {
     backgroundColor: "#f8fafc",
