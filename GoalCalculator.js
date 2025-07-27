@@ -705,7 +705,7 @@ export default function GoalCalculator() {
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Current Savings (₹) (Optional)</Text>
+          <Text style={styles.label}>Inhand value (₹)</Text>
           <TextInput
             style={styles.input}
             keyboardType="numeric"

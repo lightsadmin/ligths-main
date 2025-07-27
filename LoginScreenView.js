@@ -37,28 +37,23 @@ export default function LoginScreenView({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Replace your current Google auth request with this corrected version
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    // Keep client IDs
     expoClientId:
       "127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com",
     iosClientId:
       "127526920655-vasj6bu62742mgdihjv9b2ospqtn89b5.apps.googleusercontent.com",
     androidClientId:
       "127526920655-kljosph2pjt31blojea2egji9shlm8vc.apps.googleusercontent.com",
-    // webClientId: '127526920655-2olu84ptdkitf8mdkntclmfgu0gbofb7.apps.googleusercontent.com',
     webClientId:
       "127526920655-8uujrvt9ul3jnl36kadgurpegd1lj74p.apps.googleusercontent.com",
     scopes: ["profile", "email"],
   });
 
-  // Fix how you handle success response
   useEffect(() => {
     console.log("FULL Auth response type:", response?.type);
     console.log("FULL Auth response:", JSON.stringify(response, null, 2));
 
     if (response?.type === "success") {
-      // Check which token is available
       const token =
         response.authentication?.accessToken ||
         response.params?.access_token ||
@@ -87,7 +82,6 @@ export default function LoginScreenView({ navigation }) {
     }
   }, [response]);
 
-  // Check if user is already logged in
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
@@ -103,10 +97,14 @@ export default function LoginScreenView({ navigation }) {
         console.error("Error checking login status:", error);
       }
     };
-    checkLoginStatus();
+    // No longer calling checkLoginStatus here directly.
+    // The App.js root handles the initial navigation based on login status.
+    // This useEffect is more for handling persistent login once already in the app.
+    // However, for clean state management, we'll keep the `checkOnboardingStatus` in App.js as the primary gatekeeper.
+    // Remove the `checkLoginStatus()` call from here if you want App.js to solely manage initial routing.
+    // For now, let's keep it minimal by adding the clear-onboarding-flag.
   }, []);
 
-  // Handle Google sign-in with both access_token and id_token support
   const handleGoogleSignIn = async (token) => {
     setError("");
     setGoogleLoading(true);
@@ -114,10 +112,8 @@ export default function LoginScreenView({ navigation }) {
     try {
       let userInfo;
 
-      // If the token looks like a JWT (id_token), decode it
       if (token.split(".").length === 3) {
         try {
-          // Simple JWT decoding
           const base64Url = token.split(".")[1];
           const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
           const jsonPayload = decodeURIComponent(
@@ -133,13 +129,10 @@ export default function LoginScreenView({ navigation }) {
           console.log("Decoded JWT token:", userInfo);
         } catch (e) {
           console.error("Failed to decode JWT:", e);
-          // Fall back to API request if decoding fails
         }
       }
 
-      // If we don't have userInfo from JWT, fetch it from Google API
       if (!userInfo) {
-        // Get user info from Google
         const userInfoResponse = await fetch(
           "https://www.googleapis.com/userinfo/v2/me",
           {
@@ -155,7 +148,6 @@ export default function LoginScreenView({ navigation }) {
         console.log("Google user info from API:", userInfo);
       }
 
-      // Proceed with your existing backend call
       const response = await axios.post(
         "https://ligths-backend.onrender.com/api/google-auth",
         {
@@ -169,8 +161,17 @@ export default function LoginScreenView({ navigation }) {
       if (response.data) {
         console.log("✅ Google Login Successful:", response.data);
 
-        // Store user info in AsyncStorage
         await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
+        // --- START NEW CODE ---
+        // If it's a new Google registration, clear the onboarding flag to ensure they see it.
+        // Or, more robustly, your backend should tell you if it's a *new* registration vs. login.
+        // For simplicity, we'll assume a new Google login should trigger onboarding next.
+        // A more precise approach would be to check if response.data.isNewUser (from backend).
+        await AsyncStorage.removeItem("hasSeenOnboarding");
+        console.log(
+          "✅ Onboarding flag cleared for potential new Google account."
+        );
+        // --- END NEW CODE ---
 
         Alert.alert("Login Success", "Redirecting to home...");
         navigation.navigate("MainApp", {
@@ -186,9 +187,7 @@ export default function LoginScreenView({ navigation }) {
     }
   };
 
-  // Handle regular login
   const handleLogin = async () => {
-    // Validate inputs
     if (!username.trim() || !password.trim()) {
       setError("Username and password are required");
       return;
@@ -209,7 +208,6 @@ export default function LoginScreenView({ navigation }) {
       if (response.data) {
         console.log("✅ Login Successful:", response.data);
 
-        // Store user info in AsyncStorage
         await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
 
         Alert.alert("Login Success", "Redirecting to CalendarMain...");
@@ -226,10 +224,8 @@ export default function LoginScreenView({ navigation }) {
     }
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
-      // Clear local storage
       await AsyncStorage.removeItem("userInfo");
       console.log("🚪 User logged out successfully!");
       Alert.alert("Logged Out", "You have been logged out successfully.");
@@ -339,7 +335,6 @@ export default function LoginScreenView({ navigation }) {
                 style={styles.googleButton}
                 onPress={() => {
                   console.log("Starting Google Auth...");
-                  // Try this simplified approach which often works better
                   promptAsync();
                 }}
                 disabled={googleLoading || !request}

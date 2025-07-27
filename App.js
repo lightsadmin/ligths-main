@@ -1,14 +1,13 @@
 import "react-native-gesture-handler";
 import { enableScreens } from "react-native-screens";
-// Add these imports with your other screen imports
 
 enableScreens();
 
 import "react-native-gesture-handler";
 
-import React from "react";
+import React, { useEffect, useState } from "react"; // Add useState and useEffect
 import { NavigationContainer } from "@react-navigation/native";
-import { navigationRef } from "./navigationRef"; // Create this file (see below)
+import { navigationRef } from "./navigationRef";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
 import {
@@ -22,8 +21,10 @@ import {
   Text,
   Platform,
   TouchableOpacity,
+  ActivityIndicator, // Import ActivityIndicator for loading state
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 // Screens
 import SplashScreen from "./SplashScreen";
@@ -32,7 +33,6 @@ import RegisterScreenView from "./RegisterScreen";
 import CalendarMain from "./calendarmain";
 import DateExpenses from "./dateExpenses";
 import FireNumber from "./FireNumber";
-// import Simulator from "./Simulator"; // Removed
 import Profile from "./Profile";
 import Income from "./Income";
 import Expenses from "./Expenses";
@@ -44,6 +44,7 @@ import InvestmentNavigation from "./InvestmentNavigation";
 import MFScreen from "./MFScreen";
 import StocksScreen from "./StocksScreen";
 import SavingsScreen from "./SavingsScreen";
+import OnboardingScreen from "./onboardingScreen"; // Import your OnboardingScreen
 
 const Tab = createBottomTabNavigator();
 const MainStack = createStackNavigator();
@@ -63,7 +64,6 @@ const getTabBarIcon = (route, color, size) => {
           color={color}
         />
       );
-    // REMOVED: Simulator case
     case "Calculator":
       return (
         <MaterialCommunityIcons
@@ -97,7 +97,7 @@ const headerOptions = (title, showBackButton = true) => ({
     height: 60,
   },
   headerShadowVisible: false,
-  headerLeft: showBackButton ? undefined : () => null, // Remove back button when showBackButton is false
+  headerLeft: showBackButton ? undefined : () => null,
 });
 
 // Calendar Stack Navigator
@@ -140,31 +140,15 @@ const CalendarStackNavigator = () => (
   </CalendarStack.Navigator>
 );
 
-// If you want to use a stack for Investment and its sub-screens:
-const InvestmentStack = createStackNavigator();
-const InvestmentStackNavigator = () => (
-  <InvestmentStack.Navigator>
-    <InvestmentStack.Screen
-      name="InvestmentMain"
-      component={Investment}
-      options={headerOptions("Add Investment")}
-    />
-    <InvestmentStack.Screen
-      name="FDScreen"
-      component={FDScreen}
-      options={{ headerShown: false }}
-    />
-    <InvestmentStack.Screen
-      name="RDScreen"
-      component={RDScreen}
-      options={{ headerShown: false }}
-    />
-  </InvestmentStack.Navigator>
-);
-
 // Auth Stack Navigator
 const AuthNavigator = () => (
   <AuthStack.Navigator>
+    {/* OnboardingScreen added here, it will be the first screen in AuthStack by default */}
+    <AuthStack.Screen
+      name="Onboarding"
+      component={OnboardingScreen}
+      options={{ headerShown: false }}
+    />
     <AuthStack.Screen
       name="SplashScreen"
       component={SplashScreen}
@@ -173,7 +157,7 @@ const AuthNavigator = () => (
     <AuthStack.Screen
       name="Login"
       component={LoginScreenView}
-      options={headerOptions("Login", false)} // No back button on login
+      options={headerOptions("Login", false)}
     />
     <AuthStack.Screen
       name="SignUp"
@@ -219,7 +203,6 @@ const MainApp = () => {
           },
         })}
       />
-      {/* REMOVED: Simulator Tab Screen */}
       <Tab.Screen
         name="Calculator"
         component={GoalCalculator}
@@ -245,17 +228,72 @@ const MainApp = () => {
   );
 };
 
-// Root App
+// Root App Component
 const App = () => {
+  const [initialRoute, setInitialRoute] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      try {
+        // Check if the user has seen onboarding before
+        const hasSeenOnboarding = await AsyncStorage.getItem(
+          "hasSeenOnboarding"
+        );
+        // Check if there's existing user info (meaning they've logged in before)
+        const userInfo = await AsyncStorage.getItem("userInfo");
+
+        if (userInfo) {
+          // If user info exists, they've logged in before, bypass onboarding to MainApp
+          setInitialRoute("MainApp");
+          console.log("App.js: Existing user, navigating to MainApp.");
+        } else if (hasSeenOnboarding === "true") {
+          // If onboarding has been seen but no user info, go to Login/SplashScreen
+          setInitialRoute("Auth");
+          console.log(
+            "App.js: Onboarding seen, no user info, navigating to Auth (Login/Splash)."
+          );
+        } else {
+          // First time opening app, or new install, show onboarding
+          setInitialRoute("Auth");
+          console.log(
+            "App.js: First time or new install, navigating to Auth (Onboarding)."
+          );
+        }
+      } catch (e) {
+        console.error("Failed to check onboarding status or user info:", e);
+        // Fallback in case of error, go to Auth
+        setInitialRoute("Auth");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkOnboardingStatus();
+  }, []);
+
+  if (isLoading) {
+    // Show a blank loading screen while checking AsyncStorage
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#2563EB" />
+        <Text style={{ marginTop: 10, color: "#64748B" }}>Loading app...</Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <NavigationContainer ref={navigationRef}>
-        <MainStack.Navigator screenOptions={{ headerShown: false }}>
+        <MainStack.Navigator
+          screenOptions={{ headerShown: false }}
+          initialRouteName={initialRoute}
+        >
           <MainStack.Screen name="Auth" component={AuthNavigator} />
           <MainStack.Screen
             name="MainApp"
             component={MainApp}
-            options={{ gestureEnabled: false }} // Prevent swiping back to Auth stack
+            options={{ gestureEnabled: false }}
           />
         </MainStack.Navigator>
       </NavigationContainer>
@@ -286,7 +324,13 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   tabBarItem: {
-    height: Platform.OS === "ios" ? 50 : 45, // Consistent height for items
+    height: Platform.OS === "ios" ? 50 : 45,
+  },
+  loadingScreen: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
   },
 });
 

@@ -1,26 +1,27 @@
 import React, { useState, useRef } from "react";
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   Image,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
   Dimensions,
-  Modal
+  Modal,
 } from "react-native";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 const COUNTRIES = [
   { label: "India", value: "India" },
@@ -42,11 +43,10 @@ export default function RegisterScreenView() {
   const [isNextLoading, setIsNextLoading] = useState(false);
   const timeoutRefs = useRef({});
   const [fieldStates, setFieldStates] = useState({
-    userName: "initial", // initial, checking, valid, invalid
-    email: "initial"     // initial, checking, valid, invalid
+    userName: "initial",
+    email: "initial",
   });
 
-  // Form state
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -60,7 +60,6 @@ export default function RegisterScreenView() {
     phoneNumber: "",
   });
 
-  // Validation states
   const [inputValidation, setInputValidation] = useState({
     firstName: false,
     lastName: false,
@@ -74,7 +73,6 @@ export default function RegisterScreenView() {
     phoneNumber: false,
   });
 
-  // UI state
   const [errorMessages, setErrorMessages] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,16 +80,15 @@ export default function RegisterScreenView() {
   const totalSteps = 3;
   const [showCountryPicker, setShowCountryPicker] = useState(false);
 
-  // Validation functions
   const validatePassword = (value) => {
-    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
+    const regex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
     return regex.test(value);
   };
 
   const validateName = (value) => /^[a-zA-Z]+$/.test(value);
 
   const validateField = async (name, value) => {
-    // Your existing validation code
     let isValid = false;
     let errorMessage = "";
 
@@ -105,74 +102,77 @@ export default function RegisterScreenView() {
         }
         break;
 
-        case "userName":
-          if (value.trim().length > 2) {
-            try {
-              const response = await axios.post(`${NGROK_URL}/api/check-username`, { userName: value });
-              isValid = !response.data.exists;
-              
-              if (response.data.exists) {
-                errorMessage = "Username already exists";
-                setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
-              } else {
-                errorMessage = "✓ Username available!";
-                setFieldStates(prev => ({ ...prev, [name]: "valid" }));
-                
-                // Clear success message after 2 seconds
-                setTimeout(() => {
-                  setErrorMessages(prev => {
-                    if (prev[name] === "✓ Username available!") {
-                      return { ...prev, [name]: "" };
-                    }
-                    return prev;
-                  });
-                }, 2000);
-              }
-            } catch (error) {
-              console.error("Username validation error:", error);
-              errorMessage = "Error checking username";
-              setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
-            }
-          } else if (value.trim()) {
-            errorMessage = "Username must be at least 3 characters";
-            setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
-          }
-          break;
+      case "userName":
+        if (value.trim().length > 2) {
+          try {
+            const response = await axios.post(
+              `${NGROK_URL}/api/check-username`,
+              { userName: value }
+            );
+            isValid = !response.data.exists;
 
-          case "email":
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (emailRegex.test(value)) {
-              try {
-                const response = await axios.post(`${NGROK_URL}/api/check-email`, { email: value });
-                isValid = !response.data.exists;
-                
-                if (response.data.exists) {
-                  errorMessage = "Email already exists";
-                  setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
-                } else {
-                  errorMessage = "✓ Email available!";
-                  setFieldStates(prev => ({ ...prev, [name]: "valid" }));
-                  
-                  // Clear success message after 2 seconds
-                  setTimeout(() => {
-                    setErrorMessages(prev => {
-                      if (prev[name] === "✓ Email available!") {
-                        return { ...prev, [name]: "" };
-                      }
-                      return prev;
-                    });
-                  }, 2000);
-                }
-              } catch (error) {
-                console.error("Email validation error:", error);
-                errorMessage = "Error checking email";
-                setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
-              }
-            } else if (value.trim()) {
-              errorMessage = "Please enter a valid email address";
-              setFieldStates(prev => ({ ...prev, [name]: "invalid" }));
+            if (response.data.exists) {
+              errorMessage = "Username already exists";
+              setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+            } else {
+              errorMessage = "✓ Username available!";
+              setFieldStates((prev) => ({ ...prev, [name]: "valid" }));
+
+              setTimeout(() => {
+                setErrorMessages((prev) => {
+                  if (prev[name] === "✓ Username available!") {
+                    return { ...prev, [name]: "" };
+                  }
+                  return prev;
+                });
+              }, 2000);
             }
-            break;
+          } catch (error) {
+            console.error("Username validation error:", error);
+            errorMessage = "Error checking username";
+            setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+          }
+        } else if (value.trim()) {
+          errorMessage = "Username must be at least 3 characters";
+          setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+        }
+        break;
+
+      case "email":
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(value)) {
+          try {
+            const response = await axios.post(`${NGROK_URL}/api/check-email`, {
+              email: value,
+            });
+            isValid = !response.data.exists;
+
+            if (response.data.exists) {
+              errorMessage = "Email already exists";
+              setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+            } else {
+              errorMessage = "✓ Email available!";
+              setFieldStates((prev) => ({ ...prev, [name]: "valid" }));
+
+              setTimeout(() => {
+                setErrorMessages((prev) => {
+                  if (prev[name] === "✓ Email available!") {
+                    return { ...prev, [name]: "" };
+                  }
+                  return prev;
+                });
+              }, 2000);
+            }
+          } catch (error) {
+            console.error("Email validation error:", error);
+            errorMessage = "Error checking email";
+            setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+          }
+        } else if (value.trim()) {
+          errorMessage = "Please enter a valid email address";
+          setFieldStates((prev) => ({ ...prev, [name]: "invalid" }));
+        }
+        break;
 
       case "password":
         if (validatePassword(value)) {
@@ -201,7 +201,10 @@ export default function RegisterScreenView() {
         const currentAge = parseInt(formData.age);
         if (!currentAge || isNaN(currentAge)) {
           errorMessage = "Please enter your current age first";
-        } else if (!isNaN(retirementAgeValue) && retirementAgeValue > currentAge) {
+        } else if (
+          !isNaN(retirementAgeValue) &&
+          retirementAgeValue > currentAge
+        ) {
           isValid = true;
         } else {
           errorMessage = "Retirement age must be greater than your current age";
@@ -232,24 +235,24 @@ export default function RegisterScreenView() {
 
   const handleChange = (name, value) => {
     setFormData({ ...formData, [name]: value });
-    
+
     if (name === "userName" || name === "email") {
-      setErrorMessages(prev => ({ ...prev, [name]: "" }));
-      
+      setErrorMessages((prev) => ({ ...prev, [name]: "" }));
+
       if (!value.trim()) {
-        setFieldStates(prev => ({ ...prev, [name]: "initial" }));
+        setFieldStates((prev) => ({ ...prev, [name]: "initial" }));
         return;
       }
-      
-      setFieldStates(prev => ({ ...prev, [name]: "checking" }));
-      
+
+      setFieldStates((prev) => ({ ...prev, [name]: "checking" }));
+
       if (timeoutRefs.current[name]) {
         clearTimeout(timeoutRefs.current[name]);
       }
-      
+
       timeoutRefs.current[name] = setTimeout(() => {
         validateField(name, value);
-      }, 600); 
+      }, 600);
     } else {
       validateField(name, value);
     }
@@ -257,121 +260,158 @@ export default function RegisterScreenView() {
 
   const checkStepValidation = async (step) => {
     let fieldsToCheck = [];
-    
-    switch(step) {
+
+    switch (step) {
       case 1:
-        fieldsToCheck = ['firstName', 'lastName', 'userName', 'email'];
+        fieldsToCheck = ["firstName", "lastName", "userName", "email"];
         break;
       case 2:
-        fieldsToCheck = ['password', 'confirmPassword'];
+        fieldsToCheck = ["password", "confirmPassword"];
         break;
       case 3:
-        fieldsToCheck = ['age', 'retirementAge', 'phoneNumber', 'country'];
+        fieldsToCheck = ["age", "retirementAge", "phoneNumber", "country"];
         break;
     }
-    
+
     const validationResults = await Promise.all(
       fieldsToCheck.map(async (field) => {
         const result = await validateField(field, formData[field]);
         return { field, ...result };
       })
     );
-    
-    return !validationResults.some(result => !result.isValid);
+
+    return !validationResults.some((result) => !result.isValid);
   };
 
   const handleNextStep = async () => {
-    setIsNextLoading(true); // Start loading
-    
+    setIsNextLoading(true);
+
     try {
       const isStepValid = await checkStepValidation(currentStep);
-      
+
       if (isStepValid) {
-        setCurrentStep(prev => prev + 1);
+        setCurrentStep((prev) => prev + 1);
       } else {
-        Alert.alert("Validation Error", "Please fix the errors before proceeding.");
+        Alert.alert(
+          "Validation Error",
+          "Please fix the errors before proceeding."
+        );
       }
     } catch (error) {
       console.error("Validation error:", error);
       Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
-      setIsNextLoading(false); // End loading regardless of outcome
+      setIsNextLoading(false);
     }
   };
 
   const handlePrevStep = () => {
-    setCurrentStep(prev => prev - 1);
+    setCurrentStep((prev) => prev - 1);
   };
 
   const handleSubmit = async () => {
     const isStepValid = await checkStepValidation(currentStep);
-    
+
     if (!isStepValid) {
-      Alert.alert("Validation Error", "Please fix all validation errors before submitting.");
+      Alert.alert(
+        "Validation Error",
+        "Please fix all validation errors before submitting."
+      );
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       const response = await axios.post(`${NGROK_URL}/api/register`, formData);
 
       if (response.status === 201) {
+        // --- START NEW CODE ---
+        // Clear the onboarding flag so the tutorial is shown on next launch for this new account.
+        await AsyncStorage.removeItem("hasSeenOnboarding");
+        console.log(
+          "✅ Onboarding flag cleared after new account registration."
+        );
+        // --- END NEW CODE ---
+
         Alert.alert(
-          "Registration Successful", 
+          "Registration Successful",
           "Your account has been created successfully!",
           [{ text: "Login Now", onPress: () => navigation.navigate("Login") }]
         );
       }
     } catch (error) {
       console.error("Registration error:", error);
-      Alert.alert("Registration Failed", error.response?.data?.error || "An error occurred while registering your account.");
+      Alert.alert(
+        "Registration Failed",
+        error.response?.data?.error ||
+          "An error occurred while registering your account."
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Step indicators with better visual feedback
   const renderStepIndicators = () => {
     return (
       <View style={styles.stepsContainer}>
         {[1, 2, 3].map((step) => (
           <View key={step} style={styles.stepItem}>
-            <View 
+            <View
               style={[
-                styles.stepCircle, 
-                currentStep === step ? styles.activeStep : 
-                  currentStep > step ? styles.completedStep : styles.inactiveStep
+                styles.stepCircle,
+                currentStep === step
+                  ? styles.activeStep
+                  : currentStep > step
+                  ? styles.completedStep
+                  : styles.inactiveStep,
               ]}
             >
               {currentStep > step ? (
                 <Feather name="check" size={14} color="#FFFFFF" />
               ) : (
-                <Text style={[
-                  styles.stepNumber,
-                  currentStep === step ? styles.activeStepNumber : styles.inactiveStepNumber
-                ]}>
+                <Text
+                  style={[
+                    styles.stepNumber,
+                    currentStep === step
+                      ? styles.activeStepNumber
+                      : styles.inactiveStepNumber,
+                  ]}
+                >
                   {step}
                 </Text>
               )}
             </View>
-            <Text style={[
-              styles.stepLabel,
-              currentStep === step ? styles.activeStepLabel : styles.inactiveStepLabel
-            ]}>
+            <Text
+              style={[
+                styles.stepLabel,
+                currentStep === step
+                  ? styles.activeStepLabel
+                  : styles.inactiveStepLabel,
+              ]}
+            >
               {step === 1 ? "Personal" : step === 2 ? "Security" : "Financial"}
             </Text>
           </View>
         ))}
         <View style={styles.connector}>
-          <View style={[styles.connectorLine, currentStep > 1 ? styles.activeConnector : null]} />
-          <View style={[styles.connectorLine, currentStep > 2 ? styles.activeConnector : null]} />
+          <View
+            style={[
+              styles.connectorLine,
+              currentStep > 1 ? styles.activeConnector : null,
+            ]}
+          />
+          <View
+            style={[
+              styles.connectorLine,
+              currentStep > 2 ? styles.activeConnector : null,
+            ]}
+          />
         </View>
       </View>
     );
   };
 
-  // Custom country picker modal
   const renderCountryPicker = () => {
     return (
       <Modal
@@ -388,7 +428,7 @@ export default function RegisterScreenView() {
                 <Feather name="x" size={24} color="#1E293B" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.countryList}>
               {COUNTRIES.map((country) => (
                 <TouchableOpacity
@@ -399,10 +439,13 @@ export default function RegisterScreenView() {
                     setShowCountryPicker(false);
                   }}
                 >
-                  <Text style={[
-                    styles.countryItemText,
-                    formData.country === country.value && styles.selectedCountryText
-                  ]}>
+                  <Text
+                    style={[
+                      styles.countryItemText,
+                      formData.country === country.value &&
+                        styles.selectedCountryText,
+                    ]}
+                  >
                     {country.label}
                   </Text>
                   {formData.country === country.value && (
@@ -418,13 +461,15 @@ export default function RegisterScreenView() {
   };
 
   const renderStep = () => {
-    switch(currentStep) {
+    switch (currentStep) {
       case 1:
         return (
           <>
             <Text style={styles.stepTitle}>Personal Information</Text>
-            <Text style={styles.stepDescription}>Let's start with the basics</Text>
-            
+            <Text style={styles.stepDescription}>
+              Let's start with the basics
+            </Text>
+
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
                 <Feather name="user" size={18} color="#64748B" />
@@ -437,7 +482,9 @@ export default function RegisterScreenView() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-            {errorMessages.firstName ? <Text style={styles.errorText}>{errorMessages.firstName}</Text> : null}
+            {errorMessages.firstName ? (
+              <Text style={styles.errorText}>{errorMessages.firstName}</Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -451,7 +498,9 @@ export default function RegisterScreenView() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-            {errorMessages.lastName ? <Text style={styles.errorText}>{errorMessages.lastName}</Text> : null}
+            {errorMessages.lastName ? (
+              <Text style={styles.errorText}>{errorMessages.lastName}</Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -466,16 +515,20 @@ export default function RegisterScreenView() {
                 autoCapitalize="none"
               />
             </View>
-            
+
             {fieldStates.userName === "checking" ? (
-            <Text style={styles.checkingText}>Checking username...</Text>
-          ) : errorMessages.userName ? (
-            <Text 
-              style={errorMessages.userName.startsWith("✓") ? styles.successText : styles.errorText}
-            >
-              {errorMessages.userName}
-            </Text>
-          ) : null}
+              <Text style={styles.checkingText}>Checking username...</Text>
+            ) : errorMessages.userName ? (
+              <Text
+                style={
+                  errorMessages.userName.startsWith("✓")
+                    ? styles.successText
+                    : styles.errorText
+                }
+              >
+                {errorMessages.userName}
+              </Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -492,22 +545,28 @@ export default function RegisterScreenView() {
               />
             </View>
             {fieldStates.email === "checking" ? (
-            <Text style={styles.checkingText}>Checking email...</Text>
-          ) : errorMessages.email ? (
-            <Text 
-              style={errorMessages.email.startsWith("✓") ? styles.successText : styles.errorText}
-            >
-              {errorMessages.email}
-            </Text>
-          ) : null}
+              <Text style={styles.checkingText}>Checking email...</Text>
+            ) : errorMessages.email ? (
+              <Text
+                style={
+                  errorMessages.email.startsWith("✓")
+                    ? styles.successText
+                    : styles.errorText
+                }
+              >
+                {errorMessages.email}
+              </Text>
+            ) : null}
           </>
         );
       case 2:
         return (
           <>
             <Text style={styles.stepTitle}>Create a Strong Password</Text>
-            <Text style={styles.stepDescription}>Secure your account with a strong password</Text>
-            
+            <Text style={styles.stepDescription}>
+              Secure your account with a strong password
+            </Text>
+
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
                 <Feather name="lock" size={18} color="#64748B" />
@@ -520,11 +579,20 @@ export default function RegisterScreenView() {
                 value={formData.password}
                 placeholderTextColor="#94A3B8"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Feather name={showPassword ? "eye-off" : "eye"} size={18} color="#64748B" />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <Feather
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={18}
+                  color="#64748B"
+                />
               </TouchableOpacity>
             </View>
-            {errorMessages.password ? <Text style={styles.errorText}>{errorMessages.password}</Text> : null}
+            {errorMessages.password ? (
+              <Text style={styles.errorText}>{errorMessages.password}</Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -538,53 +606,92 @@ export default function RegisterScreenView() {
                 value={formData.confirmPassword}
                 placeholderTextColor="#94A3B8"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Feather name={showPassword ? "eye-off" : "eye"} size={18} color="#64748B" />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <Feather
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={18}
+                  color="#64748B"
+                />
               </TouchableOpacity>
             </View>
-            {errorMessages.confirmPassword ? <Text style={styles.errorText}>{errorMessages.confirmPassword}</Text> : null}
-            
+            {errorMessages.confirmPassword ? (
+              <Text style={styles.errorText}>
+                {errorMessages.confirmPassword}
+              </Text>
+            ) : null}
+
             <View style={styles.passwordRequirements}>
-              <Text style={styles.requirementsTitle}>Password must include:</Text>
+              <Text style={styles.requirementsTitle}>
+                Password must include:
+              </Text>
               <View style={styles.requirementItem}>
-                <MaterialIcons 
-                  name={formData.password.length >= 8 ? "check-circle" : "cancel"} 
-                  size={14} 
-                  color={formData.password.length >= 8 ? "#10B981" : "#CBD5E1"} 
+                <MaterialIcons
+                  name={
+                    formData.password.length >= 8 ? "check-circle" : "cancel"
+                  }
+                  size={14}
+                  color={formData.password.length >= 8 ? "#10B981" : "#CBD5E1"}
                 />
-                <Text style={styles.requirementText}>At least 8 characters</Text>
+                <Text style={styles.requirementText}>
+                  At least 8 characters
+                </Text>
               </View>
               <View style={styles.requirementItem}>
-                <MaterialIcons 
-                  name={/[A-Z]/.test(formData.password) ? "check-circle" : "cancel"} 
-                  size={14} 
-                  color={/[A-Z]/.test(formData.password) ? "#10B981" : "#CBD5E1"} 
+                <MaterialIcons
+                  name={
+                    /[A-Z]/.test(formData.password) ? "check-circle" : "cancel"
+                  }
+                  size={14}
+                  color={
+                    /[A-Z]/.test(formData.password) ? "#10B981" : "#CBD5E1"
+                  }
                 />
-                <Text style={styles.requirementText}>At least one uppercase letter</Text>
+                <Text style={styles.requirementText}>
+                  At least one uppercase letter
+                </Text>
               </View>
               <View style={styles.requirementItem}>
-                <MaterialIcons 
-                  name={/[a-z]/.test(formData.password) ? "check-circle" : "cancel"} 
-                  size={14} 
-                  color={/[a-z]/.test(formData.password) ? "#10B981" : "#CBD5E1"} 
+                <MaterialIcons
+                  name={
+                    /[a-z]/.test(formData.password) ? "check-circle" : "cancel"
+                  }
+                  size={14}
+                  color={
+                    /[a-z]/.test(formData.password) ? "#10B981" : "#CBD5E1"
+                  }
                 />
-                <Text style={styles.requirementText}>At least one lowercase letter</Text>
+                <Text style={styles.requirementText}>
+                  At least one lowercase letter
+                </Text>
               </View>
               <View style={styles.requirementItem}>
-                <MaterialIcons 
-                  name={/\d/.test(formData.password) ? "check-circle" : "cancel"} 
-                  size={14} 
-                  color={/\d/.test(formData.password) ? "#10B981" : "#CBD5E1"} 
+                <MaterialIcons
+                  name={
+                    /\d/.test(formData.password) ? "check-circle" : "cancel"
+                  }
+                  size={14}
+                  color={/\d/.test(formData.password) ? "#10B981" : "#CBD5E1"}
                 />
                 <Text style={styles.requirementText}>At least one number</Text>
               </View>
               <View style={styles.requirementItem}>
-                <MaterialIcons 
-                  name={/[!@#$%^&*]/.test(formData.password) ? "check-circle" : "cancel"} 
-                  size={14} 
-                  color={/[!@#$%^&*]/.test(formData.password) ? "#10B981" : "#CBD5E1"} 
+                <MaterialIcons
+                  name={
+                    /[!@#$%^&*]/.test(formData.password)
+                      ? "check-circle"
+                      : "cancel"
+                  }
+                  size={14}
+                  color={
+                    /[!@#$%^&*]/.test(formData.password) ? "#10B981" : "#CBD5E1"
+                  }
                 />
-                <Text style={styles.requirementText}>At least one special character</Text>
+                <Text style={styles.requirementText}>
+                  At least one special character
+                </Text>
               </View>
             </View>
           </>
@@ -593,8 +700,10 @@ export default function RegisterScreenView() {
         return (
           <>
             <Text style={styles.stepTitle}>Just a Few More Details</Text>
-            <Text style={styles.stepDescription}>Help us personalize your experience</Text>
-            
+            <Text style={styles.stepDescription}>
+              Help us personalize your experience
+            </Text>
+
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
                 <Feather name="calendar" size={18} color="#64748B" />
@@ -608,7 +717,9 @@ export default function RegisterScreenView() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-            {errorMessages.age ? <Text style={styles.errorText}>{errorMessages.age}</Text> : null}
+            {errorMessages.age ? (
+              <Text style={styles.errorText}>{errorMessages.age}</Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -623,7 +734,11 @@ export default function RegisterScreenView() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-            {errorMessages.retirementAge ? <Text style={styles.errorText}>{errorMessages.retirementAge}</Text> : null}
+            {errorMessages.retirementAge ? (
+              <Text style={styles.errorText}>
+                {errorMessages.retirementAge}
+              </Text>
+            ) : null}
 
             <View style={styles.inputContainer}>
               <View style={styles.inputIconContainer}>
@@ -638,24 +753,30 @@ export default function RegisterScreenView() {
                 placeholderTextColor="#94A3B8"
               />
             </View>
-            {errorMessages.phoneNumber ? <Text style={styles.errorText}>{errorMessages.phoneNumber}</Text> : null}
+            {errorMessages.phoneNumber ? (
+              <Text style={styles.errorText}>{errorMessages.phoneNumber}</Text>
+            ) : null}
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.countryPickerButton}
               onPress={() => setShowCountryPicker(true)}
             >
               <View style={styles.inputIconContainer}>
                 <Feather name="globe" size={18} color="#64748B" />
               </View>
-              <Text style={[
-                styles.countryPickerText, 
-                !formData.country && styles.countryPickerPlaceholder
-              ]}>
+              <Text
+                style={[
+                  styles.countryPickerText,
+                  !formData.country && styles.countryPickerPlaceholder,
+                ]}
+              >
                 {formData.country || "Select Country"}
               </Text>
               <Feather name="chevron-down" size={18} color="#64748B" />
             </TouchableOpacity>
-            {errorMessages.country ? <Text style={styles.errorText}>{errorMessages.country}</Text> : null}
+            {errorMessages.country ? (
+              <Text style={styles.errorText}>{errorMessages.country}</Text>
+            ) : null}
           </>
         );
       default:
@@ -666,83 +787,87 @@ export default function RegisterScreenView() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScrollView 
-          contentContainerStyle={styles.container} 
+        <ScrollView
+          contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <Image source={require("./assets/logo.png")} style={styles.logo} />
-          
-          {/* New step indicators component */}
+
           {renderStepIndicators()}
-          
-          <View style={styles.formContainer}>
-            {renderStep()}
-          </View>
-          
+
+          <View style={styles.formContainer}>{renderStep()}</View>
+
           <View style={styles.navigationButtonsContainer}>
             {currentStep > 1 && (
-              <TouchableOpacity style={styles.backButton} onPress={handlePrevStep}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handlePrevStep}
+              >
                 <Text style={styles.backButtonText}>Back</Text>
               </TouchableOpacity>
             )}
-            
+
             {currentStep < totalSteps ? (
-  <TouchableOpacity 
-    style={[
-      styles.nextButton, 
-      currentStep > 1 && styles.buttonWithMargin,
-      isNextLoading && styles.loadingButton // Optional: Add a subtle style change for loading state
-    ]} 
-    onPress={handleNextStep}
-    disabled={isNextLoading} // Disable button while loading
-  >
-    {isNextLoading ? (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#FFFFFF" />
-        <Text style={[styles.nextButtonText, styles.loadingButtonText]}>
-          Validating...
-        </Text>
-      </View>
-    ) : (
-      <Text style={styles.nextButtonText}>Continue</Text>
-    )}
-    </TouchableOpacity>
-    ) : (
-      <TouchableOpacity 
-        style={[styles.submitButton, styles.buttonWithMargin]} 
-        onPress={handleSubmit}
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#FFFFFF" />
-            <Text style={styles.submitButtonText}>Creating...</Text>
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  currentStep > 1 && styles.buttonWithMargin,
+                  isNextLoading && styles.loadingButton,
+                ]}
+                onPress={handleNextStep}
+                disabled={isNextLoading}
+              >
+                {isNextLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text
+                      style={[styles.nextButtonText, styles.loadingButtonText]}
+                    >
+                      Validating...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.nextButtonText}>Continue</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.submitButton, styles.buttonWithMargin]}
+                onPress={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.submitButtonText}>Creating...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.submitButtonText}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
-        ) : (
-          <Text style={styles.submitButtonText}>Create Account</Text>
-        )}
-      </TouchableOpacity>
-    )}
-          </View>
-          
+
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               Already have an account?{" "}
-              <Text style={styles.loginLink} onPress={() => navigation.navigate("Login")}>
+              <Text
+                style={styles.loginLink}
+                onPress={() => navigation.navigate("Login")}
+              >
                 Log In
               </Text>
             </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      
-      {/* Custom country picker modal */}
+
       {renderCountryPicker()}
     </SafeAreaView>
   );
@@ -764,7 +889,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginVertical: 20,
   },
-  // New step indicators styles
   stepsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -874,7 +998,6 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginBottom: 16,
   },
-  // New country picker styles
   countryPickerButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1033,9 +1156,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingButtonText: {
     marginLeft: 8,
@@ -1048,7 +1171,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   successText: {
-    color: "#10B981", 
+    color: "#10B981",
     fontSize: 14,
     marginTop: -8,
     marginLeft: 16,

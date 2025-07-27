@@ -1,107 +1,117 @@
 import React, { useEffect, useState, useRef } from "react";
-import { 
-  Image, 
-  StyleSheet, 
-  View, 
-  TouchableOpacity, 
-  Text, 
+import {
+  Image,
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Text,
   Animated,
   Dimensions,
   StatusBar,
-  SafeAreaView
+  SafeAreaView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Import Images
 const Logo = require("./assets/logo.png");
 const Splash = require("./assets/splash.png");
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function SplashScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
-  
-  // Animated values for fade and slide effects
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
-  
+
   useEffect(() => {
-    // Check if user is already logged in
-    const checkLoginStatus = async () => {
+    const checkStatusAndAnimate = async () => {
       try {
-        const userInfo = await AsyncStorage.getItem("userInfo");
+        const hasSeenOnboarding = await AsyncStorage.getItem(
+          "hasSeenOnboarding"
+        );
+        const userInfo = await AsyncStorage.getItem("userInfo"); // Check if user is logged in
+
         if (userInfo) {
-          // User is logged in, navigate to main app after a short delay
+          // User is logged in, bypass onboarding and splash, go directly to MainApp
           setTimeout(() => {
-            navigation.navigate("MainApp", {
+            navigation.replace("MainApp", {
               screen: "Calendar",
               params: { screen: "CalendarMain" },
             });
-          }, 1500);
+          }, 1500); // Small delay for smooth transition
+        } else if (hasSeenOnboarding === "true") {
+          // Onboarding already seen, proceed with splash screen animations
+          Animated.sequence([
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.delay(300),
+            Animated.parallel([
+              Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: true,
+              }),
+              Animated.timing(buttonFade, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+              }),
+            ]),
+          ]).start();
+        } else {
+          // Onboarding not seen, navigate to OnboardingScreen
+          // This should only happen if App.js didn't already route here,
+          // but as a fallback, ensure we go to Onboarding.
+          console.log(
+            "SplashScreen: Onboarding not seen, navigating to Onboarding."
+          );
+          navigation.replace("Onboarding"); // Use replace to prevent going back to splash
         }
       } catch (error) {
-        console.log("No stored login found");
+        console.error("Error in SplashScreen useEffect:", error);
+        // Fallback to Onboarding in case of error
+        navigation.replace("Onboarding");
       }
     };
-    
-    checkLoginStatus();
-    
-    // Start animations
-    Animated.sequence([
-      // Logo fade in
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      // Wait a bit
-      Animated.delay(300),
-      // Slide in the content
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        // Fade in the button
-        Animated.timing(buttonFade, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+
+    checkStatusAndAnimate();
   }, []);
-  
-  const handleGetStarted = () => {
+
+  const handleGetStarted = async () => {
     setLoading(true);
-    setTimeout(() => {
-      navigation.navigate("Login");
-    }, 800);
+    try {
+      // Mark onboarding as seen when 'GET STARTED' is clicked
+      await AsyncStorage.setItem("hasSeenOnboarding", "true");
+      console.log("✅ Onboarding flag set to true.");
+    } catch (e) {
+      console.error("Error setting onboarding flag:", e);
+    } finally {
+      setTimeout(() => {
+        navigation.navigate("Login"); // Navigate to Login after Get Started
+        setLoading(false);
+      }, 800);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.container}>
-        {/* Logo with fade in animation */}
-        <Animated.Image 
-          source={Logo} 
-          style={[
-            styles.logo, 
-            { opacity: fadeAnim }
-          ]} 
+        <Animated.Image
+          source={Logo}
+          style={[styles.logo, { opacity: fadeAnim }]}
         />
-        
-        {/* Main splash image */}
+
         <Image source={Splash} style={styles.splash} />
-        
-        {/* Content section with slide up animation */}
-        <Animated.View 
+
+        <Animated.View
           style={[
             styles.contentContainer,
             {
@@ -109,11 +119,10 @@ export default function SplashScreen() {
                 inputRange: [0, 50],
                 outputRange: [1, 0],
               }),
-              transform: [{ translateY: slideAnim }]
-            }
+              transform: [{ translateY: slideAnim }],
+            },
           ]}
         >
-          {/* Tagline with styled letters */}
           <Text style={styles.title}>
             <Text style={styles.firstLetter}>L</Text>earn,{" "}
             <Text style={styles.greenLetter}>I</Text>nvest &{"\n"}
@@ -122,23 +131,27 @@ export default function SplashScreen() {
             <Text style={styles.firstLetter}>H</Text>eavenly{" "}
             <Text style={styles.firstLetter}>S</Text>uccess
           </Text>
-          
-          {/* Description */}
+
           <Text style={styles.description}>
-            Take control of your financial future with our all-in-one personal finance management solution
+            Take control of your financial future with our all-in-one personal
+            finance management solution
           </Text>
-          
-          {/* Get Started button with fade in */}
+
           <Animated.View style={{ opacity: buttonFade }}>
-            <TouchableOpacity 
-              style={styles.button} 
+            <TouchableOpacity
+              style={styles.button}
               onPress={handleGetStarted}
               disabled={loading}
             >
               {loading ? (
                 <View style={styles.loadingButton}>
                   <Text style={styles.buttonText}>LOADING</Text>
-                  <Feather name="loader" size={20} color="#2563EB" style={styles.spinnerIcon} />
+                  <Feather
+                    name="loader"
+                    size={20}
+                    color="#2563EB"
+                    style={styles.spinnerIcon}
+                  />
                 </View>
               ) : (
                 <View style={styles.buttonContent}>
@@ -202,7 +215,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   firstLetter: {
-    color: "#2563EB", // Updated to match your brand
+    color: "#2563EB",
   },
   greenLetter: {
     color: "#10B981",
