@@ -326,13 +326,8 @@ export default function RegisterScreenView() {
       const response = await axios.post(`${NGROK_URL}/api/register`, formData);
 
       if (response.status === 201) {
-        // --- START NEW CODE ---
-        // Clear the onboarding flag so the tutorial is shown on next launch for this new account.
-        await AsyncStorage.removeItem("hasSeenOnboarding");
-        console.log(
-          "✅ Onboarding flag cleared after new account registration."
-        );
-        // --- END NEW CODE ---
+        // --- REMOVED: await AsyncStorage.removeItem("hasSeenOnboarding"); ---
+        // --- LOG: console.log("✅ Onboarding flag cleared after new account registration."); ---
 
         Alert.alert(
           "Registration Successful",

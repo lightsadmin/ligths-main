@@ -5,7 +5,7 @@ enableScreens();
 
 import "react-native-gesture-handler";
 
-import React, { useEffect, useState } from "react"; // Add useState and useEffect
+import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "./navigationRef";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -21,10 +21,10 @@ import {
   Text,
   Platform,
   TouchableOpacity,
-  ActivityIndicator, // Import ActivityIndicator for loading state
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Screens
 import SplashScreen from "./SplashScreen";
@@ -44,7 +44,7 @@ import InvestmentNavigation from "./InvestmentNavigation";
 import MFScreen from "./MFScreen";
 import StocksScreen from "./StocksScreen";
 import SavingsScreen from "./SavingsScreen";
-import OnboardingScreen from "./onboardingScreen"; // Import your OnboardingScreen
+import OnboardingScreen from "./onboardingScreen";
 
 const Tab = createBottomTabNavigator();
 const MainStack = createStackNavigator();
@@ -143,7 +143,7 @@ const CalendarStackNavigator = () => (
 // Auth Stack Navigator
 const AuthNavigator = () => (
   <AuthStack.Navigator>
-    {/* OnboardingScreen added here, it will be the first screen in AuthStack by default */}
+    {/* Onboarding will be dynamically set as initial screen by App.js root */}
     <AuthStack.Screen
       name="Onboarding"
       component={OnboardingScreen}
@@ -234,61 +234,59 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkOnboardingStatus = async () => {
+    const checkAppStatus = async () => {
       try {
-        // Check if the user has seen onboarding before
-        const hasSeenOnboarding = await AsyncStorage.getItem(
-          "hasSeenOnboarding"
-        );
-        // Check if there's existing user info (meaning they've logged in before)
-        const userInfo = await AsyncStorage.getItem("userInfo");
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+        const userInfo = await AsyncStorage.getItem('userInfo');
 
         if (userInfo) {
-          // If user info exists, they've logged in before, bypass onboarding to MainApp
-          setInitialRoute("MainApp");
-          console.log("App.js: Existing user, navigating to MainApp.");
-        } else if (hasSeenOnboarding === "true") {
-          // If onboarding has been seen but no user info, go to Login/SplashScreen
-          setInitialRoute("Auth");
-          console.log(
-            "App.js: Onboarding seen, no user info, navigating to Auth (Login/Splash)."
-          );
+          // User is logged in, go directly to MainApp
+          setInitialRoute('MainApp');
+          console.log("App.js: Existing user logged in, navigating to MainApp.");
+        } else if (hasSeenOnboarding === 'true') {
+          // User is not logged in, but onboarding has been seen.
+          // Go to Auth stack, but specifically to SplashScreen (which will then lead to Login).
+          setInitialRoute('Auth');
+          // We need to tell the Auth stack to start at SplashScreen, not Onboarding.
+          // This requires a dynamic initialRouteName for AuthStack or an immediate navigate inside App.js.
+          // A simpler approach is to use params and let the AuthStack handle initial navigation.
+          // For now, let AuthStack's default be Onboarding and we'll adjust SplashScreen.
+          console.log("App.js: Onboarding seen, not logged in. Navigating to Auth (will lead to Splash/Login).");
         } else {
-          // First time opening app, or new install, show onboarding
-          setInitialRoute("Auth");
-          console.log(
-            "App.js: First time or new install, navigating to Auth (Onboarding)."
-          );
+          // First time launching the app on this device, show onboarding.
+          setInitialRoute('Auth');
+          console.log("App.js: First time launch on device. Navigating to Auth (Onboarding).");
         }
       } catch (e) {
-        console.error("Failed to check onboarding status or user info:", e);
-        // Fallback in case of error, go to Auth
-        setInitialRoute("Auth");
+        console.error("Failed to check app status:", e);
+        // Fallback to Auth stack in case of error
+        setInitialRoute('Auth');
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkOnboardingStatus();
+    checkAppStatus();
   }, []);
 
   if (isLoading) {
-    // Show a blank loading screen while checking AsyncStorage
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={{ marginTop: 10, color: "#64748B" }}>Loading app...</Text>
+        <Text style={{ marginTop: 10, color: '#64748B' }}>Loading app...</Text>
       </View>
     );
   }
 
+  // The `initialRouteName` prop on `MainStack.Navigator` will determine the first screen.
+  // If `initialRoute` is 'Auth', it will render `AuthNavigator`.
+  // If `initialRoute` is 'MainApp', it will render `MainApp`.
+  // Within `AuthNavigator`, the `SplashScreen` will now conditionally skip directly to Login
+  // if `hasSeenOnboarding` is true and no user is logged in.
   return (
     <SafeAreaProvider>
       <NavigationContainer ref={navigationRef}>
-        <MainStack.Navigator
-          screenOptions={{ headerShown: false }}
-          initialRouteName={initialRoute}
-        >
+        <MainStack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
           <MainStack.Screen name="Auth" component={AuthNavigator} />
           <MainStack.Screen
             name="MainApp"
@@ -328,10 +326,10 @@ const styles = StyleSheet.create({
   },
   loadingScreen: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  }
 });
 
 export default App;

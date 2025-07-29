@@ -16,15 +16,15 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   ScrollView,
+  Modal,
 } from "react-native";
-import { FontAwesome, Feather } from "@expo/vector-icons";
+import { FontAwesome, Feather, Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri } from "expo-auth-session";
 
-// Required for Expo auth session
 WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get("window");
@@ -36,6 +36,12 @@ export default function LoginScreenView({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // 📧 Forgot Password State
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     expoClientId:
@@ -97,12 +103,6 @@ export default function LoginScreenView({ navigation }) {
         console.error("Error checking login status:", error);
       }
     };
-    // No longer calling checkLoginStatus here directly.
-    // The App.js root handles the initial navigation based on login status.
-    // This useEffect is more for handling persistent login once already in the app.
-    // However, for clean state management, we'll keep the `checkOnboardingStatus` in App.js as the primary gatekeeper.
-    // Remove the `checkLoginStatus()` call from here if you want App.js to solely manage initial routing.
-    // For now, let's keep it minimal by adding the clear-onboarding-flag.
   }, []);
 
   const handleGoogleSignIn = async (token) => {
@@ -162,16 +162,7 @@ export default function LoginScreenView({ navigation }) {
         console.log("✅ Google Login Successful:", response.data);
 
         await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
-        // --- START NEW CODE ---
-        // If it's a new Google registration, clear the onboarding flag to ensure they see it.
-        // Or, more robustly, your backend should tell you if it's a *new* registration vs. login.
-        // For simplicity, we'll assume a new Google login should trigger onboarding next.
-        // A more precise approach would be to check if response.data.isNewUser (from backend).
-        await AsyncStorage.removeItem("hasSeenOnboarding");
-        console.log(
-          "✅ Onboarding flag cleared for potential new Google account."
-        );
-        // --- END NEW CODE ---
+        // --- REMOVED: AsyncStorage.removeItem("hasSeenOnboarding"); ---
 
         Alert.alert("Login Success", "Redirecting to home...");
         navigation.navigate("MainApp", {
@@ -224,11 +215,56 @@ export default function LoginScreenView({ navigation }) {
     }
   };
 
+  // 📧 **Forgot Password Handler**
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotPasswordMessage("Please enter your email address.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(forgotEmail)) {
+      setForgotPasswordMessage("Please enter a valid email address.");
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+    setForgotPasswordMessage("");
+
+    try {
+      const response = await axios.post(
+        "https://ligths-backend.onrender.com/api/forgot-password",
+        { email: forgotEmail }
+      );
+
+      setForgotPasswordMessage(response.data.message);
+
+      // Auto-close modal after successful request
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setForgotEmail("");
+        setForgotPasswordMessage("");
+      }, 3000);
+    } catch (err) {
+      console.error(
+        "❌ Forgot Password Error:",
+        err.response?.data || err.message
+      );
+      setForgotPasswordMessage(
+        err.response?.data?.error ||
+          "Failed to send reset email. Please try again."
+      );
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem("userInfo");
       console.log("🚪 User logged out successfully!");
       Alert.alert("Logged Out", "You have been logged out successfully.");
+      // Navigate to Login, which App.js will then redirect to Splash/Login based on hasSeenOnboarding
       navigation.navigate("Login");
     } catch (err) {
       console.error("❌ Error during logout:", err);
@@ -308,7 +344,10 @@ export default function LoginScreenView({ navigation }) {
 
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                <TouchableOpacity style={styles.forgotPasswordContainer}>
+                <TouchableOpacity
+                  style={styles.forgotPasswordContainer}
+                  onPress={() => setShowForgotPassword(true)}
+                >
                   <Text style={styles.forgotPassword}>Forgot Password?</Text>
                 </TouchableOpacity>
 
@@ -368,6 +407,83 @@ export default function LoginScreenView({ navigation }) {
           </TouchableWithoutFeedback>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* 📧 Forgot Password Modal */}
+      <Modal
+        visible={showForgotPassword}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowForgotPassword(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKeyboardAvoid}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowForgotPassword(false);
+                    setForgotEmail("");
+                    setForgotPasswordMessage("");
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                Enter your email address and we'll send you a link to reset your
+                password.
+              </Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter your email"
+                placeholderTextColor="#94A3B8"
+                value={forgotEmail}
+                onChangeText={setForgotEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              {forgotPasswordMessage ? (
+                <Text
+                  style={[
+                    styles.modalMessage,
+                    forgotPasswordMessage.includes("sent") ||
+                    forgotPasswordMessage.includes("exists")
+                      ? styles.successMessage
+                      : styles.errorMessage,
+                  ]}
+                >
+                  {forgotPasswordMessage}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  (!forgotEmail.trim() || forgotPasswordLoading) &&
+                    styles.modalButtonDisabled,
+                ]}
+                onPress={handleForgotPassword}
+                disabled={!forgotEmail.trim() || forgotPasswordLoading}
+              >
+                {forgotPasswordLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Send Reset Link</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -538,6 +654,94 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     color: "#2563EB",
+    fontWeight: "600",
+  },
+
+  // 📧 **Forgot Password Modal Styles**
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalKeyboardAvoid: {
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: width * 0.9,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    maxHeight: height * 0.7,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    backgroundColor: "#F8FAFC",
+    marginBottom: 16,
+  },
+  modalMessage: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+    lineHeight: 18,
+  },
+  successMessage: {
+    color: "#059669",
+    backgroundColor: "#ECFDF5",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  errorMessage: {
+    color: "#DC2626",
+    backgroundColor: "#FEF2F2",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  modalButton: {
+    height: 48,
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalButtonDisabled: {
+    backgroundColor: "#94A3B8",
+  },
+  modalButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "600",
   },
 });

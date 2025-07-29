@@ -28,23 +28,40 @@ export default function SplashScreen() {
   const buttonFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const checkStatusAndAnimate = async () => {
+    const checkOnboardingAndLoginStatus = async () => {
       try {
         const hasSeenOnboarding = await AsyncStorage.getItem(
           "hasSeenOnboarding"
         );
-        const userInfo = await AsyncStorage.getItem("userInfo"); // Check if user is logged in
+        const userInfo = await AsyncStorage.getItem("userInfo");
 
         if (userInfo) {
-          // User is logged in, bypass onboarding and splash, go directly to MainApp
-          setTimeout(() => {
-            navigation.replace("MainApp", {
-              screen: "Calendar",
-              params: { screen: "CalendarMain" },
-            });
-          }, 1500); // Small delay for smooth transition
+          // If user is already logged in, navigate directly to MainApp
+          console.log(
+            "SplashScreen: User is already logged in, navigating to MainApp."
+          );
+          navigation.replace("MainApp", {
+            screen: "Calendar",
+            params: { screen: "CalendarMain" },
+          });
         } else if (hasSeenOnboarding === "true") {
-          // Onboarding already seen, proceed with splash screen animations
+          // If onboarding has been seen but user is not logged in,
+          // skip splash screen animations and go directly to login.
+          console.log(
+            "SplashScreen: Onboarding seen, not logged in. Navigating directly to Login."
+          );
+          navigation.replace("Login");
+        } else {
+          // This case should ideally be handled by App.js to go to Onboarding first.
+          // If for some reason we land here and onboarding hasn't been seen,
+          // then proceed with splash screen animations.
+          // However, based on the App.js change, if hasSeenOnboarding is null,
+          // App.js will set initialRoute to 'Auth', making OnboardingScreen the first.
+          // So this else block might not be hit if App.js works as intended.
+          // But it's here as a fallback to proceed with animations before setting the flag.
+          console.log(
+            "SplashScreen: Onboarding not seen, proceeding with splash animations."
+          );
           Animated.sequence([
             Animated.timing(fadeAnim, {
               toValue: 1,
@@ -65,41 +82,39 @@ export default function SplashScreen() {
               }),
             ]),
           ]).start();
-        } else {
-          // Onboarding not seen, navigate to OnboardingScreen
-          // This should only happen if App.js didn't already route here,
-          // but as a fallback, ensure we go to Onboarding.
-          console.log(
-            "SplashScreen: Onboarding not seen, navigating to Onboarding."
-          );
-          navigation.replace("Onboarding"); // Use replace to prevent going back to splash
         }
       } catch (error) {
         console.error("Error in SplashScreen useEffect:", error);
-        // Fallback to Onboarding in case of error
-        navigation.replace("Onboarding");
+        // Fallback to Login in case of error
+        navigation.replace("Login");
       }
     };
 
-    checkStatusAndAnimate();
+    checkOnboardingAndLoginStatus();
   }, []);
 
   const handleGetStarted = async () => {
     setLoading(true);
     try {
       // Mark onboarding as seen when 'GET STARTED' is clicked
+      // This happens AFTER the OnboardingScreen itself.
       await AsyncStorage.setItem("hasSeenOnboarding", "true");
-      console.log("✅ Onboarding flag set to true.");
+      console.log(
+        "✅ Onboarding flag set to true after 'GET STARTED' from Splash."
+      );
     } catch (e) {
       console.error("Error setting onboarding flag:", e);
     } finally {
       setTimeout(() => {
-        navigation.navigate("Login"); // Navigate to Login after Get Started
+        navigation.replace("Login"); // Navigate to Login after Get Started, using replace
         setLoading(false);
       }, 800);
     }
   };
 
+  // Only render the splash screen content if we are actually going to show it
+  // (i.e., if we didn't immediately navigate away in the useEffect).
+  // This is implicit because if it navigates, this component unmounts.
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
