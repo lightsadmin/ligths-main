@@ -111,6 +111,34 @@ export default function FDScreen({ navigation }) {
       return;
     }
 
+    // --- Goal Link Validation ---
+    if (selectedGoal) {
+      const goal = goals.find((g) => g._id === selectedGoal);
+      if (goal) {
+        // Cross-check investment type
+        if (goal.investmentType !== "FD") {
+          Alert.alert(
+            "Validation Error",
+            `This goal is set for '${goal.investmentType}' investments. Please choose a goal linked to 'FD' or update your goal.`
+          );
+          return;
+        }
+        // Cross-check interest rate
+        if (
+          parseFloat(interestRate) < parseFloat(goal.returnRate) * 0.8 ||
+          parseFloat(interestRate) > parseFloat(goal.returnRate) * 1.2
+        ) {
+          // 20% tolerance
+          Alert.alert(
+            "Validation Warning",
+            `The linked goal expects an approximate return rate of ${goal.returnRate}%, but your FD interest rate is ${interestRate}%. This might affect goal calculations.`
+          );
+          // You could make this a blocking error if desired: return;
+        }
+      }
+    }
+    // --- End Goal Link Validation ---
+
     try {
       setLoading(true);
 
@@ -444,7 +472,7 @@ export default function FDScreen({ navigation }) {
             )}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Link to Goal (Optional)</Text>
+              <Text style={styles.label}>Link to Goal</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedGoal}
@@ -456,16 +484,12 @@ export default function FDScreen({ navigation }) {
                     <Picker.Item
                       key={goal._id}
                       label={
-                        // Display description (Goal Name)
+                        // Display description as Goal Name
                         goal.description && goal.description.trim() !== ""
-                          ? `${goal.description} (${
-                              goal.name === "Custom Goal"
-                                ? goal.customName
-                                : goal.name
-                            })`
+                          ? goal.description
                           : goal.name === "Custom Goal"
                           ? goal.customName
-                          : goal.name // Fallback if no description
+                          : goal.name
                       }
                       value={goal._id}
                     />
@@ -477,10 +501,11 @@ export default function FDScreen({ navigation }) {
             <TouchableOpacity
               style={[
                 styles.addButton,
-                (!amount || !interestRate) && styles.disabledButton,
+                (!amount || !interestRate || !selectedGoal) &&
+                  styles.disabledButton,
               ]}
               onPress={addFD}
-              disabled={loading || !amount || !interestRate}
+              disabled={loading || !amount || !interestRate || !selectedGoal}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -522,15 +547,11 @@ export default function FDScreen({ navigation }) {
                 const goalDisplayName = linkedGoal
                   ? linkedGoal.description &&
                     linkedGoal.description.trim() !== ""
-                    ? `${linkedGoal.description} (${
-                        linkedGoal.name === "Custom Goal"
-                          ? linkedGoal.customName
-                          : linkedGoal.name
-                      })`
+                    ? linkedGoal.description
                     : linkedGoal.name === "Custom Goal"
                     ? linkedGoal.customName
                     : linkedGoal.name
-                  : "Not Linked"; // Changed to "Not Linked"
+                  : "Not Linked";
 
                 return (
                   <View style={styles.fdCard}>
@@ -575,12 +596,15 @@ export default function FDScreen({ navigation }) {
                       </Text>
                     </View>
 
-                    {item.goalId && ( // Only render this block if goalId exists
+                    {/* --- MODIFICATION START --- */}
+                    {/* This block displays the linked goal information if it exists */}
+                    {item.goalId && (
                       <View style={styles.goalLink}>
                         <Text style={styles.goalLabel}>Linked Goal:</Text>
                         <Text style={styles.goalValue}>{goalDisplayName}</Text>
                       </View>
                     )}
+                    {/* --- MODIFICATION END --- */}
 
                     <TouchableOpacity
                       style={styles.deleteButton}
@@ -810,23 +834,25 @@ const styles = StyleSheet.create({
     height: 50,
     width: "100%",
   },
+  // --- ADDED STYLES START ---
   goalLink: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f9ff", // Light blue for FD goals
+    backgroundColor: "#f0f9ff",
     padding: 8,
     borderRadius: 8,
     marginTop: 12,
   },
   goalLabel: {
     fontSize: 14,
-    color: "#0369a1", // Darker blue
+    color: "#0369a1",
     fontWeight: "500",
     marginRight: 8,
   },
   goalValue: {
     fontSize: 14,
-    color: "#0284c7", // Medium blue
+    color: "#0284c7",
     fontWeight: "600",
   },
+  // --- ADDED STYLES END ---
 });

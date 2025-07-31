@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PieChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
+import { EventRegister } from "react-native-event-listeners";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -98,6 +99,7 @@ const GOAL_TEMPLATES = {
 const INVESTMENT_TYPES = [
   { label: "SIP/MF", value: "SIP/MF" },
   { label: "FD", value: "FD" },
+  { label: "RD", value: "RD" },
   { label: "Stocks", value: "Stocks" },
   { label: "Savings", value: "Savings" },
 ];
@@ -130,6 +132,20 @@ export default function GoalCalculator() {
       fetchGoals();
       fetchInvestmentsByGoal();
     }
+  }, [userName]);
+
+  useEffect(() => {
+    // Listen for investment additions to refresh data
+    const listener = EventRegister.addEventListener("investmentAdded", () => {
+      if (userName) {
+        fetchInvestmentsByGoal();
+        fetchGoals(); // Also refresh goals in case calculations changed
+      }
+    });
+
+    return () => {
+      EventRegister.removeEventListener(listener);
+    };
   }, [userName]);
 
   const getUserName = async () => {
@@ -200,7 +216,41 @@ export default function GoalCalculator() {
   const fetchInvestmentsByGoal = async () => {
     if (!userName) return;
     try {
-      setInvestmentsByGoal({});
+      // Get user token for investments API
+      const userInfoString = await AsyncStorage.getItem("userInfo");
+      if (!userInfoString) return;
+
+      const parsedInfo = JSON.parse(userInfoString);
+      const token = parsedInfo.token;
+      if (!token) return;
+
+      // Fetch all investments for the user
+      const response = await fetch(`${API_BASE_URL}/investments`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const investments = await response.json();
+        console.log("Fetched investments:", investments);
+
+        // Group investments by goal ID
+        const investmentsByGoalMap = {};
+        investments.forEach((investment) => {
+          if (investment.goalId) {
+            if (!investmentsByGoalMap[investment.goalId]) {
+              investmentsByGoalMap[investment.goalId] = [];
+            }
+            investmentsByGoalMap[investment.goalId].push(investment);
+          }
+        });
+
+        console.log("Investments grouped by goal:", investmentsByGoalMap);
+        setInvestmentsByGoal(investmentsByGoalMap);
+      }
     } catch (error) {
       console.error("Error fetching investments:", error);
     }
@@ -337,18 +387,25 @@ export default function GoalCalculator() {
       });
     }
 
+    // --- FIX STARTS HERE ---
+    // Corrected the validation logic for required fields.
     const invalidFields = requiredFields.filter((field) => {
-      if (field.key === "customName" || field.key === "description") {
+      const isStringField =
+        field.key === "customName" || field.key === "description";
+
+      if (isStringField) {
         return !field.fieldValue || field.fieldValue.trim() === "";
       } else {
+        // For numeric fields, check all conditions
         return (
-          isNaN(field.value) ||
-          field.value <= 0 ||
           !field.fieldValue ||
-          field.fieldValue.trim() === ""
+          field.fieldValue.trim() === "" ||
+          isNaN(field.value) ||
+          field.value <= 0
         );
       }
     });
+    // --- FIX ENDS HERE ---
 
     if (invalidFields.length > 0) {
       const invalidFieldNames = invalidFields.map((field) => field.key);
@@ -529,26 +586,158 @@ export default function GoalCalculator() {
     useShadowColorFromDataset: false,
   };
 
+  // Calculate current value of RD investment
+  const calculateRDCurrentValue = (investment) => {
+    const monthlyDeposit = investment.monthlyDeposit || investment.amount || 0;
+    const annualRate = (investment.interestRate || 0) / 100;
+    const quarterlyRate = annualRate / 4;
+    const duration = investment.duration || 12;
+    const startDate = investment.startDate;
+
+    if (!startDate || !monthlyDeposit) {
+      return investment.currentAmount || investment.amount || 0;
+    }
+
+    // Calculate elapsed months since start date
+    const start = new Date(startDate);
+    const now = new Date();
+    const elapsedMonths = Math.max(
+      1,
+      (now.getFullYear() - start.getFullYear()) * 12 +
+        (now.getMonth() - start.getMonth()) +
+        1
+    );
+
+    // Limit to actual duration or elapsed time, whichever is smaller
+    const depositsCompleted = Math.min(elapsedMonths, duration);
+    const elapsedQuarters = depositsCompleted / 3;
+
+    if (quarterlyRate === 0) {
+      // If no interest, just return total deposits made so far
+      return monthlyDeposit * depositsCompleted;
+    }
+
+    // Calculate current value with quarterly compounding
+    const factor = Math.pow(1 + quarterlyRate, elapsedQuarters) - 1;
+    const currentValue = monthlyDeposit * 3 * (factor / quarterlyRate);
+
+    return Math.max(currentValue, monthlyDeposit * depositsCompleted);
+  };
+
   const getPieChartData = (goal) => {
     const data = [];
-    if (goal.futureValueOfSavings > 0) {
+
+    // Calculate investment amounts by type for this goal
+    const goalInvestments = investmentsByGoal[goal._id] || [];
+    console.log(
+      `Goal ${goal.name} (${goal._id}) investments:`,
+      goalInvestments
+    );
+
+    // Track investment amounts by type - shows different colors for each type
+    const investmentAmountsByType = {
+      FD: 0, // Green - Fixed Deposit
+      RD: 0, // Blue - Recurring Deposit
+      Savings: 0, // Orange - Savings Account
+      "SIP/MF": 0, // Purple - SIP/Mutual Funds
+    };
+
+    let totalInvestmentAmount = 0;
+
+    goalInvestments.forEach((investment) => {
+      let amount = 0;
+      console.log(`Processing investment:`, investment);
+
+      // Calculate accurate current value based on investment type
+      if (investment.investmentType === "Fixed Deposit") {
+        amount = investment.currentAmount || investment.amount || 0;
+        investmentAmountsByType.FD += amount;
+        totalInvestmentAmount += amount;
+        console.log(`FD amount: ₹${amount}`);
+      } else if (investment.investmentType === "Recurring Deposit") {
+        // For RD, calculate current value based on deposits made and interest earned
+        amount = calculateRDCurrentValue(investment);
+        investmentAmountsByType.RD += amount;
+        totalInvestmentAmount += amount;
+        console.log(`RD amount calculated: ₹${amount}`);
+      } else if (investment.investmentType === "Savings") {
+        amount = investment.currentAmount || investment.amount || 0;
+        investmentAmountsByType.Savings += amount;
+        totalInvestmentAmount += amount;
+        console.log(`Savings amount: ₹${amount}`);
+      } else if (investment.investmentType === "SIP/MF") {
+        amount = investment.currentAmount || investment.amount || 0;
+        investmentAmountsByType["SIP/MF"] += amount;
+        totalInvestmentAmount += amount;
+        console.log(`SIP/MF amount: ₹${amount}`);
+      } else {
+        // Handle any other investment types
+        console.log(`Unknown investment type: ${investment.investmentType}`);
+        amount = investment.currentAmount || investment.amount || 0;
+        // For unknown types, add to the most appropriate category or create a generic one
+        if (investment.investmentType) {
+          console.log(
+            `Adding unknown investment type to general tracking: ₹${amount}`
+          );
+          totalInvestmentAmount += amount;
+        }
+      }
+    });
+
+    console.log(`Total investment amount for goal: ₹${totalInvestmentAmount}`);
+    console.log(`Investment amounts by type:`, investmentAmountsByType);
+
+    // Create pie chart data with distinct colors for each investment type
+    // When a user has multiple investment types for one goal, each will show with its own color
+    // Color scheme: FD=Light Cyan, RD=Light Purple, Savings=Light Yellow, SIP/MF=Purple
+    // Add investment type slices to pie chart with distinct colors
+    const investmentColors = {
+      FD: "#4ce4f8ff", // Light Cyan for Fixed Deposit
+      RD: "#ee99fcff", // Light Purple for Recurring Deposit
+      Savings: "#ffe88aff", // Light Yellow for Savings
+      "SIP/MF": "#8B5CF6", // Purple for SIP/MF
+    };
+    Object.keys(investmentAmountsByType).forEach((type) => {
+      const amount = investmentAmountsByType[type];
+      if (amount > 0) {
+        data.push({
+          name: `${type} Investment`,
+          population: parseFloat(amount.toFixed(0)),
+          color: investmentColors[type],
+          legendFontColor: "#374151",
+          legendFontSize: 14,
+        });
+      }
+    });
+
+    // Add current savings (if any) from goal
+    const originalFutureValueOfSavings = goal.futureValueOfSavings || 0;
+    if (originalFutureValueOfSavings > 0) {
       data.push({
-        name: "Existing Savings",
-        population: parseFloat(goal.futureValueOfSavings.toFixed(0)),
-        color: INCOME_GREEN,
-        legendFontColor: "#7F7F7F",
-        legendFontSize: 15,
+        name: "Current Savings",
+        population: parseFloat(originalFutureValueOfSavings.toFixed(0)),
+        color: "#6B7280", // Gray for current savings
+        legendFontColor: "#374151",
+        legendFontSize: 14,
       });
     }
-    if (goal.required > 0) {
+
+    // Calculate required investment (reduced by all investment amounts)
+    const updatedRequired = Math.max(
+      0,
+      (goal.required || 0) - totalInvestmentAmount
+    );
+
+    if (updatedRequired > 0) {
       data.push({
         name: "Required Investment",
-        population: parseFloat(goal.required.toFixed(0)),
-        color: INVESTMENT_BLUE,
-        legendFontColor: "#7F7F7F",
-        legendFontSize: 15,
+        population: parseFloat(updatedRequired.toFixed(0)),
+        color: "#fb746aff", // Red for required investment
+        legendFontColor: "#374151",
+        legendFontSize: 14,
       });
     }
+
     return data;
   };
 
@@ -685,24 +874,23 @@ export default function GoalCalculator() {
           </View>
         </View>
 
-        {g.investmentType !== "Savings" && (
-          <View
-            style={[
-              styles.inputGroup,
-              errorFields.includes("returnRate") && styles.errorInput,
-            ]}
-          >
-            <Text style={styles.label}>Expected Return Rate (%)</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={g.returnRate}
-              onChangeText={(text) => updateGoal("returnRate", text)}
-              placeholder="e.g., 12"
-              placeholderTextColor="#9ca3af"
-            />
-          </View>
-        )}
+        <View
+          style={[
+            styles.inputGroup,
+            errorFields.includes("returnRate") && styles.errorInput,
+          ]}
+        >
+          <Text style={styles.label}>Expected Return Rate (%)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={g.returnRate}
+            onChangeText={(text) => updateGoal("returnRate", text)}
+            placeholder={g.investmentType === "Savings" ? "0" : "e.g., 12"}
+            placeholderTextColor="#9ca3af"
+            editable={g.investmentType !== "Savings"}
+          />
+        </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Inhand value (₹)</Text>
@@ -1133,45 +1321,142 @@ export default function GoalCalculator() {
 
                 {activeTabs[goal._id] === "SIP Calculation" && (
                   <View>
-                    <View style={styles.resultGrid}>
-                      <View style={styles.resultItem}>
-                        <Text style={styles.resultLabel}>Future Value</Text>
-                        <Text style={styles.resultValue}>
-                          {formatCurrency(goal.futureCost)}
-                        </Text>
-                      </View>
-                      <View style={styles.resultItem}>
-                        <Text style={styles.resultLabel}>
-                          In-hand (Future Value)
-                        </Text>
-                        <Text style={styles.resultValue}>
-                          {goal.futureValueOfSavings > 0
-                            ? formatCurrency(goal.futureValueOfSavings)
-                            : "₹0"}
-                        </Text>
-                      </View>
-                      <View style={styles.resultItem}>
-                        <Text style={styles.resultLabel}>Amount Needed</Text>
-                        <Text style={styles.resultValue}>
-                          {formatCurrency(goal.required)}
-                        </Text>
-                      </View>
-                      <View style={styles.resultItem}>
-                        <Text style={styles.resultLabel}>Time Frame</Text>
-                        <Text style={styles.resultValue}>
-                          {goal.years} Years
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.sipHighlight}>
-                      <Ionicons name="refresh" size={18} color="#5b21b6" />
-                      <Text style={styles.sipLabel}>
-                        Additional Monthly Savings Required
-                      </Text>
-                      <Text style={styles.sipAmount}>
-                        {formatCurrency(goal.monthlySIP)}
-                      </Text>
-                    </View>
+                    {(() => {
+                      // Calculate total investment amounts for this goal (all types)
+                      const goalInvestments = investmentsByGoal[goal._id] || [];
+                      const investmentAmountsByType = {
+                        FD: 0,
+                        RD: 0,
+                        Savings: 0,
+                        "SIP/MF": 0,
+                      };
+
+                      let totalInvestmentAmount = 0;
+
+                      goalInvestments.forEach((investment) => {
+                        let amount = 0;
+
+                        // Calculate accurate current value based on investment type
+                        if (investment.investmentType === "Fixed Deposit") {
+                          amount =
+                            investment.currentAmount || investment.amount || 0;
+                          investmentAmountsByType.FD += amount;
+                          totalInvestmentAmount += amount;
+                        } else if (
+                          investment.investmentType === "Recurring Deposit"
+                        ) {
+                          // For RD, calculate current value based on deposits made and interest earned
+                          amount = calculateRDCurrentValue(investment);
+                          investmentAmountsByType.RD += amount;
+                          totalInvestmentAmount += amount;
+                        } else if (investment.investmentType === "Savings") {
+                          amount =
+                            investment.currentAmount || investment.amount || 0;
+                          investmentAmountsByType.Savings += amount;
+                          totalInvestmentAmount += amount;
+                        } else if (investment.investmentType === "SIP/MF") {
+                          amount =
+                            investment.currentAmount || investment.amount || 0;
+                          investmentAmountsByType["SIP/MF"] += amount;
+                          totalInvestmentAmount += amount;
+                        }
+                      });
+
+                      // Calculate updated values
+                      const originalInHand = goal.futureValueOfSavings || 0;
+                      const updatedInHand =
+                        originalInHand + totalInvestmentAmount;
+                      const updatedRequired = Math.max(
+                        0,
+                        (goal.required || 0) - totalInvestmentAmount
+                      );
+
+                      // Create investment breakdown text
+                      const investmentBreakdown = Object.keys(
+                        investmentAmountsByType
+                      )
+                        .filter((type) => investmentAmountsByType[type] > 0)
+                        .map(
+                          (type) =>
+                            `${type}: ₹${Math.round(
+                              investmentAmountsByType[type]
+                            ).toLocaleString("en-IN")}`
+                        )
+                        .join(", ");
+
+                      return (
+                        <>
+                          <View style={styles.resultGrid}>
+                            <View style={styles.resultItem}>
+                              <Text style={styles.resultLabel}>
+                                Future Value
+                              </Text>
+                              <Text style={styles.resultValue}>
+                                {formatCurrency(goal.futureCost)}
+                              </Text>
+                            </View>
+                            <View style={styles.resultItem}>
+                              <Text style={styles.resultLabel}>
+                                In-hand (Future Value)
+                              </Text>
+                              <Text style={styles.resultValue}>
+                                {formatCurrency(updatedInHand)}
+                                {totalInvestmentAmount > 0 && (
+                                  <Text style={styles.investmentNote}>
+                                    {"\n"}+₹
+                                    {Math.round(
+                                      totalInvestmentAmount
+                                    ).toLocaleString("en-IN")}{" "}
+                                    from investments
+                                    {investmentBreakdown && (
+                                      <>
+                                        {"\n"}({investmentBreakdown})
+                                      </>
+                                    )}
+                                  </Text>
+                                )}
+                              </Text>
+                            </View>
+                            <View style={styles.resultItem}>
+                              <Text style={styles.resultLabel}>
+                                Amount Needed
+                              </Text>
+                              <Text style={styles.resultValue}>
+                                {formatCurrency(updatedRequired)}
+                                {totalInvestmentAmount > 0 &&
+                                  updatedRequired !== goal.required && (
+                                    <Text style={styles.investmentNote}>
+                                      {"\n"}Reduced by ₹
+                                      {Math.round(
+                                        totalInvestmentAmount
+                                      ).toLocaleString("en-IN")}
+                                    </Text>
+                                  )}
+                              </Text>
+                            </View>
+                            <View style={styles.resultItem}>
+                              <Text style={styles.resultLabel}>Time Frame</Text>
+                              <Text style={styles.resultValue}>
+                                {goal.years} Years
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.sipHighlight}>
+                            <Ionicons
+                              name="refresh"
+                              size={18}
+                              color="#5b21b6"
+                            />
+                            <Text style={styles.sipLabel}>
+                              Additional Monthly Savings Required
+                            </Text>
+                            <Text style={styles.sipAmount}>
+                              {formatCurrency(goal.monthlySIP)}
+                            </Text>
+                          </View>
+                        </>
+                      );
+                    })()}
                   </View>
                 )}
 
@@ -1578,5 +1863,11 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: "#FFFFFF",
+  },
+  investmentNote: {
+    fontSize: 12,
+    color: "#059669",
+    fontStyle: "italic",
+    marginTop: 4,
   },
 });

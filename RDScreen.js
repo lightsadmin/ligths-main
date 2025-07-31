@@ -110,6 +110,34 @@ export default function RDScreen({ navigation }) {
       return;
     }
 
+    // --- Goal Link Validation ---
+    if (selectedGoal) {
+      const goal = goals.find((g) => g._id === selectedGoal);
+      if (goal) {
+        // Cross-check investment type
+        if (goal.investmentType !== "SIP/MF" && goal.investmentType !== "RD") {
+          Alert.alert(
+            "Validation Error",
+            `This goal is set for '${goal.investmentType}' investments. Please choose a goal linked to 'SIP/MF' or 'RD' or update your goal.`
+          );
+          return;
+        }
+        // Cross-check interest rate
+        if (
+          parseFloat(interestRate) < parseFloat(goal.returnRate) * 0.8 ||
+          parseFloat(interestRate) > parseFloat(goal.returnRate) * 1.2
+        ) {
+          // 20% tolerance
+          Alert.alert(
+            "Validation Warning",
+            `The linked goal expects an approximate return rate of ${goal.returnRate}%, but your RD interest rate is ${interestRate}%. This might affect goal calculations.`
+          );
+          // You could make this a blocking error if desired: return;
+        }
+      }
+    }
+    // --- End Goal Link Validation ---
+
     try {
       setLoading(true);
 
@@ -138,23 +166,33 @@ export default function RDScreen({ navigation }) {
       maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
       const startDate = new Date(); // Define startDate here
 
+      // Calculate expected maturity amount
+      const expectedMaturityAmount = calculateMaturityAmount(
+        monthlyDeposit,
+        interestRate,
+        duration
+      );
+
       // Create new RD investment object
       const newRD = {
-        name: `RD - ${monthlyDeposit}/month for ${duration} months`, // This name is for the backend
-        amount: parseFloat(monthlyDeposit), // Monthly amount
-        currentAmount: parseFloat(monthlyDeposit), // Initially just the first deposit
+        name: `RD - ₹${monthlyDeposit}/month for ${duration} months`, // This name is for the backend
+        amount: parseFloat(monthlyDeposit) * parseInt(duration), // Total amount to be deposited
+        currentAmount: parseFloat(monthlyDeposit), // Currently deposited (first month)
         interestRate: parseFloat(interestRate),
         goalId: selectedGoal, // Add the selected goal ID
         investmentType: "Recurring Deposit",
         startDate: startDate.toISOString(), // Use defined startDate
         maturityDate: maturityDate.toISOString(),
         compoundingFrequency: "quarterly", // Most RDs compound quarterly
-        description: `₹${monthlyDeposit} monthly deposit for ${duration} months at ${interestRate}% interest`, // This description is for backend too
+        description: `₹${monthlyDeposit} monthly for ${duration} months at ${interestRate}% (Maturity: ₹${Math.round(
+          expectedMaturityAmount
+        ).toLocaleString("en-IN")})`,
       };
 
       // Add custom fields for RD
       newRD.monthlyDeposit = parseFloat(monthlyDeposit);
       newRD.duration = parseInt(duration);
+      newRD.expectedMaturityAmount = expectedMaturityAmount;
 
       const response = await fetch(`${API_URL}/investment`, {
         method: "POST",
@@ -220,32 +258,59 @@ export default function RDScreen({ navigation }) {
 
   // Calculate maturity amount for RD
   const calculateMaturityAmount = (deposit, rate, months) => {
-    const d = parseFloat(deposit);
-    const r = parseFloat(rate) / 100 / 12; // monthly interest rate
-    const n = parseInt(months);
+    const monthlyDeposit = parseFloat(deposit);
+    const annualRate = parseFloat(rate) / 100;
+    const quarterlyRate = annualRate / 4; // Most RDs compound quarterly
+    const totalMonths = parseInt(months);
 
-    // RD maturity calculation formula: P × (((1 + r)^n - 1) / r)
-    return d * ((Math.pow(1 + r, n) - 1) / r);
+    // RD formula: M = P × [((1 + r/4)^(4n) - 1) / (r/4)] × (1 + r/4)^(1/3)
+    // Where P = monthly deposit, r = annual rate, n = years
+    const years = totalMonths / 12;
+    const quarters = totalMonths / 3; // Number of quarters
+
+    if (quarterlyRate === 0) {
+      // If no interest, just return total deposits
+      return monthlyDeposit * totalMonths;
+    }
+
+    // Calculate maturity using quarterly compounding
+    const factor = Math.pow(1 + quarterlyRate, quarters) - 1;
+    const maturityAmount = monthlyDeposit * 3 * (factor / quarterlyRate);
+
+    return maturityAmount;
   };
 
   // Calculate current value of RD
   const calculateCurrentValue = (deposit, rate, startDate, duration) => {
-    const d = parseFloat(deposit);
-    const r = parseFloat(rate) / 100 / 12; // monthly interest rate
+    const monthlyDeposit = parseFloat(deposit);
+    const annualRate = parseFloat(rate) / 100;
+    const quarterlyRate = annualRate / 4;
     const totalMonths = parseInt(duration);
 
     // Calculate elapsed months since start date
     const start = new Date(startDate);
     const now = new Date();
-    const elapsedMonths =
+    const elapsedMonths = Math.max(
+      1,
       (now.getFullYear() - start.getFullYear()) * 12 +
-      (now.getMonth() - start.getMonth());
+        (now.getMonth() - start.getMonth()) +
+        1
+    );
 
     // Limit to actual duration or elapsed time, whichever is smaller
-    const n = Math.min(Math.max(elapsedMonths, 1), totalMonths);
+    const depositsCompleted = Math.min(elapsedMonths, totalMonths);
+    const elapsedQuarters = depositsCompleted / 3;
 
-    // Calculate current value using same formula but with elapsed months
-    return d * ((Math.pow(1 + r, n) - 1) / r);
+    if (quarterlyRate === 0) {
+      // If no interest, just return total deposits made so far
+      return monthlyDeposit * depositsCompleted;
+    }
+
+    // Calculate current value with quarterly compounding
+    const factor = Math.pow(1 + quarterlyRate, elapsedQuarters) - 1;
+    const currentValue = monthlyDeposit * 3 * (factor / quarterlyRate);
+
+    return Math.max(currentValue, monthlyDeposit * depositsCompleted);
   };
 
   // Delete investment
@@ -380,7 +445,7 @@ export default function RDScreen({ navigation }) {
             />
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Link to Goal (Optional)</Text>
+              <Text style={styles.label}>Link to Goal</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedGoal}
@@ -392,16 +457,12 @@ export default function RDScreen({ navigation }) {
                     <Picker.Item
                       key={goal._id}
                       label={
-                        // Display description (Goal Name)
+                        // Display description as Goal Name
                         goal.description && goal.description.trim() !== ""
-                          ? `${goal.description} (${
-                              goal.name === "Custom Goal"
-                                ? goal.customName
-                                : goal.name
-                            })`
+                          ? goal.description
                           : goal.name === "Custom Goal"
                           ? goal.customName
-                          : goal.name // Fallback if no description
+                          : goal.name
                       }
                       value={goal._id}
                     />
@@ -413,12 +474,19 @@ export default function RDScreen({ navigation }) {
             <TouchableOpacity
               style={[
                 styles.addButton,
-                (!monthlyDeposit || !interestRate || !duration) &&
+                (!monthlyDeposit ||
+                  !interestRate ||
+                  !duration ||
+                  !selectedGoal) &&
                   styles.disabledButton,
               ]}
               onPress={addRD}
               disabled={
-                loading || !monthlyDeposit || !interestRate || !duration
+                loading ||
+                !monthlyDeposit ||
+                !interestRate ||
+                !duration ||
+                !selectedGoal
               }
             >
               {loading ? (
@@ -469,15 +537,11 @@ export default function RDScreen({ navigation }) {
                 const goalDisplayName = linkedGoal
                   ? linkedGoal.description &&
                     linkedGoal.description.trim() !== ""
-                    ? `${linkedGoal.description} (${
-                        linkedGoal.name === "Custom Goal"
-                          ? linkedGoal.customName
-                          : linkedGoal.name
-                      })`
+                    ? linkedGoal.description
                     : linkedGoal.name === "Custom Goal"
                     ? linkedGoal.customName
                     : linkedGoal.name
-                  : "Not Linked"; // Changed to "Not Linked"
+                  : "Not Linked";
 
                 return (
                   <View style={styles.rdCard}>
@@ -523,6 +587,43 @@ export default function RDScreen({ navigation }) {
                           ₹{Math.round(maturityAmount).toLocaleString("en-IN")}
                         </Text>
                       </View>
+
+                      {/* Progress indicator for deposits completed */}
+                      {(() => {
+                        const start = new Date(item.startDate);
+                        const now = new Date();
+                        const elapsedMonths = Math.max(
+                          1,
+                          (now.getFullYear() - start.getFullYear()) * 12 +
+                            (now.getMonth() - start.getMonth()) +
+                            1
+                        );
+                        const depositsCompleted = Math.min(
+                          elapsedMonths,
+                          duration
+                        );
+                        const progressPercentage =
+                          (depositsCompleted / duration) * 100;
+
+                        return (
+                          <View style={styles.progressSection}>
+                            <View style={styles.detailRow}>
+                              <Text style={styles.detailLabel}>Progress:</Text>
+                              <Text style={styles.progressText}>
+                                {depositsCompleted}/{duration} deposits
+                              </Text>
+                            </View>
+                            <View style={styles.progressBarContainer}>
+                              <View
+                                style={[
+                                  styles.progressBar,
+                                  { width: `${progressPercentage}%` },
+                                ]}
+                              />
+                            </View>
+                          </View>
+                        );
+                      })()}
                     </View>
 
                     {item.goalId && ( // Only display if goalId exists
@@ -792,5 +893,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#0284c7",
     fontWeight: "600",
+  },
+  progressSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+  },
+  progressText: {
+    fontSize: 14,
+    color: "#059669",
+    fontWeight: "600",
+  },
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 3,
+    marginTop: 8,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "#10b981",
+    borderRadius: 3,
   },
 });
