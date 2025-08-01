@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,27 +16,36 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Dimensions,
+  Animated,
 } from "react-native";
 import { Ionicons, FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Picker } from "@react-native-picker/picker";
 
 const API_URL = "https://ligths-backend.onrender.com";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function ExpenseTracker({ navigation, route }) {
   // Extract date from route params if provided (for auto-opening modal)
   const receivedDate = route.params?.date || null;
-  
+
   const [transactions, setTransactions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [filter, setFilter] = useState("all");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Month/Year filter states (similar to FireNumber)
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterMonth, setFilterMonth] = useState("All");
+  const [filterYear, setFilterYear] = useState("All");
+
   const [newTransaction, setNewTransaction] = useState({
     name: "",
     amount: "",
+    description: "",
     type: "Expense",
     subType: "Essential",
     method: "Cash",
@@ -47,10 +56,65 @@ export default function ExpenseTracker({ navigation, route }) {
   const [selectedDate, setSelectedDate] = useState(
     receivedDate ? new Date(receivedDate) : new Date()
   );
-  
+
   // For the dropdown states
   const [isExpenseDropdownOpen, setIsExpenseDropdownOpen] = useState(false);
   const [isMethodDropdownOpen, setIsMethodDropdownOpen] = useState(false);
+
+  // Animation for loading icon
+  const spinValue = useState(new Animated.Value(0))[0];
+
+  // Month/Year filter options similar to FireNumber
+  const availableFilters = useMemo(() => {
+    if (!transactions || transactions.length === 0) {
+      return { years: [], months: [] };
+    }
+
+    const years = [
+      ...new Set(
+        transactions.map((transaction) => {
+          const date = new Date(transaction.date);
+          return date.getFullYear();
+        })
+      ),
+    ].sort((a, b) => b - a);
+
+    const months = [
+      { name: "January", value: 0 },
+      { name: "February", value: 1 },
+      { name: "March", value: 2 },
+      { name: "April", value: 3 },
+      { name: "May", value: 4 },
+      { name: "June", value: 5 },
+      { name: "July", value: 6 },
+      { name: "August", value: 7 },
+      { name: "September", value: 8 },
+      { name: "October", value: 9 },
+      { name: "November", value: 10 },
+      { name: "December", value: 11 },
+    ];
+
+    return { years, months };
+  }, [transactions]);
+
+  useEffect(() => {
+    if (loading) {
+      const spinAnimation = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      );
+      spinAnimation.start();
+      return () => spinAnimation.stop();
+    }
+  }, [loading, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   // Auto-open modal when navigating with a date parameter
   useEffect(() => {
@@ -59,32 +123,81 @@ export default function ExpenseTracker({ navigation, route }) {
       const timer = setTimeout(() => {
         setModalVisible(true);
       }, 300);
-      
+
       return () => clearTimeout(timer);
     }
   }, [receivedDate]);
 
   const expenseTypeOptions = {
-    Mandatory: ["EMI - Education", "EMI - Personal", "EMI - Property", "EMI - Vehicle", "Fees & Charges - Consultation", "Insurance - Fire", "Insurance - Health", "Insurance - Life (Term / Pension / Moneyback)", "Insurance - Property", "Insurance - Travel", "Insurance - Vehicle", "Loan Repayment", "PPF/VPF - Retirement fund", "Tax - Income", "Tax - utilities"],
-    Discretionary: ["Charitable donations", "Fun / Entertainment", "Food Dining", "Gifts", "Home Décor", "Luxury clothing / Jewelery", "Sports items", "Subscriptions / dues", "Tours & travel", "Vehicle Purchase"],
-    Essential: ["Child care", "Clothing", "Education", "Emergency Fund", "Fuel - Cooking", "Fuel - Vehicles", "Groceries", "Home care", "Medical Care", "Miscellaneous", "Personal grooming", "Pet care", "Rents / Mortgage", "Transportation", "Utilities - Electricity", "Utilities - Gas", "Utilities - Phone(s)", "Utilities - TV / Internet", "Utilities - Water", "Utilities Maintenance cost", "Vehicle Maintenance cost"]
+    Mandatory: [
+      "EMI - Education",
+      "EMI - Personal",
+      "EMI - Property",
+      "EMI - Vehicle",
+      "Fees & Charges - Consultation",
+      "Insurance - Fire",
+      "Insurance - Health",
+      "Insurance - Life (Term / Pension / Moneyback)",
+      "Insurance - Property",
+      "Insurance - Travel",
+      "Insurance - Vehicle",
+      "Loan Repayment",
+      "PPF/VPF - Retirement fund",
+      "Tax - Income",
+      "Tax - utilities",
+    ],
+    Discretionary: [
+      "Charitable donations",
+      "Fun / Entertainment",
+      "Food Dining",
+      "Gifts",
+      "Home Décor",
+      "Luxury clothing / Jewelery",
+      "Sports items",
+      "Subscriptions / dues",
+      "Tours & travel",
+      "Vehicle Purchase",
+    ],
+    Essential: [
+      "Child care",
+      "Clothing",
+      "Education",
+      "Emergency Fund",
+      "Fuel - Cooking",
+      "Fuel - Vehicles",
+      "Groceries",
+      "Home care",
+      "Medical Care",
+      "Miscellaneous",
+      "Personal grooming",
+      "Pet care",
+      "Rents / Mortgage",
+      "Transportation",
+      "Utilities - Electricity",
+      "Utilities - Gas",
+      "Utilities - Phone(s)",
+      "Utilities - TV / Internet",
+      "Utilities - Water",
+      "Utilities Maintenance cost",
+      "Vehicle Maintenance cost",
+    ],
   };
 
   const formatDate = useCallback((date) => {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = date.getFullYear();
-    
+
     // Store as YYYY-MM-DD for API consistency
     return `${year}-${month}-${day}`;
   }, []);
-  
+
   const formatDisplayDate = useCallback((dateString) => {
     if (!dateString) return "Select a date";
-    
+
     try {
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString('en-IN', options);
+      const options = { year: "numeric", month: "short", day: "numeric" };
+      return new Date(dateString).toLocaleDateString("en-IN", options);
     } catch (error) {
       console.error("Date formatting error:", error);
       return dateString;
@@ -92,40 +205,43 @@ export default function ExpenseTracker({ navigation, route }) {
   }, []);
 
   // Date change handler
-  const onDateChange = useCallback((event, selected) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selected) {
-      setSelectedDate(selected);
-      setNewTransaction(prev => ({ 
-        ...prev, 
-        date: formatDate(selected) 
-      }));
-    }
-  }, [formatDate]);
+  const onDateChange = useCallback(
+    (event, selected) => {
+      setShowDatePicker(Platform.OS === "ios");
+      if (selected) {
+        setSelectedDate(selected);
+        setNewTransaction((prev) => ({
+          ...prev,
+          date: formatDate(selected),
+        }));
+      }
+    },
+    [formatDate]
+  );
 
   // Fetch Transactions from MongoDB
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
       const userInfo = await AsyncStorage.getItem("userInfo");
-      
+
       if (!userInfo) {
         Alert.alert("Error", "User not logged in. Please log in again.");
         setLoading(false);
         return;
       }
-    
+
       const parsedInfo = JSON.parse(userInfo);
       const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-      
+
       const response = await fetch(`${API_URL}/transactions/${username}`);
       if (!response.ok) throw new Error("Failed to fetch transactions");
-  
+
       const data = await response.json();
       const expenseTransactions = data.transactions.filter(
         (transaction) => transaction && transaction.type === "Expense"
       );
-      
+
       setTransactions(expenseTransactions);
       setLoading(false);
     } catch (error) {
@@ -143,43 +259,51 @@ export default function ExpenseTracker({ navigation, route }) {
   const addTransaction = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const userInfo = await AsyncStorage.getItem("userInfo");
-  
+
       if (!userInfo) {
         Alert.alert("Error", "User not logged in. Please log in again.");
         setLoading(false);
         return;
       }
-  
+
       const parsedInfo = JSON.parse(userInfo);
       const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-  
+
       // Determine final expense name based on whether it's custom or not
-      const expenseName = isCustomExpense ? customExpenseName : newTransaction.name;
-  
+      const expenseName = isCustomExpense
+        ? customExpenseName
+        : newTransaction.name;
+
       // Validate inputs
       if (!expenseName) {
-        Alert.alert("Missing Information", "Please select or enter an expense name");
+        Alert.alert(
+          "Missing Information",
+          "Please select or enter an expense name"
+        );
         setLoading(false);
         return;
       }
-      
+
       if (!newTransaction.amount) {
         Alert.alert("Missing Information", "Please enter an amount");
         setLoading(false);
         return;
       }
-      
+
       if (!newTransaction.date) {
         Alert.alert("Missing Information", "Please select a date");
         setLoading(false);
         return;
       }
-      
+
       // Additional validation for custom expense name
       if (isCustomExpense && customExpenseName.trim() === "") {
-        Alert.alert("Missing Information", "Please enter a name for your custom expense");
+        Alert.alert(
+          "Missing Information",
+          "Please enter a name for your custom expense"
+        );
         setLoading(false);
         return;
       }
@@ -187,22 +311,23 @@ export default function ExpenseTracker({ navigation, route }) {
       const transactionData = {
         name: expenseName,
         amount: parseFloat(newTransaction.amount),
+        description: newTransaction.description || "",
         type: "Expense",
         subType: newTransaction.subType,
         method: newTransaction.method || "Cash",
         date: newTransaction.date,
       };
-  
+
       const response = await fetch(`${API_URL}/transactions/${username}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transactionData),
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error("API error response:", errorText);
-        
+
         let errorMessage = "Failed to add transaction";
         try {
           const errorData = JSON.parse(errorText);
@@ -210,21 +335,21 @@ export default function ExpenseTracker({ navigation, route }) {
         } catch (e) {
           errorMessage = errorText || errorMessage;
         }
-        
+
         throw new Error(errorMessage);
       }
-  
+
       const savedTransaction = await response.json();
-      setTransactions(prevTransactions => [
-        ...prevTransactions, 
-        savedTransaction.transaction
+      setTransactions((prevTransactions) => [
+        ...prevTransactions,
+        savedTransaction.transaction,
       ]);
-      
+
       Alert.alert("Success", "Transaction added successfully");
-  
+
       // Reset state after adding
       handleCancel();
-      
+
       // If coming from date expenses, navigate back
       if (route.params?.date) {
         navigation.goBack();
@@ -235,7 +360,7 @@ export default function ExpenseTracker({ navigation, route }) {
       setLoading(false);
     }
   }, [customExpenseName, isCustomExpense, newTransaction, route.params]);
-  
+
   // Delete Transaction from MongoDB with confirmation
   const confirmDelete = useCallback((id, name) => {
     Alert.alert(
@@ -243,57 +368,78 @@ export default function ExpenseTracker({ navigation, route }) {
       `Are you sure you want to delete "${name}"?`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteTransaction(id) }
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteTransaction(id),
+        },
       ]
     );
   }, []);
-  
-  const deleteTransaction = useCallback(async (id) => {
-    try {
-      setLoading(true);
-      const userInfo = await AsyncStorage.getItem("userInfo");
-  
-      if (!userInfo) {
-        Alert.alert("Error", "User not logged in. Please log in again.");
-        setLoading(false);
-        return;
-      }
-  
-      const parsedInfo = JSON.parse(userInfo);
-      const username = parsedInfo?.user?.username || parsedInfo?.user?.userName;
-  
-      const response = await fetch(`${API_URL}/transactions/${username}/${id}`, {
-        method: "DELETE",
-      });
-  
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Delete error response:", errorText);
-        
-        let errorMessage = "Failed to delete transaction";
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
+
+  const deleteTransaction = useCallback(
+    async (id) => {
+      try {
+        setLoading(true);
+        const userInfo = await AsyncStorage.getItem("userInfo");
+
+        if (!userInfo) {
+          Alert.alert("Error", "User not logged in. Please log in again.");
+          setLoading(false);
+          return;
         }
-        
-        throw new Error(errorMessage);
+
+        const parsedInfo = JSON.parse(userInfo);
+        const username =
+          parsedInfo?.user?.username || parsedInfo?.user?.userName;
+
+        const response = await fetch(
+          `${API_URL}/transactions/${username}/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Delete error response:", errorText);
+
+          let errorMessage = "Failed to delete transaction";
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = errorText || errorMessage;
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        setTransactions(
+          transactions.filter((transaction) => transaction._id !== id)
+        );
+        Alert.alert("Success", "Transaction deleted successfully");
+        setLoading(false);
+      } catch (error) {
+        console.error("Error deleting transaction:", error);
+        Alert.alert("Error", error.message || "Error deleting transaction");
+        setLoading(false);
       }
-  
-      setTransactions(transactions.filter((transaction) => transaction._id !== id));
-      Alert.alert("Success", "Transaction deleted successfully");
-      setLoading(false);
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
-      Alert.alert("Error", error.message || "Error deleting transaction");
-      setLoading(false);
-    }
-  }, [transactions]);
+    },
+    [transactions]
+  );
 
   // Cancel and reset form
   const handleCancel = useCallback(() => {
-    setNewTransaction({ name: "", amount: "", type: "Expense", subType: "Essential", method: "Cash", date: "" });
+    setNewTransaction({
+      name: "",
+      amount: "",
+      description: "",
+      type: "Expense",
+      subType: "Essential",
+      method: "Cash",
+      date: "",
+    });
     setCustomExpenseName("");
     setIsCustomExpense(false);
     setIsExpenseDropdownOpen(false);
@@ -301,79 +447,144 @@ export default function ExpenseTracker({ navigation, route }) {
     setModalVisible(false);
     setLoading(false);
   }, []);
-  
-  const filteredTransactions =
-    filter === "all"
-      ? transactions
-      : transactions.filter((transaction) => transaction.subType === filter);
+
+  // Filter transactions function
+  const getFilteredTransactions = useCallback(() => {
+    let filtered = transactions;
+
+    // Filter by type
+    if (filter !== "all") {
+      filtered = filtered.filter(
+        (transaction) => transaction.subType === filter
+      );
+    }
+
+    // Filter by month/year (similar to FireNumber)
+    if (filterYear !== "All") {
+      const yearNum = parseInt(filterYear);
+      filtered = filtered.filter(
+        (transaction) => new Date(transaction.date).getFullYear() === yearNum
+      );
+    }
+    if (filterMonth !== "All") {
+      const monthNum = parseInt(filterMonth);
+      filtered = filtered.filter(
+        (transaction) => new Date(transaction.date).getMonth() === monthNum
+      );
+    }
+
+    return filtered;
+  }, [transactions, filter, filterMonth, filterYear]);
+
+  const filteredTransactions = getFilteredTransactions();
 
   // Memoized render functions
-  const renderItem = useCallback(({ item, index }) => (
-    <View style={[
-      styles.listItem,
-      index === 0 && styles.listItemFirst,
-      index === filteredTransactions.length - 1 && styles.listItemLast
-    ]}>
-      <View style={styles.cardLeft}>
-        <View style={styles.iconContainer}>
-          <FontAwesome name="arrow-up" size={18} color="#ef4444" />
+  const renderItem = useCallback(
+    ({ item, index }) => (
+      <View
+        style={[
+          styles.listItem,
+          index === 0 && styles.listItemFirst,
+          index === filteredTransactions.length - 1 && styles.listItemLast,
+        ]}
+      >
+        <View style={styles.cardLeft}>
+          <View style={styles.iconContainer}>
+            <FontAwesome name="arrow-up" size={18} color="#ef4444" />
+          </View>
+          <View style={styles.textContainer}>
+            <Text
+              style={styles.cardName}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {item.name}
+            </Text>
+            {item.description && (
+              <Text style={styles.cardDescription} numberOfLines={1}>
+                {item.description}
+              </Text>
+            )}
+            <Text style={styles.cardDate}>
+              {formatDisplayDate(item.date)} • {item.subType}
+            </Text>
+          </View>
         </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
-          <Text style={styles.cardDate}>
-            {formatDisplayDate(item.date)} • {item.subType}
-          </Text>
+        <View style={styles.cardRight}>
+          <Text style={styles.cardAmount}>₹{item.amount}</Text>
+          <TouchableOpacity
+            onPress={() => confirmDelete(item._id, item.name)}
+            style={styles.deleteButton}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.cardRight}>
-        <Text style={styles.cardAmount}>₹{item.amount}</Text>
-        <TouchableOpacity 
-          onPress={() => confirmDelete(item._id, item.name)}
-          style={styles.deleteButton}
-          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-        >
-          <Ionicons name="trash-outline" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  ), [filteredTransactions, formatDisplayDate, confirmDelete]);
+    ),
+    [filteredTransactions, formatDisplayDate, confirmDelete]
+  );
 
   // Empty list component
-  const EmptyListComponent = useCallback(() => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="wallet-outline" size={60} color="#cbd5e1" />
-      <Text style={styles.emptyText}>No expense transactions found</Text>
-      <Text style={styles.emptySubText}>Add your first expense by tapping the + button</Text>
-    </View>
-  ), []);
+  const EmptyListComponent = useCallback(
+    () => (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="wallet-outline" size={60} color="#cbd5e1" />
+        <Text style={styles.emptyText}>No expense transactions found</Text>
+        <Text style={styles.emptySubText}>
+          Add your first expense by tapping the + button
+        </Text>
+      </View>
+    ),
+    []
+  );
+
+  // Filter control functions
+  const resetFilters = () => {
+    setFilterMonth("All");
+    setFilterYear("All");
+  };
+
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Expense Tracker</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Expense Tracker</Text>
+        <TouchableOpacity
+          onPress={toggleFilters}
+          style={styles.filterToggleButton}
+        >
+          <Ionicons name="filter" size={20} color="#ef4444" />
+          <Text style={styles.filterToggleText}>Filter</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Filter Tabs */}
       <View style={styles.tabsContainer}>
         {[
-          {id: "all", label: "All", icon: "apps-outline"},
-          {id: "Mandatory", label: "Mandatory", icon: "alert-circle-outline"},
-          {id: "Discretionary", label: "Discretionary", icon: "cart-outline"},
-          {id: "Essential", label: "Essential", icon: "home-outline"}
+          { id: "all", label: "All", icon: "apps-outline" },
+          { id: "Mandatory", label: "Mandatory", icon: "alert-circle-outline" },
+          { id: "Discretionary", label: "Discretionary", icon: "cart-outline" },
+          { id: "Essential", label: "Essential", icon: "home-outline" },
         ].map((item) => (
           <TouchableOpacity
             key={item.id}
             style={[styles.tab, filter === item.id && styles.activeTab]}
             onPress={() => setFilter(item.id)}
           >
-            <Ionicons 
-              name={item.icon} 
-              size={16} 
-              color={filter === item.id ? "#fff" : "#475569"} 
+            <Ionicons
+              name={item.icon}
+              size={16}
+              color={filter === item.id ? "#fff" : "#475569"}
             />
-            <Text 
+            <Text
               style={[
-                styles.tabText, 
+                styles.tabText,
                 filter === item.id && styles.activeTabText,
-                {marginTop: 2, fontSize: 10}
+                { marginTop: 2, fontSize: 10 },
               ]}
               numberOfLines={1}
             >
@@ -383,32 +594,100 @@ export default function ExpenseTracker({ navigation, route }) {
         ))}
       </View>
 
+      {/* Month/Year Filter Section (similar to FireNumber) */}
+      {showFilters && (
+        <View style={styles.filtersContainer}>
+          <View style={styles.filterRow}>
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Month</Text>
+              <TouchableOpacity style={styles.filterPicker}>
+                <Picker
+                  selectedValue={filterMonth}
+                  onValueChange={setFilterMonth}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="All Months" value="All" />
+                  {availableFilters.months.map((month) => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.name}
+                      value={month.value.toString()}
+                    />
+                  ))}
+                </Picker>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Year</Text>
+              <TouchableOpacity style={styles.filterPicker}>
+                <Picker
+                  selectedValue={filterYear}
+                  onValueChange={setFilterYear}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="All Years" value="All" />
+                  {availableFilters.years.map((year) => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year.toString()}
+                    />
+                  ))}
+                </Picker>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+            <Text style={styles.resetButtonText}>Reset Filters</Text>
+          </TouchableOpacity>
+
+          <View style={styles.filterSummary}>
+            <Text style={styles.filterSummaryText}>
+              Showing {filteredTransactions.length} of {transactions.length}{" "}
+              expenses
+              {filterMonth !== "All" || filterYear !== "All"
+                ? " (filtered)"
+                : ""}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Transactions List */}
       {loading && transactions.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ef4444" />
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Ionicons name="card-outline" size={50} color="#ef4444" />
+          </Animated.View>
           <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
       ) : (
         <FlatList
           data={filteredTransactions}
-          keyExtractor={(item) => (item?._id ? item._id.toString() : Math.random().toString())}
+          keyExtractor={(item) =>
+            item?._id ? item._id.toString() : Math.random().toString()
+          }
           style={styles.flatListStyle}
-          contentContainerStyle={filteredTransactions.length > 0 ? styles.listContainer : null}
+          contentContainerStyle={
+            filteredTransactions.length > 0 ? styles.listContainer : null
+          }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={true}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
+          removeClippedSubviews={Platform.OS === "android"}
+          nestedScrollEnabled={true}
           renderItem={renderItem}
           ListEmptyComponent={EmptyListComponent}
         />
       )}
 
       {/* Add Transaction Button */}
-      <TouchableOpacity 
-        style={styles.addButton} 
+      <TouchableOpacity
+        style={styles.addButton}
         onPress={() => setModalVisible(true)}
         disabled={loading}
       >
@@ -464,7 +743,7 @@ const ExpenseFormModal = ({
   setShowDatePicker,
   selectedDate,
   onDateChange,
-  formatDisplayDate
+  formatDisplayDate,
 }) => {
   // Item selection handlers
   const handleExpenseTypeSelect = (type) => {
@@ -473,51 +752,55 @@ const ExpenseFormModal = ({
   };
 
   const handleExpenseItemSelect = (value) => {
-    setNewTransaction({...newTransaction, name: value});
+    setNewTransaction({ ...newTransaction, name: value });
     setIsCustomExpense(value === "Others");
     setIsExpenseDropdownOpen(false);
   };
 
   const handleMethodSelect = (value) => {
-    setNewTransaction({...newTransaction, method: value});
+    setNewTransaction({ ...newTransaction, method: value });
     setIsMethodDropdownOpen(false);
   };
 
   // Expense option items
   const expenseItems = [
-    {label: "Select an item", value: ""},
-    ...(expenseTypeOptions[newTransaction.subType] || [])
-      .map(item => ({label: item, value: item})),
-    {label: "Others", value: "Others"}
+    { label: "Select an item", value: "" },
+    ...(expenseTypeOptions[newTransaction.subType] || []).map((item) => ({
+      label: item,
+      value: item,
+    })),
+    { label: "Others", value: "Others" },
   ];
 
   // Payment method options
   const paymentMethods = [
-    {label: "Cash", value: "Cash"},
-    {label: "Bank Transfer", value: "Bank Transfer"},
-    {label: "Credit Card", value: "Credit Card"},
-    {label: "UPI", value: "UPI"},
-    {label: "Other", value: "Other"}
+    { label: "Cash", value: "Cash" },
+    { label: "Bank Transfer", value: "Bank Transfer" },
+    { label: "Credit Card", value: "Credit Card" },
+    { label: "UPI", value: "UPI" },
+    { label: "Other", value: "Other" },
   ];
 
   return (
-    <Modal 
-      visible={visible} 
+    <Modal
+      visible={visible}
       transparent={true}
-      animationType={Platform.OS === 'ios' ? "slide" : "fade"}
+      animationType={Platform.OS === "ios" ? "slide" : "fade"}
       onRequestClose={onCancel}
       statusBarTranslucent
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
-        <TouchableWithoutFeedback onPress={() => {
-          setIsExpenseDropdownOpen(false);
-          setIsMethodDropdownOpen(false);
-          Keyboard.dismiss();
-        }}>
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setIsExpenseDropdownOpen(false);
+            setIsMethodDropdownOpen(false);
+            Keyboard.dismiss();
+          }}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
@@ -533,10 +816,20 @@ const ExpenseFormModal = ({
                 {["Mandatory", "Discretionary", "Essential"].map((type) => (
                   <TouchableOpacity
                     key={type}
-                    style={[styles.typeButton, newTransaction.subType === type && styles.activeTypeButton]}
+                    style={[
+                      styles.typeButton,
+                      newTransaction.subType === type &&
+                        styles.activeTypeButton,
+                    ]}
                     onPress={() => handleExpenseTypeSelect(type)}
                   >
-                    <Text style={[styles.typeButtonText, newTransaction.subType === type && styles.activeTypeButtonText]}>
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        newTransaction.subType === type &&
+                          styles.activeTypeButtonText,
+                      ]}
+                    >
                       {type}
                     </Text>
                   </TouchableOpacity>
@@ -544,7 +837,7 @@ const ExpenseFormModal = ({
               </View>
 
               {/* Scrollable Form Content */}
-              <ScrollView 
+              <ScrollView
                 style={styles.formScrollView}
                 contentContainerStyle={styles.formScrollContent}
                 showsVerticalScrollIndicator={true}
@@ -553,55 +846,70 @@ const ExpenseFormModal = ({
               >
                 {/* Expense Item Dropdown */}
                 <Text style={styles.label}>Expense Item:</Text>
-                <TouchableOpacity 
-                  style={[styles.pickerButton, isExpenseDropdownOpen && styles.pickerButtonActive]}
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    isExpenseDropdownOpen && styles.pickerButtonActive,
+                  ]}
                   onPress={() => {
                     setIsExpenseDropdownOpen(!isExpenseDropdownOpen);
                     setIsMethodDropdownOpen(false);
                   }}
                 >
-                  <Text style={[
-                    styles.pickerButtonText, 
-                    newTransaction.name ? styles.pickerButtonTextSelected : styles.pickerButtonTextPlaceholder
-                  ]}>
+                  <Text
+                    style={[
+                      styles.pickerButtonText,
+                      newTransaction.name
+                        ? styles.pickerButtonTextSelected
+                        : styles.pickerButtonTextPlaceholder,
+                    ]}
+                  >
                     {newTransaction.name || "Select an expense item"}
                   </Text>
-                  <Ionicons 
-                    name={isExpenseDropdownOpen ? "chevron-up" : "chevron-down"} 
-                    size={18} 
-                    color="#64748b" 
+                  <Ionicons
+                    name={isExpenseDropdownOpen ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="#64748b"
                   />
                 </TouchableOpacity>
-                
+
                 {isExpenseDropdownOpen && (
                   <View style={styles.dropdownContainer}>
-                    <FlatList
-                      data={expenseItems}
-                      keyExtractor={(item) => item.value}
-                      renderItem={({item}) => (
+                    <ScrollView
+                      style={styles.dropdownMenu}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {expenseItems.map((item) => (
                         <TouchableOpacity
+                          key={item.value}
                           style={[
                             styles.dropdownItem,
-                            newTransaction.name === item.value && styles.selectedDropdownItem
+                            newTransaction.name === item.value &&
+                              styles.selectedDropdownItem,
                           ]}
                           onPress={() => handleExpenseItemSelect(item.value)}
                         >
-                          <Text style={[
-                            styles.dropdownItemText,
-                            newTransaction.name === item.value && styles.selectedDropdownItemText
-                          ]} numberOfLines={1}>
+                          <Text
+                            style={[
+                              styles.dropdownItemText,
+                              newTransaction.name === item.value &&
+                                styles.selectedDropdownItemText,
+                            ]}
+                            numberOfLines={1}
+                          >
                             {item.label}
                           </Text>
                           {newTransaction.name === item.value && (
-                            <Ionicons name="checkmark" size={16} color="#ef4444" />
+                            <Ionicons
+                              name="checkmark"
+                              size={16}
+                              color="#ef4444"
+                            />
                           )}
                         </TouchableOpacity>
-                      )}
-                      style={styles.dropdownMenu}
-                      nestedScrollEnabled={true}
-                      initialNumToRender={10}
-                      maxToRenderPerBatch={10}
-                    />
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
 
@@ -635,15 +943,31 @@ const ExpenseFormModal = ({
                   />
                 </View>
 
+                {/* Description */}
+                <Text style={styles.label}>Description (Optional):</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Add a description for this expense..."
+                  placeholderTextColor="#94a3b8"
+                  value={newTransaction.description}
+                  onChangeText={(text) =>
+                    setNewTransaction({ ...newTransaction, description: text })
+                  }
+                  multiline={true}
+                  numberOfLines={2}
+                />
+
                 {/* Date Picker */}
                 <Text style={styles.label}>Date:</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => setShowDatePicker(true)}
                 >
                   <Ionicons name="calendar-outline" size={20} color="#64748b" />
                   <Text style={styles.dateButtonText}>
-                    {newTransaction.date ? formatDisplayDate(newTransaction.date) : "Select a date"}
+                    {newTransaction.date
+                      ? formatDisplayDate(newTransaction.date)
+                      : "Select a date"}
                   </Text>
                 </TouchableOpacity>
 
@@ -651,7 +975,7 @@ const ExpenseFormModal = ({
                   <DateTimePicker
                     value={selectedDate}
                     mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={onDateChange}
                     maximumDate={new Date()}
                     style={styles.datePicker}
@@ -660,8 +984,11 @@ const ExpenseFormModal = ({
 
                 {/* Payment Method */}
                 <Text style={styles.label}>Payment Method:</Text>
-                <TouchableOpacity 
-                  style={[styles.pickerButton, isMethodDropdownOpen && styles.pickerButtonActive]}
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    isMethodDropdownOpen && styles.pickerButtonActive,
+                  ]}
                   onPress={() => {
                     setIsMethodDropdownOpen(!isMethodDropdownOpen);
                     setIsExpenseDropdownOpen(false);
@@ -670,42 +997,49 @@ const ExpenseFormModal = ({
                   <Text style={styles.pickerButtonText}>
                     {newTransaction.method || "Select payment method"}
                   </Text>
-                  <Ionicons 
-                    name={isMethodDropdownOpen ? "chevron-up" : "chevron-down"} 
-                    size={18} 
-                    color="#64748b" 
+                  <Ionicons
+                    name={isMethodDropdownOpen ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="#64748b"
                   />
                 </TouchableOpacity>
-                
+
                 {isMethodDropdownOpen && (
                   <View style={styles.dropdownContainer}>
-                    <FlatList
-                      data={paymentMethods}
-                      keyExtractor={(item) => item.value}
-                      renderItem={({item}) => (
+                    <ScrollView
+                      style={styles.dropdownMenu}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {paymentMethods.map((item) => (
                         <TouchableOpacity
+                          key={item.value}
                           style={[
                             styles.dropdownItem,
-                            newTransaction.method === item.value && styles.selectedDropdownItem
+                            newTransaction.method === item.value &&
+                              styles.selectedDropdownItem,
                           ]}
                           onPress={() => handleMethodSelect(item.value)}
                         >
-                          <Text style={[
-                            styles.dropdownItemText,
-                            newTransaction.method === item.value && styles.selectedDropdownItemText
-                          ]}>
+                          <Text
+                            style={[
+                              styles.dropdownItemText,
+                              newTransaction.method === item.value &&
+                                styles.selectedDropdownItemText,
+                            ]}
+                          >
                             {item.label}
                           </Text>
                           {newTransaction.method === item.value && (
-                            <Ionicons name="checkmark" size={16} color="#ef4444" />
+                            <Ionicons
+                              name="checkmark"
+                              size={16}
+                              color="#ef4444"
+                            />
                           )}
                         </TouchableOpacity>
-                      )}
-                      style={styles.dropdownMenu}
-                      nestedScrollEnabled={true}
-                      initialNumToRender={5}
-                      maxToRenderPerBatch={5}
-                    />
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
 
@@ -715,19 +1049,16 @@ const ExpenseFormModal = ({
 
               {/* Buttons */}
               <View style={styles.buttonContainer}>
-                <TouchableOpacity 
-                  style={styles.cancelButton} 
+                <TouchableOpacity
+                  style={styles.cancelButton}
                   onPress={onCancel}
                   disabled={loading}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.modalAdd,
-                    loading && styles.disabledButton
-                  ]}
+
+                <TouchableOpacity
+                  style={[styles.modalAdd, loading && styles.disabledButton]}
                   onPress={onAdd}
                   disabled={loading}
                 >
@@ -750,26 +1081,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    paddingTop: Platform.OS === 'android' ? 40 : 10,
+    paddingTop: Platform.OS === "android" ? 40 : 10,
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   header: {
     fontSize: 28,
     fontWeight: "bold",
-    textAlign: "center",
     color: "#1e293b",
-    marginBottom: 20,
+    flex: 1,
+    textAlign: "center",
+  },
+  filterToggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#fee2e2",
+    borderRadius: 8,
+  },
+  filterToggleText: {
+    marginLeft: 4,
+    fontSize: 14,
+    color: "#ef4444",
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#64748b',
+    color: "#64748b",
   },
   tabsContainer: {
     flexDirection: "row",
@@ -800,14 +1150,14 @@ const styles = StyleSheet.create({
   },
   flatListStyle: {
     flex: 1,
-    width: '100%',
+    width: "100%",
     marginBottom: 80, // Space for the floating action button
   },
   listContainer: {
     marginTop: 8,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginHorizontal: 2,
     shadowColor: "#64748b",
     shadowOpacity: 0.08,
@@ -867,6 +1217,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     flexShrink: 1,
   },
+  cardDescription: {
+    fontSize: 13,
+    color: "#64748b",
+    fontStyle: "italic",
+    marginBottom: 2,
+  },
   cardRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -892,7 +1248,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     marginTop: 20,
   },
@@ -911,7 +1267,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     position: "absolute",
-    bottom: Platform.OS === 'ios' ? 90 : 80,
+    bottom: Platform.OS === "ios" ? 90 : 80,
     right: 20,
     backgroundColor: "#ef4444",
     width: 60,
@@ -936,11 +1292,11 @@ const styles = StyleSheet.create({
     padding: 24,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: Platform.OS === 'ios' ? "80%" : "90%", // Smaller on iOS
+    maxHeight: Platform.OS === "ios" ? "80%" : "90%", // Smaller on iOS
   },
   formScrollView: {
     flex: 0, // Don't use flex here
-    maxHeight: Platform.OS === 'ios' ? 350 : 400, // Fixed height for better performance
+    maxHeight: Platform.OS === "ios" ? 350 : 400, // Fixed height for better performance
   },
   formScrollContent: {
     paddingBottom: 10,
@@ -1142,7 +1498,87 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   disabledButton: {
-    backgroundColor: '#f87171',
+    backgroundColor: "#f87171",
     opacity: 0.7,
+  },
+  // Date filter styles
+  selectedDateContainer: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  selectedDateText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  changeDateButton: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  changeDateText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  // Month/Year filter styles (similar to FireNumber)
+  filtersContainer: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  filterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  filterItem: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  filterPicker: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 6,
+    height: Platform.OS === "ios" ? 150 : 50,
+  },
+  picker: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    height: Platform.OS === "ios" ? 150 : 50,
+  },
+  resetButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 6,
+    padding: 8,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  resetButtonText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  filterSummary: {
+    marginBottom: 4,
+  },
+  filterSummaryText: {
+    fontSize: 13,
+    color: "#888",
+    fontStyle: "italic",
+    textAlign: "center",
   },
 });

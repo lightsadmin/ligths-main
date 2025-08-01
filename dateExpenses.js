@@ -18,6 +18,7 @@ import {
   ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   AntDesign,
   Feather,
@@ -43,6 +44,7 @@ const TransactionsPage = ({ route, navigation }) => {
   const [newTransaction, setNewTransaction] = useState({
     name: "",
     amount: "",
+    description: "",
     type: "",
     subType: "",
     method: "",
@@ -54,6 +56,13 @@ const TransactionsPage = ({ route, navigation }) => {
   useEffect(() => {
     fetchTransactions();
   }, [selectedDate]);
+
+  // Refresh transactions when screen comes into focus (when returning from other screens)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTransactions();
+    }, [selectedDate])
+  );
 
   // Add or Update Transaction (used by modal for generic transactions)
   const handleSaveTransaction = async () => {
@@ -99,6 +108,7 @@ const TransactionsPage = ({ route, navigation }) => {
         setNewTransaction({
           name: "",
           amount: "",
+          description: "",
           type: "",
           subType: "",
           method: "",
@@ -148,6 +158,7 @@ const TransactionsPage = ({ route, navigation }) => {
         setNewTransaction({
           name: transaction.name,
           amount: transaction.amount.toString(),
+          description: transaction.description || "",
           type: transaction.type,
           subType: transaction.subType || "",
           method: transaction.method,
@@ -163,6 +174,7 @@ const TransactionsPage = ({ route, navigation }) => {
       setNewTransaction({
         name: transaction.name,
         amount: transaction.amount.toString(),
+        description: transaction.description || "",
         type: transaction.type,
         subType: transaction.subType || "",
         method: transaction.method,
@@ -399,6 +411,7 @@ const TransactionsPage = ({ route, navigation }) => {
           maxToRenderPerBatch={10}
           windowSize={10}
           removeClippedSubviews={Platform.OS === "android"}
+          nestedScrollEnabled={true}
           ItemSeparatorComponent={() => (
             <View style={{ height: 1, backgroundColor: "#E2E8F0" }} />
           )}
@@ -416,6 +429,14 @@ const TransactionsPage = ({ route, navigation }) => {
                   <Text style={styles.transactionName} numberOfLines={1}>
                     {item.name}
                   </Text>
+                  {item.description && (
+                    <Text
+                      style={styles.transactionDescription}
+                      numberOfLines={1}
+                    >
+                      {item.description}
+                    </Text>
+                  )}
                   <View style={styles.transactionMetaContainer}>
                     {getMethodIcon(item.method)}
                     <Text style={styles.transactionMeta} numberOfLines={1}>
@@ -476,6 +497,7 @@ const TransactionsPage = ({ route, navigation }) => {
             // Reset form for new transaction
             name: "",
             amount: "",
+            description: "",
             type: "",
             subType: "",
             method: "",
@@ -500,6 +522,7 @@ const TransactionsPage = ({ route, navigation }) => {
             // Reset form
             name: "",
             amount: "",
+            description: "",
             type: "",
             subType: "",
             method: "",
@@ -526,6 +549,7 @@ const TransactionsPage = ({ route, navigation }) => {
                     setNewTransaction({
                       name: "",
                       amount: "",
+                      description: "",
                       type: "",
                       subType: "",
                       method: "",
@@ -567,6 +591,24 @@ const TransactionsPage = ({ route, navigation }) => {
                     onChangeText={(text) =>
                       setNewTransaction({ ...newTransaction, amount: text })
                     }
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Description (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Add a description..."
+                    placeholderTextColor="#94A3B8"
+                    value={newTransaction.description}
+                    onChangeText={(text) =>
+                      setNewTransaction({
+                        ...newTransaction,
+                        description: text,
+                      })
+                    }
+                    multiline={true}
+                    numberOfLines={2}
                   />
                 </View>
 
@@ -707,6 +749,7 @@ const TransactionsPage = ({ route, navigation }) => {
                       // Reset form
                       name: "",
                       amount: "",
+                      description: "",
                       type: "",
                       subType: "",
                       method: "",
@@ -911,6 +954,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1E293B",
     marginBottom: 4,
+  },
+  transactionDescription: {
+    fontSize: 13,
+    color: "#64748B",
+    fontStyle: "italic",
+    marginBottom: 2,
   },
   transactionMetaContainer: {
     flexDirection: "row",

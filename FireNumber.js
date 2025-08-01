@@ -348,7 +348,7 @@ const FireNumber = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#1f2937" />
           </TouchableOpacity>
-          <Text style={styles.title}>Firenumber</Text>
+          <Text style={styles.title}>F.I.R.E Number</Text>
           <View style={styles.headerIconContainer} />
         </View>
 
@@ -493,7 +493,7 @@ const FireNumber = () => {
             </View>
 
             <View style={styles.fireNumberContainer}>
-              <Text style={styles.fireNumberLabel}>Your FIRE Number</Text>
+              <Text style={styles.fireNumberLabel}>Your F.I.R.E Number</Text>
               <Text style={styles.fireNumber}>
                 {fireNumber ? `₹${formatCurrency(fireNumber)}` : "₹0.00"}
               </Text>
@@ -501,7 +501,7 @@ const FireNumber = () => {
 
             <View style={styles.sipTableContainer}>
               <Text style={styles.sipTableTitle}>
-                Monthly SIP to reach FIRE Number
+                Monthly SIP to reach F.I.R.E Number
               </Text>
               <View style={styles.table}>
                 <View style={styles.tableRow}>
@@ -534,7 +534,7 @@ const FireNumber = () => {
             <Ionicons name="rocket-outline" size={32} color="#10B981" />
             <Text style={styles.investmentTitle}>Ready to Invest?</Text>
             <Text style={styles.investmentText}>
-              Your FIRE number is a great starting point. The next step is to
+              Your F.I.R.E number is a great starting point. The next step is to
               put your money to work. Start your investment journey today with
               one of our trusted partners.
             </Text>

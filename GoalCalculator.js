@@ -30,24 +30,24 @@ const INVESTMENT_BLUE = "#3B82F6";
 
 // Default inflation is 7.5
 const GOAL_TEMPLATES = {
-  "B Education": {
-    name: "B Education",
+  Education: {
+    name: "Education",
     presentCost: "",
     childCurrentAge: "",
     goalAge: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
   },
-  "B Marriage": {
-    name: "B Marriage",
+  Marriage: {
+    name: "Marriage",
     presentCost: "",
     childCurrentAge: "",
     goalAge: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
@@ -57,7 +57,7 @@ const GOAL_TEMPLATES = {
     presentCost: "",
     years: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
@@ -68,7 +68,7 @@ const GOAL_TEMPLATES = {
     currentAge: "",
     goalAge: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
@@ -78,7 +78,7 @@ const GOAL_TEMPLATES = {
     presentCost: "",
     years: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
@@ -89,7 +89,7 @@ const GOAL_TEMPLATES = {
     presentCost: "",
     years: "",
     inflation: "7.5",
-    returnRate: "",
+    returnRate: "12",
     currentSip: "",
     investmentType: "SIP/MF",
     description: "",
@@ -107,14 +107,15 @@ const INVESTMENT_TYPES = [
 export default function GoalCalculator() {
   const navigation = useNavigation();
 
-  const [selectedGoal, setSelectedGoal] = useState("B Education");
+  const [selectedGoal, setSelectedGoal] = useState("Education");
   const [goalData, setGoalData] = useState({
-    ...GOAL_TEMPLATES["B Education"],
+    ...GOAL_TEMPLATES["Education"],
   });
   const [goalResults, setGoalResults] = useState([]);
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [activeTabs, setActiveTabs] = useState({});
+  const [expandedTables, setExpandedTables] = useState({}); // Track which return rate tables are expanded
   const [errorFields, setErrorFields] = useState([]);
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -309,7 +310,7 @@ export default function GoalCalculator() {
     const cost = parseFloat(g.presentCost);
     let y;
 
-    if (g.name === "B Education" || g.name === "B Marriage") {
+    if (g.name === "Education" || g.name === "Marriage") {
       y = parseFloat(g.goalAge) - parseFloat(g.childCurrentAge);
     } else if (g.name === "Wealth Creation") {
       y = parseFloat(g.goalAge) - parseFloat(g.currentAge);
@@ -318,7 +319,7 @@ export default function GoalCalculator() {
     }
 
     const inf = parseFloat(g.inflation);
-    const ret = parseFloat(g.returnRate);
+    const ret = parseFloat(g.returnRate) || 12; // Default 12% return rate if not specified
     const inHandValue = parseFloat(g.currentSip) || 0;
 
     const requiredFields = [];
@@ -338,7 +339,7 @@ export default function GoalCalculator() {
       fieldValue: g.inflation,
     });
 
-    if (g.name === "B Education" || g.name === "B Marriage") {
+    if (g.name === "Education" || g.name === "Marriage") {
       requiredFields.push({
         key: "goalAge",
         value: parseFloat(g.goalAge),
@@ -372,13 +373,6 @@ export default function GoalCalculator() {
       });
     }
 
-    if (g.investmentType !== "Savings") {
-      requiredFields.push({
-        key: "returnRate",
-        value: ret,
-        fieldValue: g.returnRate,
-      });
-    }
     if (g.name === "Custom Goal") {
       requiredFields.push({
         key: "customName",
@@ -427,8 +421,6 @@ export default function GoalCalculator() {
                 return "• Current Age";
               case "years":
                 return "• Years to Goal";
-              case "returnRate":
-                return "• Expected Return Rate";
               case "customName":
                 return "• Custom Goal Name";
               default:
@@ -440,7 +432,7 @@ export default function GoalCalculator() {
       return;
     }
 
-    if (g.name === "B Education" || g.name === "B Marriage") {
+    if (g.name === "Education" || g.name === "Marriage") {
       if (parseFloat(g.goalAge) <= parseFloat(g.childCurrentAge)) {
         setErrorFields(["goalAge", "childCurrentAge"]);
         Alert.alert(
@@ -539,11 +531,6 @@ export default function GoalCalculator() {
   const updateGoal = (key, value) => {
     let updatedData = { ...goalData, [key]: value };
 
-    // Default return rate to 0 ONLY for Savings
-    if (key === "investmentType" && value === "Savings") {
-      updatedData.returnRate = "0";
-    }
-
     setGoalData(updatedData);
     if (errorFields.includes(key)) {
       setErrorFields(errorFields.filter((field) => field !== key));
@@ -640,6 +627,7 @@ export default function GoalCalculator() {
       RD: 0, // Blue - Recurring Deposit
       Savings: 0, // Orange - Savings Account
       "SIP/MF": 0, // Purple - SIP/Mutual Funds
+      "Mutual Fund": 0, // Teal - Mutual Funds
     };
 
     let totalInvestmentAmount = 0;
@@ -670,6 +658,11 @@ export default function GoalCalculator() {
         investmentAmountsByType["SIP/MF"] += amount;
         totalInvestmentAmount += amount;
         console.log(`SIP/MF amount: ₹${amount}`);
+      } else if (investment.investmentType === "Mutual Fund") {
+        amount = investment.currentAmount || investment.amount || 0;
+        investmentAmountsByType["Mutual Fund"] += amount;
+        totalInvestmentAmount += amount;
+        console.log(`Mutual Fund amount: ₹${amount}`);
       } else {
         // Handle any other investment types
         console.log(`Unknown investment type: ${investment.investmentType}`);
@@ -687,17 +680,30 @@ export default function GoalCalculator() {
     console.log(`Total investment amount for goal: ₹${totalInvestmentAmount}`);
     console.log(`Investment amounts by type:`, investmentAmountsByType);
 
+    // Debug: Show which investment types have amounts > 0
+    Object.keys(investmentAmountsByType).forEach((type) => {
+      const amount = investmentAmountsByType[type];
+      if (amount > 0) {
+        console.log(`✅ ${type}: ₹${amount} - Will be shown in pie chart`);
+      } else {
+        console.log(`❌ ${type}: ₹${amount} - Will NOT be shown in pie chart`);
+      }
+    });
+
     // Create pie chart data with distinct colors for each investment type
     // When a user has multiple investment types for one goal, each will show with its own color
-    // Color scheme: FD=Light Cyan, RD=Light Purple, Savings=Light Yellow, SIP/MF=Purple
+    // Color scheme: FD=Light Cyan, RD=Light Purple, Savings=Light Yellow, SIP/MF=Purple, Mutual Fund=Teal
     // Add investment type slices to pie chart with distinct colors
     const investmentColors = {
       FD: "#4ce4f8ff", // Light Cyan for Fixed Deposit
       RD: "#ee99fcff", // Light Purple for Recurring Deposit
       Savings: "#ffe88aff", // Light Yellow for Savings
       "SIP/MF": "#8B5CF6", // Purple for SIP/MF
+      "Mutual Fund": "#14B8A6", // Teal for Mutual Funds
     };
-    Object.keys(investmentAmountsByType).forEach((type) => {
+
+    // Add each investment type as separate slice if amount > 0
+    Object.keys(investmentAmountsByType).forEach((type, index) => {
       const amount = investmentAmountsByType[type];
       if (amount > 0) {
         data.push({
@@ -706,7 +712,11 @@ export default function GoalCalculator() {
           color: investmentColors[type],
           legendFontColor: "#374151",
           legendFontSize: 14,
+          key: `investment-${type}-${index}`, // Unique key for each slice
         });
+        console.log(
+          `Added ${type} slice with amount: ₹${amount} and color: ${investmentColors[type]}`
+        );
       }
     });
 
@@ -719,6 +729,7 @@ export default function GoalCalculator() {
         color: "#6B7280", // Gray for current savings
         legendFontColor: "#374151",
         legendFontSize: 14,
+        key: "current-savings", // Unique key
       });
     }
 
@@ -730,22 +741,31 @@ export default function GoalCalculator() {
 
     if (updatedRequired > 0) {
       data.push({
-        name: "Required Investment",
+        name: "Required Amount",
         population: parseFloat(updatedRequired.toFixed(0)),
         color: "#fb746aff", // Red for required investment
         legendFontColor: "#374151",
         legendFontSize: 14,
+        key: "required-investment", // Unique key
       });
     }
+
+    console.log(`Final pie chart data for goal ${goal.name}:`, data);
+    console.log(`Total data items: ${data.length}`);
+    data.forEach((item, index) => {
+      console.log(
+        `Slice ${index}: ${item.name} - ₹${item.population} - ${item.color}`
+      );
+    });
 
     return data;
   };
 
   const getGoalIcon = (goalName) => {
     switch (goalName) {
-      case "B Education":
+      case "Education":
         return "school";
-      case "B Marriage":
+      case "Marriage":
         return "heart";
       case "Dream Home":
         return "home";
@@ -791,6 +811,40 @@ export default function GoalCalculator() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Calculate SIP for different return rates
+  const calculateSIPForReturnRates = (goal, totalInvestmentAmount) => {
+    const returnRates = [6, 8, 10, 12];
+    const results = [];
+
+    const originalInHand = goal.futureValueOfSavings || 0;
+    const updatedInHand = originalInHand + totalInvestmentAmount;
+    const updatedRequired = Math.max(
+      0,
+      (goal.required || 0) - totalInvestmentAmount
+    );
+    const months = goal.years * 12;
+
+    returnRates.forEach((rate) => {
+      const monthlyRate = rate / 1200;
+      let monthlySIP = 0;
+
+      if (updatedRequired > 0 && monthlyRate > 0) {
+        monthlySIP =
+          (updatedRequired * monthlyRate) /
+          (Math.pow(1 + monthlyRate, months) - 1);
+      } else if (updatedRequired > 0) {
+        monthlySIP = updatedRequired / months;
+      }
+
+      results.push({
+        rate: rate,
+        sip: monthlySIP > 0 ? monthlySIP : 0,
+      });
+    });
+
+    return results;
   };
 
   const renderGoalInputs = () => {
@@ -853,46 +907,6 @@ export default function GoalCalculator() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Investment Type</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={g.investmentType}
-              onValueChange={(itemValue) =>
-                updateGoal("investmentType", itemValue)
-              }
-              style={styles.picker}
-              itemStyle={styles.pickerItem}
-            >
-              {INVESTMENT_TYPES.map((type) => (
-                <Picker.Item
-                  key={type.value}
-                  label={type.label}
-                  value={type.value}
-                />
-              ))}
-            </Picker>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.inputGroup,
-            errorFields.includes("returnRate") && styles.errorInput,
-          ]}
-        >
-          <Text style={styles.label}>Expected Return Rate (%)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="numeric"
-            value={g.returnRate}
-            onChangeText={(text) => updateGoal("returnRate", text)}
-            placeholder={g.investmentType === "Savings" ? "0" : "e.g., 12"}
-            placeholderTextColor="#9ca3af"
-            editable={g.investmentType !== "Savings"}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
           <Text style={styles.label}>Inhand value (₹)</Text>
           <TextInput
             style={styles.input}
@@ -907,8 +921,8 @@ export default function GoalCalculator() {
     );
 
     switch (selectedGoal) {
-      case "B Education":
-      case "B Marriage":
+      case "Education":
+      case "Marriage":
         return (
           <>
             {commonInputs}
@@ -1289,6 +1303,7 @@ export default function GoalCalculator() {
                           paddingLeft={"15"}
                           center={[10, 0]}
                           hasLegend={false}
+                          absolute={false}
                         />
                         <View style={styles.legendContainer}>
                           {getPieChartData(goal).map((item, index) => (
@@ -1329,6 +1344,7 @@ export default function GoalCalculator() {
                         RD: 0,
                         Savings: 0,
                         "SIP/MF": 0,
+                        "Mutual Fund": 0,
                       };
 
                       let totalInvestmentAmount = 0;
@@ -1358,6 +1374,13 @@ export default function GoalCalculator() {
                           amount =
                             investment.currentAmount || investment.amount || 0;
                           investmentAmountsByType["SIP/MF"] += amount;
+                          totalInvestmentAmount += amount;
+                        } else if (
+                          investment.investmentType === "Mutual Fund"
+                        ) {
+                          amount =
+                            investment.currentAmount || investment.amount || 0;
+                          investmentAmountsByType["Mutual Fund"] += amount;
                           totalInvestmentAmount += amount;
                         }
                       });
@@ -1401,20 +1424,6 @@ export default function GoalCalculator() {
                               </Text>
                               <Text style={styles.resultValue}>
                                 {formatCurrency(updatedInHand)}
-                                {totalInvestmentAmount > 0 && (
-                                  <Text style={styles.investmentNote}>
-                                    {"\n"}+₹
-                                    {Math.round(
-                                      totalInvestmentAmount
-                                    ).toLocaleString("en-IN")}{" "}
-                                    from investments
-                                    {investmentBreakdown && (
-                                      <>
-                                        {"\n"}({investmentBreakdown})
-                                      </>
-                                    )}
-                                  </Text>
-                                )}
                               </Text>
                             </View>
                             <View style={styles.resultItem}>
@@ -1423,15 +1432,6 @@ export default function GoalCalculator() {
                               </Text>
                               <Text style={styles.resultValue}>
                                 {formatCurrency(updatedRequired)}
-                                {totalInvestmentAmount > 0 &&
-                                  updatedRequired !== goal.required && (
-                                    <Text style={styles.investmentNote}>
-                                      {"\n"}Reduced by ₹
-                                      {Math.round(
-                                        totalInvestmentAmount
-                                      ).toLocaleString("en-IN")}
-                                    </Text>
-                                  )}
                               </Text>
                             </View>
                             <View style={styles.resultItem}>
@@ -1441,19 +1441,71 @@ export default function GoalCalculator() {
                               </Text>
                             </View>
                           </View>
-                          <View style={styles.sipHighlight}>
-                            <Ionicons
-                              name="refresh"
-                              size={18}
-                              color="#5b21b6"
-                            />
-                            <Text style={styles.sipLabel}>
-                              Additional Monthly Savings Required
-                            </Text>
-                            <Text style={styles.sipAmount}>
-                              {formatCurrency(goal.monthlySIP)}
-                            </Text>
-                          </View>
+
+                          {/* Return Rate Table */}
+                          <TouchableOpacity
+                            style={styles.returnRateHeader}
+                            onPress={() =>
+                              setExpandedTables((prev) => ({
+                                ...prev,
+                                [goal._id]: !prev[goal._id],
+                              }))
+                            }
+                          >
+                            <View style={styles.returnRateHeaderContent}>
+                              <Ionicons
+                                name="calculator-outline"
+                                size={18}
+                                color="#5b21b6"
+                              />
+                              <Text style={styles.returnRateTitle}>
+                                Monthly SIP for Different Return Rates
+                              </Text>
+                              <Ionicons
+                                name={
+                                  expandedTables[goal._id]
+                                    ? "chevron-up"
+                                    : "chevron-down"
+                                }
+                                size={18}
+                                color="#5b21b6"
+                              />
+                            </View>
+                          </TouchableOpacity>
+
+                          {expandedTables[goal._id] && (
+                            <View style={styles.returnRateTable}>
+                              <View
+                                style={[styles.tableRow, styles.tableHeaderRow]}
+                              >
+                                <Text style={styles.tableHeader}>
+                                  Return Rate
+                                </Text>
+                                <Text style={styles.tableHeader}>
+                                  Monthly SIP Required
+                                </Text>
+                              </View>
+                              {(() => {
+                                const sipResults = calculateSIPForReturnRates(
+                                  goal,
+                                  totalInvestmentAmount
+                                );
+                                return sipResults.map((result, index) => (
+                                  <View
+                                    key={`sip-${goal._id}-${result.rate}`}
+                                    style={styles.tableRow}
+                                  >
+                                    <Text style={styles.tableCell}>
+                                      {result.rate}%
+                                    </Text>
+                                    <Text style={styles.tableCell}>
+                                      {formatCurrency(result.sip)}
+                                    </Text>
+                                  </View>
+                                ));
+                              })()}
+                            </View>
+                          )}
                         </>
                       );
                     })()}
@@ -1719,26 +1771,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1f2937",
   },
-  sipHighlight: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ede9fe",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 8,
-  },
-  sipLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#5b21b6",
-  },
-  sipAmount: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#6366f1",
-  },
   chartContainer: {
     alignItems: "center",
     marginBottom: 16,
@@ -1869,5 +1901,58 @@ const styles = StyleSheet.create({
     color: "#059669",
     fontStyle: "italic",
     marginTop: 4,
+  },
+  returnRateHeader: {
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  returnRateHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ede9fe",
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  returnRateTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#5b21b6",
+  },
+  returnRateTable: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  tableRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  tableHeaderRow: {
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: 2,
+    borderBottomColor: "#e5e7eb",
+  },
+  tableHeader: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
+  tableCell: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1f2937",
+    textAlign: "center",
   },
 });

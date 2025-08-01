@@ -219,6 +219,7 @@ const CalendarMain = () => {
       console.log(
         `Filtered ${filteredData.length} transactions for ${formattedMonth}/${searchYear}`
       );
+      console.log("Filtered transactions:", filteredData);
       setTransactions(filteredData);
 
       // Create formatted data for pie charts with type for color selection
@@ -229,13 +230,18 @@ const CalendarMain = () => {
         (t) => t.type === "Income"
       );
 
+      console.log("Expense transactions:", expenseTransactions);
+      console.log("Income transactions:", incomeTransactions);
+
       if (expenseTransactions.length > 0) {
         const expenseChartData = formatDataForPieChart(
           expenseTransactions,
           "Expense"
         );
+        console.log("Expense chart data:", expenseChartData);
         setExpenseData(expenseChartData);
       } else {
+        console.log("No expense transactions found, setting default data");
         setExpenseData([
           {
             name: "No Data",
@@ -251,8 +257,10 @@ const CalendarMain = () => {
           incomeTransactions,
           "Income"
         );
+        console.log("Income chart data:", incomeChartData);
         setIncomeData(incomeChartData);
       } else {
+        console.log("No income transactions found, setting default data");
         setIncomeData([
           {
             name: "No Data",
@@ -456,7 +464,6 @@ const CalendarMain = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      
       <View style={styles.header}>
         <Text style={styles.headerTitle}>LigthsON</Text>
       </View>
@@ -1114,6 +1121,6 @@ const styles = StyleSheet.create({
     color: "#64748b",
     lineHeight: 18,
   },
-}); 
+});
 
 export default CalendarMain;

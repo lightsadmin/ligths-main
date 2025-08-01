@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -29,6 +30,9 @@ export default function SavingsScreen({ navigation }) {
   const [maturityDate, setMaturityDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Animation reference for the loading icon
+  const rotateAnim = useRef(new Animated.Value(0)).current;
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goals, setGoals] = useState([]);
 
@@ -36,6 +40,29 @@ export default function SavingsScreen({ navigation }) {
     fetchSavings();
     fetchGoals();
   }, []);
+
+  // Start rotation animation when loading
+  useEffect(() => {
+    if (loading) {
+      const startRotation = () => {
+        rotateAnim.setValue(0);
+        Animated.loop(
+          Animated.timing(rotateAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          })
+        ).start();
+      };
+      startRotation();
+    }
+  }, [loading]);
+
+  // Interpolate rotation value
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const fetchSavings = async () => {
     try {
@@ -145,39 +172,89 @@ export default function SavingsScreen({ navigation }) {
         return;
       }
 
-      const newSavings = {
-        amount: parseFloat(initialDeposit),
-        currentAmount: parseFloat(initialDeposit),
-        investmentType: "Savings",
-        startDate: new Date().toISOString(),
-        interestRate: parseFloat(interestRate),
-        maturityDate: maturityDate.toISOString(),
-        description: `Savings account for ₹${initialDeposit} maturing on ${maturityDate.toLocaleDateString(
+      // Check if there's an existing Savings investment with the same goal and interest rate
+      const existingSavings = investments.find(
+        (inv) =>
+          inv.investmentType === "Savings" &&
+          inv.goalId === selectedGoal &&
+          parseFloat(inv.interestRate) === parseFloat(interestRate)
+      );
+
+      let transactionName;
+
+      if (existingSavings) {
+        // Update existing investment
+        const updatedAmount =
+          parseFloat(existingSavings.amount) + parseFloat(initialDeposit);
+        const updatedCurrentAmount =
+          parseFloat(existingSavings.currentAmount) +
+          parseFloat(initialDeposit);
+
+        const updateData = {
+          amount: updatedAmount,
+          currentAmount: updatedCurrentAmount,
+          description: `Savings account for ₹${updatedAmount} maturing on ${maturityDate.toLocaleDateString(
+            "en-GB"
+          )}`,
+        };
+
+        const response = await fetch(
+          `${API_URL}/investment/${existingSavings._id}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updateData),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Savings amount updated successfully!");
+        transactionName = `Savings account for ₹${updatedAmount} maturing on ${maturityDate.toLocaleDateString(
           "en-GB"
-        )}`,
-        goalId: selectedGoal,
-      };
+        )}`;
+      } else {
+        const newSavings = {
+          amount: parseFloat(initialDeposit),
+          currentAmount: parseFloat(initialDeposit),
+          investmentType: "Savings",
+          startDate: new Date().toISOString(),
+          interestRate: parseFloat(interestRate),
+          maturityDate: maturityDate.toISOString(),
+          description: `Savings account for ₹${initialDeposit} maturing on ${maturityDate.toLocaleDateString(
+            "en-GB"
+          )}`,
+          goalId: selectedGoal,
+        };
 
-      const response = await fetch(`${API_URL}/investment`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newSavings),
-      });
+        const response = await fetch(`${API_URL}/investment`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newSavings),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `API Error: ${response.status}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Savings added successfully!");
+        transactionName = newSavings.description;
       }
 
       setInitialDeposit(""); // Reset
       setInterestRate("0");
       setMaturityDate(new Date());
       setSelectedGoal(null);
-
-      Alert.alert("Success", "Savings added successfully!");
 
       EventRegister.emit("investmentAdded", {
         type: "Investment",
@@ -196,7 +273,7 @@ export default function SavingsScreen({ navigation }) {
         const username =
           parsedInfo?.user?.username || parsedInfo?.user?.userName;
         const transactionData = {
-          name: newSavings.description, // Use the description as transaction name
+          name: transactionName, // Use the transaction name variable
           amount: parseFloat(initialDeposit),
           type: "Investment",
           subType: "Savings",
@@ -327,7 +404,9 @@ export default function SavingsScreen({ navigation }) {
   if (loading && savings.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+          <Ionicons name="wallet-outline" size={60} color="#f59e0b" />
+        </Animated.View>
         <Text style={styles.loadingText}>Loading savings...</Text>
       </View>
     );

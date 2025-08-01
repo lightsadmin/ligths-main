@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,12 +30,38 @@ export default function RDScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goals, setGoals] = useState([]);
+
+  // Animation reference for the loading icon
+  const rotateAnim = useRef(new Animated.Value(0)).current;
   // const [linkedGoal, setLinkedGoal] = useState(null); // This state isn't directly used for display
 
   useEffect(() => {
     fetchInvestments();
     fetchGoals();
   }, []);
+
+  // Start rotation animation when loading
+  useEffect(() => {
+    if (loading) {
+      const startRotation = () => {
+        rotateAnim.setValue(0);
+        Animated.loop(
+          Animated.timing(rotateAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          })
+        ).start();
+      };
+      startRotation();
+    }
+  }, [loading]);
+
+  // Interpolate rotation value
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const fetchInvestments = async () => {
     try {
@@ -114,26 +141,6 @@ export default function RDScreen({ navigation }) {
     if (selectedGoal) {
       const goal = goals.find((g) => g._id === selectedGoal);
       if (goal) {
-        // Cross-check investment type
-        if (goal.investmentType !== "SIP/MF" && goal.investmentType !== "RD") {
-          Alert.alert(
-            "Validation Error",
-            `This goal is set for '${goal.investmentType}' investments. Please choose a goal linked to 'SIP/MF' or 'RD' or update your goal.`
-          );
-          return;
-        }
-        // Cross-check interest rate
-        if (
-          parseFloat(interestRate) < parseFloat(goal.returnRate) * 0.8 ||
-          parseFloat(interestRate) > parseFloat(goal.returnRate) * 1.2
-        ) {
-          // 20% tolerance
-          Alert.alert(
-            "Validation Warning",
-            `The linked goal expects an approximate return rate of ${goal.returnRate}%, but your RD interest rate is ${interestRate}%. This might affect goal calculations.`
-          );
-          // You could make this a blocking error if desired: return;
-        }
       }
     }
     // --- End Goal Link Validation ---
@@ -161,51 +168,124 @@ export default function RDScreen({ navigation }) {
         return;
       }
 
-      // Calculate maturity date (current date + duration in months)
-      const maturityDate = new Date();
-      maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
-      const startDate = new Date(); // Define startDate here
-
-      // Calculate expected maturity amount
-      const expectedMaturityAmount = calculateMaturityAmount(
-        monthlyDeposit,
-        interestRate,
-        duration
+      // Check if there's an existing RD investment with the same goal and interest rate
+      const existingRD = investments.find(
+        (inv) =>
+          inv.investmentType === "Recurring Deposit" &&
+          inv.goalId === selectedGoal &&
+          parseFloat(inv.interestRate) === parseFloat(interestRate)
       );
 
-      // Create new RD investment object
-      const newRD = {
-        name: `RD - ₹${monthlyDeposit}/month for ${duration} months`, // This name is for the backend
-        amount: parseFloat(monthlyDeposit) * parseInt(duration), // Total amount to be deposited
-        currentAmount: parseFloat(monthlyDeposit), // Currently deposited (first month)
-        interestRate: parseFloat(interestRate),
-        goalId: selectedGoal, // Add the selected goal ID
-        investmentType: "Recurring Deposit",
-        startDate: startDate.toISOString(), // Use defined startDate
-        maturityDate: maturityDate.toISOString(),
-        compoundingFrequency: "quarterly", // Most RDs compound quarterly
-        description: `₹${monthlyDeposit} monthly for ${duration} months at ${interestRate}% (Maturity: ₹${Math.round(
-          expectedMaturityAmount
-        ).toLocaleString("en-IN")})`,
-      };
+      let transactionName;
+      let transactionStartDate;
 
-      // Add custom fields for RD
-      newRD.monthlyDeposit = parseFloat(monthlyDeposit);
-      newRD.duration = parseInt(duration);
-      newRD.expectedMaturityAmount = expectedMaturityAmount;
+      if (existingRD) {
+        // Update existing investment
+        const newTotalAmount =
+          parseFloat(existingRD.amount) +
+          parseFloat(monthlyDeposit) * parseInt(duration);
+        const newCurrentAmount =
+          parseFloat(existingRD.currentAmount) + parseFloat(monthlyDeposit);
 
-      const response = await fetch(`${API_URL}/investment`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newRD),
-      });
+        // Calculate new expected maturity amount
+        const expectedMaturityAmount = calculateMaturityAmount(
+          monthlyDeposit,
+          interestRate,
+          duration
+        );
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        const updateData = {
+          amount: newTotalAmount,
+          currentAmount: newCurrentAmount,
+          description: `₹${monthlyDeposit} monthly for ${duration} months at ${interestRate}% (Maturity: ₹${Math.round(
+            expectedMaturityAmount
+          ).toLocaleString("en-IN")})`,
+        };
+
+        const response = await fetch(
+          `${API_URL}/investment/${existingRD._id}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updateData),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Recurring deposit amount updated successfully");
+        transactionName = `RD - ₹${monthlyDeposit}/month for ${duration} months`;
+        transactionStartDate = new Date();
+      } else {
+        // Calculate maturity date (current date + duration in months)
+        const maturityDate = new Date();
+        maturityDate.setMonth(maturityDate.getMonth() + parseInt(duration));
+        const startDate = new Date(); // Define startDate here
+
+        // Calculate expected maturity amount
+        const expectedMaturityAmount = calculateMaturityAmount(
+          monthlyDeposit,
+          interestRate,
+          duration
+        );
+
+        // Create new RD investment object
+        const newRD = {
+          name: `RD - ₹${monthlyDeposit}/month for ${duration} months`, // This name is for the backend
+          amount: parseFloat(monthlyDeposit) * parseInt(duration), // Total amount to be deposited
+          currentAmount: parseFloat(monthlyDeposit), // Currently deposited (first month)
+          interestRate: parseFloat(interestRate),
+          goalId: selectedGoal, // Add the selected goal ID
+          investmentType: "Recurring Deposit",
+          startDate: startDate.toISOString(), // Use defined startDate
+          maturityDate: maturityDate.toISOString(),
+          compoundingFrequency: "quarterly", // Most RDs compound quarterly
+          description: `₹${monthlyDeposit} monthly for ${duration} months at ${interestRate}% (Maturity: ₹${Math.round(
+            expectedMaturityAmount
+          ).toLocaleString("en-IN")})`,
+        };
+
+        // Add custom fields for RD
+        newRD.monthlyDeposit = parseFloat(monthlyDeposit);
+        newRD.duration = parseInt(duration);
+        newRD.expectedMaturityAmount = expectedMaturityAmount;
+
+        const response = await fetch(`${API_URL}/investment`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newRD),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Recurring deposit added successfully");
+        transactionName = newRD.name;
+        transactionStartDate = startDate;
       }
+
+      // Reset form
+      setMonthlyDeposit("");
+      setInterestRate("");
+      setDuration("");
+      setSelectedGoal(null); // Reset selected goal
+
+      // Add this event dispatch
+      EventRegister.emit("investmentAdded", {
+        type: "Investment",
+        subType: "RD",
+        date: new Date().toISOString(),
+        amount: parseFloat(monthlyDeposit) * parseInt(duration),
+      });
 
       // Reset form including goal selection
       setMonthlyDeposit("");
@@ -219,7 +299,7 @@ export default function RDScreen({ navigation }) {
       EventRegister.emit("investmentAdded", {
         type: "Investment",
         subType: "RD",
-        date: startDate.toISOString().split("T")[0], // Use YYYY-MM-DD format for calendar
+        date: transactionStartDate.toISOString().split("T")[0], // Use YYYY-MM-DD format for calendar
         amount: parseFloat(monthlyDeposit),
       });
 
@@ -230,12 +310,12 @@ export default function RDScreen({ navigation }) {
         const username =
           parsedInfo?.user?.username || parsedInfo?.user?.userName;
         const transactionData = {
-          name: newRD.name,
+          name: transactionName,
           amount: parseFloat(monthlyDeposit),
           type: "Investment",
           subType: "RD",
           method: "Bank",
-          date: startDate.toISOString().split("T")[0],
+          date: transactionStartDate.toISOString().split("T")[0],
         };
         await fetch(`${API_URL}/transactions/${username}`, {
           method: "POST",
@@ -381,8 +461,10 @@ export default function RDScreen({ navigation }) {
   if (loading && investments.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Loading investments...</Text>
+        <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+          <Ionicons name="repeat-outline" size={60} color="#16a34a" />
+        </Animated.View>
+        <Text style={styles.loadingText}>Loading RD investments...</Text>
       </View>
     );
   }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   StatusBar,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -29,6 +30,9 @@ export default function FDScreen({ navigation }) {
   const [maturityDate, setMaturityDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Animation reference for the loading icon
+  const rotateAnim = useRef(new Animated.Value(0)).current;
   const [refreshing, setRefreshing] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [goals, setGoals] = useState([]);
@@ -37,6 +41,29 @@ export default function FDScreen({ navigation }) {
     fetchInvestments();
     fetchGoals();
   }, []);
+
+  // Start rotation animation when loading
+  useEffect(() => {
+    if (loading) {
+      const startRotation = () => {
+        rotateAnim.setValue(0);
+        Animated.loop(
+          Animated.timing(rotateAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          })
+        ).start();
+      };
+      startRotation();
+    }
+  }, [loading]);
+
+  // Interpolate rotation value
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const fetchInvestments = async () => {
     try {
@@ -115,26 +142,6 @@ export default function FDScreen({ navigation }) {
     if (selectedGoal) {
       const goal = goals.find((g) => g._id === selectedGoal);
       if (goal) {
-        // Cross-check investment type
-        if (goal.investmentType !== "FD") {
-          Alert.alert(
-            "Validation Error",
-            `This goal is set for '${goal.investmentType}' investments. Please choose a goal linked to 'FD' or update your goal.`
-          );
-          return;
-        }
-        // Cross-check interest rate
-        if (
-          parseFloat(interestRate) < parseFloat(goal.returnRate) * 0.8 ||
-          parseFloat(interestRate) > parseFloat(goal.returnRate) * 1.2
-        ) {
-          // 20% tolerance
-          Alert.alert(
-            "Validation Warning",
-            `The linked goal expects an approximate return rate of ${goal.returnRate}%, but your FD interest rate is ${interestRate}%. This might affect goal calculations.`
-          );
-          // You could make this a blocking error if desired: return;
-        }
       }
     }
     // --- End Goal Link Validation ---
@@ -162,33 +169,81 @@ export default function FDScreen({ navigation }) {
         return;
       }
 
-      // Create new FD investment object
-      const newFD = {
-        name: `FD - ${formatDate(maturityDate)}`,
-        amount: parseFloat(amount),
-        currentAmount: parseFloat(amount), // Initially same as amount
-        interestRate: parseFloat(interestRate),
-        investmentType: "Fixed Deposit",
-        startDate: new Date().toISOString(),
-        maturityDate: maturityDate.toISOString(),
-        compoundingFrequency: "yearly", // Most FDs compound annually
-        description: `Fixed Deposit at ${interestRate}% maturing on ${formatDate(
-          maturityDate
-        )}`,
-        goalId: selectedGoal, // Add this
-      };
+      // Check if there's an existing FD investment with the same goal and interest rate
+      const existingFD = investments.find(
+        (inv) =>
+          inv.investmentType === "Fixed Deposit" &&
+          inv.goalId === selectedGoal &&
+          parseFloat(inv.interestRate) === parseFloat(interestRate)
+      );
 
-      const response = await fetch(`${API_URL}/investment`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newFD),
-      });
+      let transactionName;
+      let startDate;
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+      if (existingFD) {
+        // Update existing investment
+        const updatedAmount =
+          parseFloat(existingFD.amount) + parseFloat(amount);
+        const updateData = {
+          amount: updatedAmount,
+          currentAmount: updatedAmount,
+          description: `Fixed Deposit at ${interestRate}% maturing on ${formatDate(
+            maturityDate
+          )}`,
+        };
+
+        const response = await fetch(
+          `${API_URL}/investment/${existingFD._id}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updateData),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Fixed deposit amount updated successfully");
+        transactionName = `FD - ${formatDate(maturityDate)}`;
+        startDate = new Date().toISOString();
+      } else {
+        // Create new FD investment object
+        const newFD = {
+          name: `FD - ${formatDate(maturityDate)}`,
+          amount: parseFloat(amount),
+          currentAmount: parseFloat(amount), // Initially same as amount
+          interestRate: parseFloat(interestRate),
+          investmentType: "Fixed Deposit",
+          startDate: new Date().toISOString(),
+          maturityDate: maturityDate.toISOString(),
+          compoundingFrequency: "yearly", // Most FDs compound annually
+          description: `Fixed Deposit at ${interestRate}% maturing on ${formatDate(
+            maturityDate
+          )}`,
+          goalId: selectedGoal, // Add this
+        };
+
+        const response = await fetch(`${API_URL}/investment`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newFD),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        Alert.alert("Success", "Fixed deposit added successfully");
+        transactionName = newFD.name;
+        startDate = newFD.startDate;
       }
 
       // Reset form
@@ -197,13 +252,11 @@ export default function FDScreen({ navigation }) {
       setMaturityDate(new Date());
       setSelectedGoal(null); // Reset selected goal
 
-      Alert.alert("Success", "Fixed deposit added successfully");
-
       // Add this event dispatch
       EventRegister.emit("investmentAdded", {
         type: "Investment",
         subType: "FD",
-        date: newFD.startDate,
+        date: new Date().toISOString(),
         amount: parseFloat(amount),
       });
 
@@ -214,12 +267,12 @@ export default function FDScreen({ navigation }) {
         const username =
           parsedInfo?.user?.username || parsedInfo?.user?.userName;
         const transactionData = {
-          name: newFD.name,
+          name: transactionName,
           amount: parseFloat(amount),
           type: "Investment",
           subType: "FD",
           method: "Bank",
-          date: newFD.startDate.split("T")[0],
+          date: startDate.split("T")[0],
         };
         await fetch(`${API_URL}/transactions/${username}`, {
           method: "POST",
@@ -397,8 +450,10 @@ export default function FDScreen({ navigation }) {
   if (loading && investments.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
-        <Text style={styles.loadingText}>Loading investments...</Text>
+        <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+          <Ionicons name="library-outline" size={60} color="#3498db" />
+        </Animated.View>
+        <Text style={styles.loadingText}>Loading FD investments...</Text>
       </View>
     );
   }

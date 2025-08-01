@@ -42,6 +42,7 @@ import RDScreen from "./RDScreen";
 import GoalCalculator from "./GoalCalculator";
 import InvestmentNavigation from "./InvestmentNavigation";
 import MFScreen from "./MFScreen";
+import MFCalculator from "./MFCalculator";
 import StocksScreen from "./StocksScreen";
 import SavingsScreen from "./SavingsScreen";
 import OnboardingScreen from "./onboardingScreen";
@@ -135,6 +136,11 @@ const CalendarStackNavigator = () => (
     <CalendarStack.Screen name="FDScreen" component={FDScreen} />
     <CalendarStack.Screen name="RDScreen" component={RDScreen} />
     <CalendarStack.Screen name="MFScreen" component={MFScreen} />
+    <CalendarStack.Screen
+      name="MFCalculator"
+      component={MFCalculator}
+      options={headerOptions("Mutual Fund Calculator")}
+    />
     <CalendarStack.Screen name="StocksScreen" component={StocksScreen} />
     <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
   </CalendarStack.Navigator>
@@ -236,31 +242,39 @@ const App = () => {
   useEffect(() => {
     const checkAppStatus = async () => {
       try {
-        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
-        const userInfo = await AsyncStorage.getItem('userInfo');
+        const hasSeenOnboarding = await AsyncStorage.getItem(
+          "hasSeenOnboarding"
+        );
+        const userInfo = await AsyncStorage.getItem("userInfo");
 
         if (userInfo) {
           // User is logged in, go directly to MainApp
-          setInitialRoute('MainApp');
-          console.log("App.js: Existing user logged in, navigating to MainApp.");
-        } else if (hasSeenOnboarding === 'true') {
+          setInitialRoute("MainApp");
+          console.log(
+            "App.js: Existing user logged in, navigating to MainApp."
+          );
+        } else if (hasSeenOnboarding === "true") {
           // User is not logged in, but onboarding has been seen.
           // Go to Auth stack, but specifically to SplashScreen (which will then lead to Login).
-          setInitialRoute('Auth');
+          setInitialRoute("Auth");
           // We need to tell the Auth stack to start at SplashScreen, not Onboarding.
           // This requires a dynamic initialRouteName for AuthStack or an immediate navigate inside App.js.
           // A simpler approach is to use params and let the AuthStack handle initial navigation.
           // For now, let AuthStack's default be Onboarding and we'll adjust SplashScreen.
-          console.log("App.js: Onboarding seen, not logged in. Navigating to Auth (will lead to Splash/Login).");
+          console.log(
+            "App.js: Onboarding seen, not logged in. Navigating to Auth (will lead to Splash/Login)."
+          );
         } else {
           // First time launching the app on this device, show onboarding.
-          setInitialRoute('Auth');
-          console.log("App.js: First time launch on device. Navigating to Auth (Onboarding).");
+          setInitialRoute("Auth");
+          console.log(
+            "App.js: First time launch on device. Navigating to Auth (Onboarding)."
+          );
         }
       } catch (e) {
         console.error("Failed to check app status:", e);
         // Fallback to Auth stack in case of error
-        setInitialRoute('Auth');
+        setInitialRoute("Auth");
       } finally {
         setIsLoading(false);
       }
@@ -273,7 +287,7 @@ const App = () => {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={{ marginTop: 10, color: '#64748B' }}>Loading app...</Text>
+        <Text style={{ marginTop: 10, color: "#64748B" }}>Loading app...</Text>
       </View>
     );
   }
@@ -286,7 +300,10 @@ const App = () => {
   return (
     <SafeAreaProvider>
       <NavigationContainer ref={navigationRef}>
-        <MainStack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+        <MainStack.Navigator
+          screenOptions={{ headerShown: false }}
+          initialRouteName={initialRoute}
+        >
           <MainStack.Screen name="Auth" component={AuthNavigator} />
           <MainStack.Screen
             name="MainApp"
@@ -326,10 +343,10 @@ const styles = StyleSheet.create({
   },
   loadingScreen: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  }
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
 });
 
 export default App;

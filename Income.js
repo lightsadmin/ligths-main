@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Picker } from "@react-native-picker/picker";
 import {
   View,
@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { Ionicons, FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,9 +33,16 @@ export default function ExpenseTracker({ navigation, route }) {
   const [filter, setFilter] = useState("all");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Month/Year filter states (similar to FireNumber)
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterMonth, setFilterMonth] = useState("All");
+  const [filterYear, setFilterYear] = useState("All");
+
   const [newTransaction, setNewTransaction] = useState({
     name: "",
     amount: "",
+    description: "",
     type: "Income",
     subType: "Active",
     method: "Cash",
@@ -45,6 +53,61 @@ export default function ExpenseTracker({ navigation, route }) {
   const [selectedDate, setSelectedDate] = useState(
     receivedDate ? new Date(receivedDate) : new Date()
   );
+
+  // Animation for loading icon
+  const spinValue = useState(new Animated.Value(0))[0];
+
+  // Month/Year filter options similar to FireNumber
+  const availableFilters = useMemo(() => {
+    if (!transactions || transactions.length === 0) {
+      return { years: [], months: [] };
+    }
+
+    const years = [
+      ...new Set(
+        transactions.map((transaction) => {
+          const date = new Date(transaction.date);
+          return date.getFullYear();
+        })
+      ),
+    ].sort((a, b) => b - a);
+
+    const months = [
+      { name: "January", value: 0 },
+      { name: "February", value: 1 },
+      { name: "March", value: 2 },
+      { name: "April", value: 3 },
+      { name: "May", value: 4 },
+      { name: "June", value: 5 },
+      { name: "July", value: 6 },
+      { name: "August", value: 7 },
+      { name: "September", value: 8 },
+      { name: "October", value: 9 },
+      { name: "November", value: 10 },
+      { name: "December", value: 11 },
+    ];
+
+    return { years, months };
+  }, [transactions]);
+
+  useEffect(() => {
+    if (loading) {
+      const spinAnimation = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      );
+      spinAnimation.start();
+      return () => spinAnimation.stop();
+    }
+  }, [loading, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   // Auto-open modal when coming from dateExpenses screen
   useEffect(() => {
@@ -181,6 +244,7 @@ export default function ExpenseTracker({ navigation, route }) {
       const transactionData = {
         name: expenseName,
         amount: parseFloat(newTransaction.amount),
+        description: newTransaction.description || "",
         type: "Income",
         subType: newTransaction.subType,
         method: newTransaction.method || "Cash",
@@ -258,16 +322,52 @@ export default function ExpenseTracker({ navigation, route }) {
     }
   };
 
-  const filteredTransactions =
-    filter === "all"
-      ? transactions
-      : transactions.filter((transaction) => transaction.subType === filter);
+  // Filter transactions function
+  const getFilteredTransactions = useCallback(() => {
+    let filtered = transactions;
+
+    // Filter by type
+    if (filter !== "all") {
+      filtered = filtered.filter(
+        (transaction) => transaction.subType === filter
+      );
+    }
+
+    // Filter by month/year (similar to FireNumber)
+    if (filterYear !== "All") {
+      const yearNum = parseInt(filterYear);
+      filtered = filtered.filter(
+        (transaction) => new Date(transaction.date).getFullYear() === yearNum
+      );
+    }
+    if (filterMonth !== "All") {
+      const monthNum = parseInt(filterMonth);
+      filtered = filtered.filter(
+        (transaction) => new Date(transaction.date).getMonth() === monthNum
+      );
+    }
+
+    return filtered;
+  }, [transactions, filter, filterMonth, filterYear]);
+
+  const filteredTransactions = getFilteredTransactions();
+
+  // Filter control functions
+  const resetFilters = () => {
+    setFilterMonth("All");
+    setFilterYear("All");
+  };
+
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
 
   // Cancel and reset form
   const handleCancel = () => {
     setNewTransaction({
       name: "",
       amount: "",
+      description: "",
       type: "Income",
       subType: "Active",
       method: "Cash",
@@ -311,7 +411,7 @@ export default function ExpenseTracker({ navigation, route }) {
 
         {isOpen && (
           <View style={styles.dropdownMenu}>
-            <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled={true}>
+            <View style={{ maxHeight: 150 }}>
               {options.map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -337,7 +437,7 @@ export default function ExpenseTracker({ navigation, route }) {
                   )}
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           </View>
         )}
       </View>
@@ -346,28 +446,114 @@ export default function ExpenseTracker({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Income Tracker</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.header}>Income Tracker</Text>
+        <TouchableOpacity
+          onPress={toggleFilters}
+          style={styles.filterToggleButton}
+        >
+          <Ionicons name="filter" size={20} color="#2563eb" />
+          <Text style={styles.filterToggleText}>Filter</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Filter Tabs */}
       <View style={styles.tabsContainer}>
-        {["all", "Active", "Passive"].map((type) => (
+        {[
+          { id: "all", label: "All", icon: "apps-outline" },
+          { id: "Active", label: "Active", icon: "trending-up-outline" },
+          { id: "Passive", label: "Passive", icon: "cash-outline" },
+        ].map((type) => (
           <TouchableOpacity
-            key={type}
-            style={[styles.tab, filter === type && styles.activeTab]}
-            onPress={() => setFilter(type)}
+            key={type.id}
+            style={[styles.tab, filter === type.id && styles.activeTab]}
+            onPress={() => setFilter(type.id)}
           >
+            <Ionicons
+              name={type.icon}
+              size={16}
+              color={filter === type.id ? "#fff" : "#475569"}
+            />
             <Text
-              style={[styles.tabText, filter === type && styles.activeTabText]}
+              style={[
+                styles.tabText,
+                filter === type.id && styles.activeTabText,
+                { marginTop: 2, fontSize: 10 },
+              ]}
+              numberOfLines={1}
             >
-              {type === "all" ? "All" : type}
+              {type.id === "all" ? "All" : type.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
+      {/* Month/Year Filter Section (similar to FireNumber) */}
+      {showFilters && (
+        <View style={styles.filtersContainer}>
+          <View style={styles.filterRow}>
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Month</Text>
+              <TouchableOpacity style={styles.filterPicker}>
+                <Picker
+                  selectedValue={filterMonth}
+                  onValueChange={setFilterMonth}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="All Months" value="All" />
+                  {availableFilters.months.map((month) => (
+                    <Picker.Item
+                      key={month.value}
+                      label={month.name}
+                      value={month.value.toString()}
+                    />
+                  ))}
+                </Picker>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filterItem}>
+              <Text style={styles.filterLabel}>Year</Text>
+              <TouchableOpacity style={styles.filterPicker}>
+                <Picker
+                  selectedValue={filterYear}
+                  onValueChange={setFilterYear}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="All Years" value="All" />
+                  {availableFilters.years.map((year) => (
+                    <Picker.Item
+                      key={year}
+                      label={year.toString()}
+                      value={year.toString()}
+                    />
+                  ))}
+                </Picker>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
+            <Text style={styles.resetButtonText}>Reset Filters</Text>
+          </TouchableOpacity>
+
+          <View style={styles.filterSummary}>
+            <Text style={styles.filterSummaryText}>
+              Showing {filteredTransactions.length} of {transactions.length}{" "}
+              income
+              {filterMonth !== "All" || filterYear !== "All"
+                ? " (filtered)"
+                : ""}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {loading && transactions.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Ionicons name="cash-outline" size={50} color="#2563eb" />
+          </Animated.View>
           <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
       ) : (
@@ -386,6 +572,7 @@ export default function ExpenseTracker({ navigation, route }) {
           maxToRenderPerBatch={10}
           windowSize={10}
           removeClippedSubviews={Platform.OS === "android"}
+          nestedScrollEnabled={true}
           renderItem={({ item, index }) => (
             <View
               style={[
@@ -401,6 +588,11 @@ export default function ExpenseTracker({ navigation, route }) {
                 </View>
                 <View>
                   <Text style={styles.cardName}>{item.name}</Text>
+                  {item.description && (
+                    <Text style={styles.cardDescription} numberOfLines={1}>
+                      {item.description}
+                    </Text>
+                  )}
                   <Text style={styles.cardDate}>
                     {formatDisplayDate(item.date)} • {item.subType}
                   </Text>
@@ -544,6 +736,23 @@ export default function ExpenseTracker({ navigation, route }) {
                     />
                   </View>
 
+                  {/* Description */}
+                  <Text style={styles.label}>Description (Optional):</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Add a description for this income..."
+                    placeholderTextColor="#94a3b8"
+                    value={newTransaction.description}
+                    onChangeText={(text) =>
+                      setNewTransaction({
+                        ...newTransaction,
+                        description: text,
+                      })
+                    }
+                    multiline={true}
+                    numberOfLines={2}
+                  />
+
                   <Text style={styles.label}>Date:</Text>
                   <TouchableOpacity
                     style={styles.dateButton}
@@ -643,12 +852,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   header: {
     fontSize: 28,
     fontWeight: "bold",
-    textAlign: "center",
     color: "#1e293b",
-    marginBottom: 20,
+    flex: 1,
+    textAlign: "center",
+  },
+  filterToggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#eff6ff",
+    borderRadius: 8,
+  },
+  filterToggleText: {
+    marginLeft: 4,
+    fontSize: 14,
+    color: "#2563eb",
+    fontWeight: "600",
   },
   // Loading state
   loadingContainer: {
@@ -749,6 +977,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e293b",
     marginBottom: 4,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: "#64748b",
+    fontStyle: "italic",
+    marginBottom: 2,
   },
   cardRight: {
     alignItems: "flex-end",
@@ -1011,5 +1245,85 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: "#60a5fa",
     opacity: 0.7,
+  },
+  // Date filter styles
+  selectedDateContainer: {
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  selectedDateText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  changeDateButton: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  changeDateText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  // Month/Year filter styles (similar to FireNumber)
+  filtersContainer: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  filterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  filterItem: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  filterLabel: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
+  },
+  filterPicker: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 6,
+    height: Platform.OS === "ios" ? 150 : 50,
+  },
+  picker: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    height: Platform.OS === "ios" ? 150 : 50,
+  },
+  resetButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 6,
+    padding: 8,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  resetButtonText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  filterSummary: {
+    marginBottom: 4,
+  },
+  filterSummaryText: {
+    fontSize: 13,
+    color: "#888",
+    fontStyle: "italic",
+    textAlign: "center",
   },
 });
