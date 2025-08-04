@@ -27,6 +27,9 @@ const API_URL = "https://ligths-backend.onrender.com";
 export default function ExpenseTracker({ navigation, route }) {
   // Extract date parameter if provided from dateExpenses screen
   const receivedDate = route.params?.date || null;
+  // Extract edit item if provided from dateExpenses screen
+  const editItem = route.params?.editItem || null;
+  const fromDailyTransactions = route.params?.fromDailyTransactions || false;
 
   const [transactions, setTransactions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,6 +56,10 @@ export default function ExpenseTracker({ navigation, route }) {
   const [selectedDate, setSelectedDate] = useState(
     receivedDate ? new Date(receivedDate) : new Date()
   );
+
+  // Add edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editTransactionId, setEditTransactionId] = useState(null);
 
   // Animation for loading icon
   const spinValue = useState(new Animated.Value(0))[0];
@@ -111,14 +118,48 @@ export default function ExpenseTracker({ navigation, route }) {
 
   // Auto-open modal when coming from dateExpenses screen
   useEffect(() => {
-    if (receivedDate) {
+    if (receivedDate || editItem) {
       console.log("Received date from navigation:", receivedDate);
+      console.log("Edit item from navigation:", editItem);
+
+      // If we have an edit item, populate the form and set edit mode
+      if (editItem) {
+        setIsEditMode(true);
+        setEditTransactionId(editItem._id);
+
+        setNewTransaction({
+          name: editItem.name || "",
+          amount: editItem.amount?.toString() || "",
+          description: editItem.description || "",
+          type: "Income",
+          subType: editItem.subType || "Active",
+          method: editItem.method || "Cash",
+          date: editItem.date || receivedDate || "",
+        });
+
+        // Set custom expense if the name doesn't match predefined options
+        const allOptions = [
+          ...(expenseTypeOptions.Active || []),
+          ...(expenseTypeOptions.Passive || []),
+        ];
+        if (editItem.name && !allOptions.includes(editItem.name)) {
+          setIsCustomExpense(true);
+          setCustomExpenseName(editItem.name);
+          setNewTransaction((prev) => ({ ...prev, name: "Others" }));
+        }
+
+        // Set the selected date for the date picker
+        if (editItem.date) {
+          setSelectedDate(new Date(editItem.date));
+        }
+      }
+
       const timer = setTimeout(() => {
         setModalVisible(true);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [receivedDate]);
+  }, [receivedDate, editItem]);
 
   const expenseTypeOptions = {
     Active: [
@@ -204,7 +245,7 @@ export default function ExpenseTracker({ navigation, route }) {
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const data = await response.json();
-      const incomeTransactions = data.transactions.filter(
+      const incomeTransactions = (data.transactions || []).filter(
         (transaction) => transaction && transaction.type === "Income"
       );
       setTransactions(incomeTransactions);
@@ -216,7 +257,7 @@ export default function ExpenseTracker({ navigation, route }) {
     }
   };
 
-  // ➕ Add Transaction
+  // ➕ Add or Update Transaction
   const addTransaction = async () => {
     try {
       setLoading(true);
@@ -251,21 +292,42 @@ export default function ExpenseTracker({ navigation, route }) {
         date: newTransaction.date,
       };
 
-      const response = await fetch(`${API_URL}/transactions/${username}`, {
-        method: "POST",
+      // Determine if we're updating or creating
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode
+        ? `${API_URL}/transactions/${username}/${editTransactionId}`
+        : `${API_URL}/transactions/${username}`;
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transactionData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to add transaction");
+        throw new Error(
+          errorData.error ||
+            `Failed to ${isEditMode ? "update" : "add"} transaction`
+        );
       }
 
       const savedTransaction = await response.json();
-      setTransactions([...transactions, savedTransaction.transaction]);
 
-      Alert.alert("Success", "Transaction added successfully");
+      if (isEditMode) {
+        // Update the transactions list for edit mode
+        setTransactions((prevTransactions) =>
+          prevTransactions.map((t) =>
+            t._id === editTransactionId ? savedTransaction.transaction : t
+          )
+        );
+        Alert.alert("Success", "Transaction updated successfully");
+      } else {
+        // Add new transaction for create mode
+        setTransactions([...transactions, savedTransaction.transaction]);
+        Alert.alert("Success", "Transaction added successfully");
+      }
+
       // Emit event so calendar can refresh
       EventRegister.emit("transactionAdded");
 
@@ -273,12 +335,16 @@ export default function ExpenseTracker({ navigation, route }) {
       handleCancel();
 
       // If coming from date expenses, navigate back
-      if (route.params?.date) {
+      if (route.params?.date || fromDailyTransactions) {
         navigation.goBack();
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Error adding transaction");
+      Alert.alert(
+        "Error",
+        error.message ||
+          `Error ${isEditMode ? "updating" : "adding"} transaction`
+      );
       setLoading(false);
     }
   };
@@ -311,7 +377,9 @@ export default function ExpenseTracker({ navigation, route }) {
       }
 
       setTransactions(
-        transactions.filter((transaction) => transaction._id !== id)
+        (transactions || []).filter(
+          (transaction) => transaction && transaction._id !== id
+        )
       );
       Alert.alert("Success", "Transaction deleted successfully");
       setLoading(false);
@@ -324,12 +392,12 @@ export default function ExpenseTracker({ navigation, route }) {
 
   // Filter transactions function
   const getFilteredTransactions = useCallback(() => {
-    let filtered = transactions;
+    let filtered = transactions || [];
 
     // Filter by type
     if (filter !== "all") {
       filtered = filtered.filter(
-        (transaction) => transaction.subType === filter
+        (transaction) => transaction && transaction.subType === filter
       );
     }
 
@@ -337,13 +405,19 @@ export default function ExpenseTracker({ navigation, route }) {
     if (filterYear !== "All") {
       const yearNum = parseInt(filterYear);
       filtered = filtered.filter(
-        (transaction) => new Date(transaction.date).getFullYear() === yearNum
+        (transaction) =>
+          transaction &&
+          transaction.date &&
+          new Date(transaction.date).getFullYear() === yearNum
       );
     }
     if (filterMonth !== "All") {
       const monthNum = parseInt(filterMonth);
       filtered = filtered.filter(
-        (transaction) => new Date(transaction.date).getMonth() === monthNum
+        (transaction) =>
+          transaction &&
+          transaction.date &&
+          new Date(transaction.date).getMonth() === monthNum
       );
     }
 
@@ -377,14 +451,33 @@ export default function ExpenseTracker({ navigation, route }) {
     setIsCustomExpense(false);
     setModalVisible(false);
     setLoading(false);
+
+    // Reset edit mode
+    setIsEditMode(false);
+    setEditTransactionId(null);
   };
 
   // Custom dropdown component to replace problematic Picker
   const CustomDropdown = ({ label, options, value, onSelect }) => {
     const [isOpen, setIsOpen] = useState(false);
 
+    // Ensure we have valid options array
+    const safeOptions = Array.isArray(options) ? options : [];
+
     const selectedLabel =
-      options.find((opt) => opt.value === value)?.label || "Select an option";
+      safeOptions.find((opt) => opt && opt.value === value)?.label ||
+      "Select an option";
+
+    // Close dropdown when modal is touched outside
+    useEffect(() => {
+      const handleTouch = () => {
+        setIsOpen(false);
+      };
+
+      return () => {
+        // Cleanup if needed
+      };
+    }, []);
 
     return (
       <View style={{ marginBottom: 16 }}>
@@ -411,10 +504,16 @@ export default function ExpenseTracker({ navigation, route }) {
 
         {isOpen && (
           <View style={styles.dropdownMenu}>
-            <View style={{ maxHeight: 150 }}>
-              {options.map((option) => (
+            <ScrollView
+              style={{ maxHeight: 120 }}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+            >
+              {safeOptions.map((option, index) => (
                 <TouchableOpacity
-                  key={option.value}
+                  key={option.value || index}
                   style={[
                     styles.dropdownItem,
                     value === option.value && styles.selectedDropdownItem,
@@ -423,21 +522,24 @@ export default function ExpenseTracker({ navigation, route }) {
                     onSelect(option.value);
                     setIsOpen(false);
                   }}
+                  activeOpacity={0.7}
                 >
                   <Text
                     style={[
                       styles.dropdownItemText,
                       value === option.value && styles.selectedDropdownItemText,
                     ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                   >
-                    {option.label}
+                    {option.label || ""}
                   </Text>
                   {value === option.value && (
                     <Ionicons name="checkmark" size={16} color="#2563eb" />
                   )}
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
       </View>
@@ -594,7 +696,7 @@ export default function ExpenseTracker({ navigation, route }) {
                     </Text>
                   )}
                   <Text style={styles.cardDate}>
-                    {formatDisplayDate(item.date)} • {item.subType}
+                    {formatDisplayDate(item.date)} • {item.subType || ""}
                   </Text>
                 </View>
               </View>
@@ -646,14 +748,21 @@ export default function ExpenseTracker({ navigation, route }) {
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Income</Text>
+                  <Text style={styles.modalTitle}>
+                    {isEditMode ? "Edit Income" : "Add Income"}
+                  </Text>
                   <TouchableOpacity onPress={handleCancel}>
                     <Ionicons name="close" size={24} color="#64748b" />
                   </TouchableOpacity>
                 </View>
-
                 {/* Make the form scrollable */}
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  bounces={false}
+                  style={{ maxHeight: Platform.OS === "ios" ? 450 : 500 }}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
                   {/* SubType Selection */}
                   <Text style={styles.label}>Income Type:</Text>
                   <View style={styles.typeButtonContainer}>
@@ -691,9 +800,12 @@ export default function ExpenseTracker({ navigation, route }) {
                   <CustomDropdown
                     options={[
                       { label: "Select a source", value: "" },
-                      ...expenseTypeOptions[newTransaction.subType]?.map(
-                        (item) => ({ label: item, value: item })
-                      ),
+                      ...((
+                        expenseTypeOptions[newTransaction.subType] || []
+                      ).map((item) => ({
+                        label: item || "",
+                        value: item || "",
+                      })) || []),
                       { label: "Others", value: "Others" },
                     ]}
                     value={newTransaction.name}
@@ -830,7 +942,9 @@ export default function ExpenseTracker({ navigation, route }) {
                       {loading ? (
                         <ActivityIndicator size="small" color="#ffffff" />
                       ) : (
-                        <Text style={styles.modalAddText}>Add Income</Text>
+                        <Text style={styles.modalAddText}>
+                          {isEditMode ? "Update Income" : "Add Income"}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -1049,7 +1163,8 @@ const styles = StyleSheet.create({
     padding: 24,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "90%",
+    maxHeight: Platform.OS === "ios" ? "80%" : "80%", // Set to 80% for both platforms
+    overflow: "hidden",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1133,6 +1248,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
     zIndex: 1000,
+    maxHeight: 120,
+    overflow: "hidden",
   },
   dropdownItem: {
     flexDirection: "row",
@@ -1142,6 +1259,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
+    minHeight: 44,
   },
   selectedDropdownItem: {
     backgroundColor: "#eff6ff",

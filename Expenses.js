@@ -30,6 +30,9 @@ const { width } = Dimensions.get("window");
 export default function ExpenseTracker({ navigation, route }) {
   // Extract date from route params if provided (for auto-opening modal)
   const receivedDate = route.params?.date || null;
+  // Extract edit item if provided from dateExpenses screen
+  const editItem = route.params?.editItem || null;
+  const fromDailyTransactions = route.params?.fromDailyTransactions || false;
 
   const [transactions, setTransactions] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -60,6 +63,10 @@ export default function ExpenseTracker({ navigation, route }) {
   // For the dropdown states
   const [isExpenseDropdownOpen, setIsExpenseDropdownOpen] = useState(false);
   const [isMethodDropdownOpen, setIsMethodDropdownOpen] = useState(false);
+
+  // Add edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editTransactionId, setEditTransactionId] = useState(null);
 
   // Animation for loading icon
   const spinValue = useState(new Animated.Value(0))[0];
@@ -116,17 +123,52 @@ export default function ExpenseTracker({ navigation, route }) {
     outputRange: ["0deg", "360deg"],
   });
 
-  // Auto-open modal when navigating with a date parameter
+  // Auto-open modal when navigating with a date parameter or edit item
   useEffect(() => {
-    if (receivedDate) {
+    if (receivedDate || editItem) {
       console.log("Opening modal with pre-selected date:", receivedDate);
+      console.log("Edit item from navigation:", editItem);
+
+      // If we have an edit item, populate the form and set edit mode
+      if (editItem) {
+        setIsEditMode(true);
+        setEditTransactionId(editItem._id);
+
+        setNewTransaction({
+          name: editItem.name || "",
+          amount: editItem.amount?.toString() || "",
+          description: editItem.description || "",
+          type: "Expense",
+          subType: editItem.subType || "Essential",
+          method: editItem.method || "Cash",
+          date: editItem.date || receivedDate || "",
+        });
+
+        // Set custom expense if the name doesn't match predefined options
+        const allOptions = [
+          ...(expenseTypeOptions.Mandatory || []),
+          ...(expenseTypeOptions.Discretionary || []),
+          ...(expenseTypeOptions.Essential || []),
+        ];
+        if (editItem.name && !allOptions.includes(editItem.name)) {
+          setIsCustomExpense(true);
+          setCustomExpenseName(editItem.name);
+          setNewTransaction((prev) => ({ ...prev, name: "Others" }));
+        }
+
+        // Set the selected date for the date picker
+        if (editItem.date) {
+          setSelectedDate(new Date(editItem.date));
+        }
+      }
+
       const timer = setTimeout(() => {
         setModalVisible(true);
       }, 300);
 
       return () => clearTimeout(timer);
     }
-  }, [receivedDate]);
+  }, [receivedDate, editItem]);
 
   const expenseTypeOptions = {
     Mandatory: [
@@ -238,7 +280,7 @@ export default function ExpenseTracker({ navigation, route }) {
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const data = await response.json();
-      const expenseTransactions = data.transactions.filter(
+      const expenseTransactions = (data.transactions || []).filter(
         (transaction) => transaction && transaction.type === "Expense"
       );
 
@@ -255,7 +297,7 @@ export default function ExpenseTracker({ navigation, route }) {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Add Transaction to MongoDB
+  // Add or Update Transaction to MongoDB
   const addTransaction = useCallback(async () => {
     try {
       setLoading(true);
@@ -318,8 +360,21 @@ export default function ExpenseTracker({ navigation, route }) {
         date: newTransaction.date,
       };
 
-      const response = await fetch(`${API_URL}/transactions/${username}`, {
-        method: "POST",
+      // Debug: Log what we're sending
+      console.log("DEBUG: Sending transaction data:", transactionData);
+      console.log(
+        "DEBUG: Description field value:",
+        newTransaction.description
+      );
+
+      // Determine if we're updating or creating
+      const method = isEditMode ? "PUT" : "POST";
+      const url = isEditMode
+        ? `${API_URL}/transactions/${username}/${editTransactionId}`
+        : `${API_URL}/transactions/${username}`;
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transactionData),
       });
@@ -328,7 +383,9 @@ export default function ExpenseTracker({ navigation, route }) {
         const errorText = await response.text();
         console.error("API error response:", errorText);
 
-        let errorMessage = "Failed to add transaction";
+        let errorMessage = `Failed to ${
+          isEditMode ? "update" : "add"
+        } transaction`;
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.error || errorMessage;
@@ -340,26 +397,49 @@ export default function ExpenseTracker({ navigation, route }) {
       }
 
       const savedTransaction = await response.json();
-      setTransactions((prevTransactions) => [
-        ...prevTransactions,
-        savedTransaction.transaction,
-      ]);
 
-      Alert.alert("Success", "Transaction added successfully");
+      if (isEditMode) {
+        // Update the transactions list for edit mode
+        setTransactions((prevTransactions) =>
+          prevTransactions.map((t) =>
+            t._id === editTransactionId ? savedTransaction.transaction : t
+          )
+        );
+        Alert.alert("Success", "Transaction updated successfully");
+      } else {
+        // Add new transaction for create mode
+        setTransactions((prevTransactions) => [
+          ...prevTransactions,
+          savedTransaction.transaction,
+        ]);
+        Alert.alert("Success", "Transaction added successfully");
+      }
 
-      // Reset state after adding
+      // Reset state after adding/updating
       handleCancel();
 
       // If coming from date expenses, navigate back
-      if (route.params?.date) {
+      if (route.params?.date || fromDailyTransactions) {
         navigation.goBack();
       }
     } catch (error) {
       console.error("Transaction error:", error);
-      Alert.alert("Error", error.message || "Error adding transaction");
+      Alert.alert(
+        "Error",
+        error.message ||
+          `Error ${isEditMode ? "updating" : "adding"} transaction`
+      );
       setLoading(false);
     }
-  }, [customExpenseName, isCustomExpense, newTransaction, route.params]);
+  }, [
+    customExpenseName,
+    isCustomExpense,
+    newTransaction,
+    route.params,
+    isEditMode,
+    editTransactionId,
+    fromDailyTransactions,
+  ]);
 
   // Delete Transaction from MongoDB with confirmation
   const confirmDelete = useCallback((id, name) => {
@@ -416,7 +496,9 @@ export default function ExpenseTracker({ navigation, route }) {
         }
 
         setTransactions(
-          transactions.filter((transaction) => transaction._id !== id)
+          (transactions || []).filter(
+            (transaction) => transaction && transaction._id !== id
+          )
         );
         Alert.alert("Success", "Transaction deleted successfully");
         setLoading(false);
@@ -446,16 +528,20 @@ export default function ExpenseTracker({ navigation, route }) {
     setIsMethodDropdownOpen(false);
     setModalVisible(false);
     setLoading(false);
+
+    // Reset edit mode
+    setIsEditMode(false);
+    setEditTransactionId(null);
   }, []);
 
   // Filter transactions function
   const getFilteredTransactions = useCallback(() => {
-    let filtered = transactions;
+    let filtered = transactions || [];
 
     // Filter by type
     if (filter !== "all") {
       filtered = filtered.filter(
-        (transaction) => transaction.subType === filter
+        (transaction) => transaction && transaction.subType === filter
       );
     }
 
@@ -463,13 +549,19 @@ export default function ExpenseTracker({ navigation, route }) {
     if (filterYear !== "All") {
       const yearNum = parseInt(filterYear);
       filtered = filtered.filter(
-        (transaction) => new Date(transaction.date).getFullYear() === yearNum
+        (transaction) =>
+          transaction &&
+          transaction.date &&
+          new Date(transaction.date).getFullYear() === yearNum
       );
     }
     if (filterMonth !== "All") {
       const monthNum = parseInt(filterMonth);
       filtered = filtered.filter(
-        (transaction) => new Date(transaction.date).getMonth() === monthNum
+        (transaction) =>
+          transaction &&
+          transaction.date &&
+          new Date(transaction.date).getMonth() === monthNum
       );
     }
 
@@ -500,8 +592,9 @@ export default function ExpenseTracker({ navigation, route }) {
             >
               {item.name}
             </Text>
-            {item.description && (
-              <Text style={styles.cardDescription} numberOfLines={1}>
+            {/* Display description only if it exists and is not empty */}
+            {item.description && item.description.trim() !== "" && (
+              <Text style={styles.cardDescription} numberOfLines={2}>
                 {item.description}
               </Text>
             )}
@@ -717,6 +810,7 @@ export default function ExpenseTracker({ navigation, route }) {
         setSelectedDate={setSelectedDate}
         onDateChange={onDateChange}
         formatDisplayDate={formatDisplayDate}
+        isEditMode={isEditMode}
       />
     </SafeAreaView>
   );
@@ -744,6 +838,7 @@ const ExpenseFormModal = ({
   selectedDate,
   onDateChange,
   formatDisplayDate,
+  isEditMode,
 }) => {
   // Item selection handlers
   const handleExpenseTypeSelect = (type) => {
@@ -804,7 +899,9 @@ const ExpenseFormModal = ({
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Expense</Text>
+                <Text style={styles.modalTitle}>
+                  {isEditMode ? "Edit Expense" : "Add Expense"}
+                </Text>
                 <TouchableOpacity onPress={onCancel}>
                   <Ionicons name="close" size={24} color="#64748b" />
                 </TouchableOpacity>
@@ -879,6 +976,8 @@ const ExpenseFormModal = ({
                       style={styles.dropdownMenu}
                       nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                      bounces={false}
                     >
                       {expenseItems.map((item) => (
                         <TouchableOpacity
@@ -889,6 +988,7 @@ const ExpenseFormModal = ({
                               styles.selectedDropdownItem,
                           ]}
                           onPress={() => handleExpenseItemSelect(item.value)}
+                          activeOpacity={0.7}
                         >
                           <Text
                             style={[
@@ -897,6 +997,7 @@ const ExpenseFormModal = ({
                                 styles.selectedDropdownItemText,
                             ]}
                             numberOfLines={1}
+                            ellipsizeMode="tail"
                           >
                             {item.label}
                           </Text>
@@ -1010,6 +1111,8 @@ const ExpenseFormModal = ({
                       style={styles.dropdownMenu}
                       nestedScrollEnabled={true}
                       showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                      bounces={false}
                     >
                       {paymentMethods.map((item) => (
                         <TouchableOpacity
@@ -1020,6 +1123,7 @@ const ExpenseFormModal = ({
                               styles.selectedDropdownItem,
                           ]}
                           onPress={() => handleMethodSelect(item.value)}
+                          activeOpacity={0.7}
                         >
                           <Text
                             style={[
@@ -1065,7 +1169,9 @@ const ExpenseFormModal = ({
                   {loading ? (
                     <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
-                    <Text style={styles.modalAddText}>Add Expense</Text>
+                    <Text style={styles.modalAddText}>
+                      {isEditMode ? "Update Expense" : "Add Expense"}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1218,10 +1324,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   cardDescription: {
-    fontSize: 13,
-    color: "#64748b",
+    fontSize: 14,
+    color: "#4a5568",
     fontStyle: "italic",
-    marginBottom: 2,
+    marginBottom: 6,
+    lineHeight: 20,
+    backgroundColor: "#f7fafc",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   cardRight: {
     flexDirection: "row",
@@ -1292,11 +1403,11 @@ const styles = StyleSheet.create({
     padding: 24,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: Platform.OS === "ios" ? "80%" : "90%", // Smaller on iOS
+    maxHeight: Platform.OS === "ios" ? "80%" : "80%", // Set to 80% for both platforms
+    overflow: "hidden",
   },
   formScrollView: {
     flex: 0, // Don't use flex here
-    maxHeight: Platform.OS === "ios" ? 350 : 400, // Fixed height for better performance
   },
   formScrollContent: {
     paddingBottom: 10,
@@ -1304,9 +1415,11 @@ const styles = StyleSheet.create({
   // Fixed dropdown container
   dropdownContainer: {
     marginBottom: 16,
+    position: "relative",
+    zIndex: 1000,
   },
   dropdownMenu: {
-    maxHeight: 150,
+    maxHeight: 120,
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -1316,6 +1429,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    overflow: "hidden",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1396,6 +1510,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
+    minHeight: 44,
   },
   selectedDropdownItem: {
     backgroundColor: "#fef2f2",

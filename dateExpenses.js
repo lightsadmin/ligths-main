@@ -429,10 +429,10 @@ const TransactionsPage = ({ route, navigation }) => {
                   <Text style={styles.transactionName} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  {item.description && (
+                  {item.description && item.description.trim() !== "" && (
                     <Text
                       style={styles.transactionDescription}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {item.description}
                     </Text>
@@ -956,10 +956,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   transactionDescription: {
-    fontSize: 13,
-    color: "#64748B",
+    fontSize: 14,
+    color: "#475569",
     fontStyle: "italic",
-    marginBottom: 2,
+    marginBottom: 4,
+    lineHeight: 18,
   },
   transactionMetaContainer: {
     flexDirection: "row",
