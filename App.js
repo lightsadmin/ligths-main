@@ -30,6 +30,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import SplashScreen from "./SplashScreen";
 import LoginScreenView from "./LoginScreenView";
 import RegisterScreenView from "./RegisterScreen";
+import ForgotPasswordScreen from "./ForgotPasswordScreen";
 import CalendarMain from "./calendarmain";
 import DateExpenses from "./dateExpenses";
 import FireNumber from "./FireNumber";
@@ -169,6 +170,11 @@ const AuthNavigator = () => (
       name="SignUp"
       component={RegisterScreenView}
       options={headerOptions("Sign Up")}
+    />
+    <AuthStack.Screen
+      name="ForgotPassword"
+      component={ForgotPasswordScreen}
+      options={headerOptions("Forgot Password")}
     />
   </AuthStack.Navigator>
 );

@@ -3,8 +3,8 @@ const API_CONFIG = {
   // Development URLs (for local testing with a simulator or local network)
   DEVELOPMENT: {
     // Replace with your computer's local IP address if testing on a physical device
-    BASE_URL: "http://192.168.1.10:5000", // Example local IP
-    WEBSOCKET_URL: "ws://192.168.1.10:5000",
+    BASE_URL: "http://172.20.10.4:5000", // Updated to match current IP
+    WEBSOCKET_URL: "ws://172.20.10.4:5000",
   },
 
   // Production URLs (your deployed Render server)
@@ -17,7 +17,7 @@ const API_CONFIG = {
 // --- Controls ---
 // Set this to `true` to always use the PRODUCTION URLs.
 // Set this to `false` when you are testing with a local server.
-const FORCE_PRODUCTION = true;
+const FORCE_PRODUCTION = false;
 
 // --- Environment Detection ---
 // Determines which set of URLs to use based on the control above and the environment.
@@ -29,6 +29,11 @@ const isDevelopment =
 export const API_BASE_URL = isDevelopment
   ? API_CONFIG.DEVELOPMENT.BASE_URL
   : API_CONFIG.PRODUCTION.BASE_URL;
+
+console.log("🌐 API Configuration:");
+console.log("- FORCE_PRODUCTION:", FORCE_PRODUCTION);
+console.log("- isDevelopment:", isDevelopment);
+console.log("- API_BASE_URL:", API_BASE_URL);
 
 // The URL for WebSocket connections (if you use them in the future).
 export const WEBSOCKET_URL = isDevelopment
@@ -42,6 +47,7 @@ export const ENDPOINTS = {
   // Authentication
   REGISTER: "/api/register",
   LOGIN: "/api/login",
+  FORGOT_PASSWORD: "/api/forgot-password",
   CHECK_USERNAME: "/api/check-username",
   CHECK_EMAIL: "/api/check-email",
 

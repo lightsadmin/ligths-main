@@ -16,14 +16,14 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   ScrollView,
-  Modal,
 } from "react-native";
-import { FontAwesome, Feather, Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Feather } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri } from "expo-auth-session";
+import { API_BASE_URL } from "./config/api";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -36,12 +36,6 @@ export default function LoginScreenView({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // 📧 Forgot Password State
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
-  const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     expoClientId:
@@ -148,15 +142,12 @@ export default function LoginScreenView({ navigation }) {
         console.log("Google user info from API:", userInfo);
       }
 
-      const response = await axios.post(
-        "https://ligths-backend.onrender.com/api/google-auth",
-        {
-          googleId: userInfo.sub || userInfo.id,
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-        }
-      );
+      const response = await axios.post(`${API_BASE_URL}/api/google-auth`, {
+        googleId: userInfo.sub || userInfo.id,
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+      });
 
       if (response.data) {
         console.log("✅ Google Login Successful:", response.data);
@@ -188,13 +179,10 @@ export default function LoginScreenView({ navigation }) {
     setLoading(true);
 
     try {
-      const response = await axios.post(
-        "https://ligths-backend.onrender.com/api/login",
-        {
-          userName: username,
-          password: password,
-        }
-      );
+      const response = await axios.post(`${API_BASE_URL}/api/login`, {
+        userName: username,
+        password: password,
+      });
 
       if (response.data) {
         console.log("✅ Login Successful:", response.data);
@@ -212,50 +200,6 @@ export default function LoginScreenView({ navigation }) {
       setError(err.response?.data?.error || "Invalid username or password");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // 📧 **Forgot Password Handler**
-  const handleForgotPassword = async () => {
-    if (!forgotEmail.trim()) {
-      setForgotPasswordMessage("Please enter your email address.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(forgotEmail)) {
-      setForgotPasswordMessage("Please enter a valid email address.");
-      return;
-    }
-
-    setForgotPasswordLoading(true);
-    setForgotPasswordMessage("");
-
-    try {
-      const response = await axios.post(
-        "https://ligths-backend.onrender.com/api/forgot-password",
-        { email: forgotEmail }
-      );
-
-      setForgotPasswordMessage(response.data.message);
-
-      // Auto-close modal after successful request
-      setTimeout(() => {
-        setShowForgotPassword(false);
-        setForgotEmail("");
-        setForgotPasswordMessage("");
-      }, 3000);
-    } catch (err) {
-      console.error(
-        "❌ Forgot Password Error:",
-        err.response?.data || err.message
-      );
-      setForgotPasswordMessage(
-        err.response?.data?.error ||
-          "Failed to send reset email. Please try again."
-      );
-    } finally {
-      setForgotPasswordLoading(false);
     }
   };
 
@@ -346,7 +290,7 @@ export default function LoginScreenView({ navigation }) {
 
                 <TouchableOpacity
                   style={styles.forgotPasswordContainer}
-                  onPress={() => setShowForgotPassword(true)}
+                  onPress={() => navigation.navigate("ForgotPassword")}
                 >
                   <Text style={styles.forgotPassword}>Forgot Password?</Text>
                 </TouchableOpacity>
@@ -407,83 +351,6 @@ export default function LoginScreenView({ navigation }) {
           </TouchableWithoutFeedback>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* 📧 Forgot Password Modal */}
-      <Modal
-        visible={showForgotPassword}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowForgotPassword(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalKeyboardAvoid}
-          >
-            <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Reset Password</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowForgotPassword(false);
-                    setForgotEmail("");
-                    setForgotPasswordMessage("");
-                  }}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#64748B" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.modalDescription}>
-                Enter your email address and we'll send you a link to reset your
-                password.
-              </Text>
-
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Enter your email"
-                placeholderTextColor="#94A3B8"
-                value={forgotEmail}
-                onChangeText={setForgotEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              {forgotPasswordMessage ? (
-                <Text
-                  style={[
-                    styles.modalMessage,
-                    forgotPasswordMessage.includes("sent") ||
-                    forgotPasswordMessage.includes("exists")
-                      ? styles.successMessage
-                      : styles.errorMessage,
-                  ]}
-                >
-                  {forgotPasswordMessage}
-                </Text>
-              ) : null}
-
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  (!forgotEmail.trim() || forgotPasswordLoading) &&
-                    styles.modalButtonDisabled,
-                ]}
-                onPress={handleForgotPassword}
-                disabled={!forgotEmail.trim() || forgotPasswordLoading}
-              >
-                {forgotPasswordLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalButtonText}>Send Reset Link</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -654,94 +521,6 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     color: "#2563EB",
-    fontWeight: "600",
-  },
-
-  // 📧 **Forgot Password Modal Styles**
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalKeyboardAvoid: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    width: width * 0.9,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
-    maxHeight: height * 0.7,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: "#64748B",
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  modalInput: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: "#F8FAFC",
-    marginBottom: 16,
-  },
-  modalMessage: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-    paddingHorizontal: 8,
-    lineHeight: 18,
-  },
-  successMessage: {
-    color: "#059669",
-    backgroundColor: "#ECFDF5",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-  errorMessage: {
-    color: "#DC2626",
-    backgroundColor: "#FEF2F2",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  modalButton: {
-    height: 48,
-    backgroundColor: "#2563EB",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalButtonDisabled: {
-    backgroundColor: "#94A3B8",
-  },
-  modalButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
     fontWeight: "600",
   },
 });

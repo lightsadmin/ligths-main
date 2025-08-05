@@ -58,6 +58,8 @@ export default function RegisterScreenView() {
     age: "",
     retirementAge: "",
     phoneNumber: "",
+    securityPin: "",
+    confirmSecurityPin: "",
   });
 
   const [inputValidation, setInputValidation] = useState({
@@ -71,10 +73,14 @@ export default function RegisterScreenView() {
     age: false,
     retirementAge: false,
     phoneNumber: false,
+    securityPin: false,
+    confirmSecurityPin: false,
   });
 
   const [errorMessages, setErrorMessages] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showSecurityPin, setShowSecurityPin] = useState(false);
+  const [showConfirmSecurityPin, setShowConfirmSecurityPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 3;
@@ -222,6 +228,19 @@ export default function RegisterScreenView() {
         errorMessage = isValid ? "" : "Please select a country";
         break;
 
+      case "securityPin":
+        if (value.length >= 4 && value.length <= 10) {
+          isValid = true;
+        } else {
+          errorMessage = "Security PIN must be 4-10 characters";
+        }
+        break;
+
+      case "confirmSecurityPin":
+        isValid = value === formData.securityPin;
+        errorMessage = isValid ? "" : "Security PINs do not match";
+        break;
+
       default:
         isValid = value.trim().length > 0;
         break;
@@ -266,7 +285,12 @@ export default function RegisterScreenView() {
         fieldsToCheck = ["firstName", "lastName", "userName", "email"];
         break;
       case 2:
-        fieldsToCheck = ["password", "confirmPassword"];
+        fieldsToCheck = [
+          "password",
+          "confirmPassword",
+          "securityPin",
+          "confirmSecurityPin",
+        ];
         break;
       case 3:
         fieldsToCheck = ["age", "retirementAge", "phoneNumber", "country"];
@@ -688,6 +712,83 @@ export default function RegisterScreenView() {
                   At least one special character
                 </Text>
               </View>
+            </View>
+
+            {/* Security PIN Section */}
+            <Text style={styles.sectionTitle}>Set Security PIN</Text>
+            <Text style={styles.sectionDescription}>
+              This PIN will be used to reset your password if you forget it
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <View style={styles.inputIconContainer}>
+                <Feather name="shield" size={18} color="#64748B" />
+              </View>
+              <TextInput
+                placeholder="Security PIN (4-10 characters)"
+                secureTextEntry={!showSecurityPin}
+                style={styles.input}
+                onChangeText={(text) => handleChange("securityPin", text)}
+                value={formData.securityPin}
+                placeholderTextColor="#94A3B8"
+                maxLength={10}
+                keyboardType="default"
+              />
+              <TouchableOpacity
+                onPress={() => setShowSecurityPin(!showSecurityPin)}
+                style={styles.eyeIcon}
+              >
+                <Feather
+                  name={showSecurityPin ? "eye-off" : "eye"}
+                  size={18}
+                  color="#64748B"
+                />
+              </TouchableOpacity>
+            </View>
+            {errorMessages.securityPin ? (
+              <Text style={styles.errorText}>{errorMessages.securityPin}</Text>
+            ) : null}
+
+            <View style={styles.inputContainer}>
+              <View style={styles.inputIconContainer}>
+                <Feather name="shield" size={18} color="#64748B" />
+              </View>
+              <TextInput
+                placeholder="Confirm Security PIN"
+                secureTextEntry={!showConfirmSecurityPin}
+                style={styles.input}
+                onChangeText={(text) =>
+                  handleChange("confirmSecurityPin", text)
+                }
+                value={formData.confirmSecurityPin}
+                placeholderTextColor="#94A3B8"
+                maxLength={10}
+                keyboardType="default"
+              />
+              <TouchableOpacity
+                onPress={() =>
+                  setShowConfirmSecurityPin(!showConfirmSecurityPin)
+                }
+                style={styles.eyeIcon}
+              >
+                <Feather
+                  name={showConfirmSecurityPin ? "eye-off" : "eye"}
+                  size={18}
+                  color="#64748B"
+                />
+              </TouchableOpacity>
+            </View>
+            {errorMessages.confirmSecurityPin ? (
+              <Text style={styles.errorText}>
+                {errorMessages.confirmSecurityPin}
+              </Text>
+            ) : null}
+
+            <View style={styles.pinInfo}>
+              <Feather name="info" size={14} color="#64748B" />
+              <Text style={styles.pinInfoText}>
+                Remember this PIN - you'll need it to reset your password
+              </Text>
             </View>
           </>
         );
@@ -1172,5 +1273,32 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginBottom: 16,
     fontWeight: "500",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: "#64748B",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  pinInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  pinInfoText: {
+    fontSize: 12,
+    color: "#92400E",
+    marginLeft: 8,
+    flex: 1,
   },
 });
