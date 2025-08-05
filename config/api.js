@@ -1,64 +1,85 @@
 // API Configuration
 const API_CONFIG = {
-  // Development URLs
+  // Development URLs (for local testing with a simulator or local network)
   DEVELOPMENT: {
-    BASE_URL: "http://10.69.228.236:5000",
-    WEBSOCKET_URL: "ws://10.69.228.236:5000",
+    // Replace with your computer's local IP address if testing on a physical device
+    BASE_URL: "http://192.168.1.10:5000", // Example local IP
+    WEBSOCKET_URL: "ws://192.168.1.10:5000",
   },
 
-  // Production URLs (Update with your actual Render deployment URL)
+  // Production URLs (your deployed Render server)
   PRODUCTION: {
-    BASE_URL: "https://ligths-backend.onrender.com", // Your actual Render URL
-    WEBSOCKET_URL: "wss://ligths-backend.onrender.com", // Your actual Render URL
+    BASE_URL: "https://ligths-backend.onrender.com",
+    WEBSOCKET_URL: "wss://ligths-backend.onrender.com",
   },
 };
 
-// Force production mode to use deployed server
-// Change this to false when testing locally
-const FORCE_PRODUCTION = true; // Using deployed server
+// --- Controls ---
+// Set this to `true` to always use the PRODUCTION URLs.
+// Set this to `false` when you are testing with a local server.
+const FORCE_PRODUCTION = true;
 
-// Determine environment
+// --- Environment Detection ---
+// Determines which set of URLs to use based on the control above and the environment.
 const isDevelopment =
   !FORCE_PRODUCTION && (__DEV__ || process.env.NODE_ENV !== "production");
 
-// Export current API configuration
+// --- Exported URLs ---
+// The base URL that will be used for all API calls.
 export const API_BASE_URL = isDevelopment
   ? API_CONFIG.DEVELOPMENT.BASE_URL
   : API_CONFIG.PRODUCTION.BASE_URL;
 
+// The URL for WebSocket connections (if you use them in the future).
 export const WEBSOCKET_URL = isDevelopment
   ? API_CONFIG.DEVELOPMENT.WEBSOCKET_URL
   : API_CONFIG.PRODUCTION.WEBSOCKET_URL;
 
-// API Endpoints
+// --- API Endpoints ---
+// A map of all the API routes used in the application.
+// These have been corrected to match your `server.js` file.
 export const ENDPOINTS = {
   // Authentication
   REGISTER: "/api/register",
   LOGIN: "/api/login",
+  CHECK_USERNAME: "/api/check-username",
+  CHECK_EMAIL: "/api/check-email",
 
-  // Mutual Funds
+  // Profile
+  PROFILE: "/profile", // e.g., /profile/john_doe
+
+  // Mutual Funds (Used in MFScreen.js)
   MUTUAL_FUNDS: "/mutualfunds",
-  MUTUAL_FUND_BY_CODE: "/mutualfunds",
+  MUTUAL_FUNDS_COMPANIES: "/mutualfunds/companies", // Grouped by company endpoint
 
-  // Investments
-  INVESTMENTS: "/api/investments",
+  // Investments (Used in MFCalculator.js)
+  // CORRECTED: The server route is `/investment` for POST (create) and `/investments` for GET (fetch all).
+  // We define the base path here. The `createInvestment` function in the calculator will use POST /investment.
+  INVESTMENTS: "/investment",
 
   // Transactions
-  TRANSACTIONS: "/api/transactions",
+  // Note: This endpoint requires a username, e.g., /transactions/john_doe
+  TRANSACTIONS: "/transactions",
 
   // Goals
-  GOALS: "/api/goals",
+  // Note: This endpoint requires a username, e.g., /goals/john_doe
+  GOALS: "/goals",
 
-  // Health Check
-  HEALTH: "/",
-  STATUS: "/api/status",
+  // Server Health Check
+  TEST_SERVER: "/test",
 };
 
-// Helper function to build full URL
+/**
+ * A helper function to build the full URL for an API endpoint.
+ * It combines the base URL with the endpoint path and adds any query parameters.
+ * @param {string} endpoint - The endpoint path from the ENDPOINTS object.
+ * @param {Object} [params] - A key-value object for URL query parameters.
+ * @returns {string} The complete, ready-to-use URL.
+ */
 export const buildURL = (endpoint, params = {}) => {
   let url = `${API_BASE_URL}${endpoint}`;
 
-  // Add query parameters if provided
+  // Convert the params object into a URL query string
   const queryParams = new URLSearchParams(params).toString();
   if (queryParams) {
     url += `?${queryParams}`;
@@ -67,4 +88,5 @@ export const buildURL = (endpoint, params = {}) => {
   return url;
 };
 
+// Default export for convenience, though named exports are generally preferred.
 export default API_BASE_URL;
