@@ -400,6 +400,19 @@ const CalendarMain = () => {
     navigation.navigate("DateExpenses", { selectedDate: day.dateString });
   };
 
+  // <<< START OF CHANGE >>>
+  // Handler for when the user swipes the calendar to a new month
+  const handleMonthChange = (month) => {
+    const newYear = month.year.toString();
+    const newMonth = String(month.month).padStart(2, "0");
+
+    console.log(`Month changed to: ${newMonth}/${newYear}`);
+    setSearchYear(newYear);
+    setSearchMonth(newMonth);
+    setCurrentMonth(`${newYear}-${newMonth}`);
+  };
+  // <<< END OF CHANGE >>>
+
   // Search handler
   const handleSearch = () => {
     if (searchYear && searchMonth) {
@@ -604,6 +617,9 @@ const CalendarMain = () => {
             key={calendarKey}
             current={currentMonth}
             onDayPress={handleDayPress}
+            // <<< START OF CHANGE >>>
+            onMonthChange={handleMonthChange} // Connects swiping to the new handler
+            // <<< END OF CHANGE >>>
             markedDates={markedDates}
             monthFormat={"MMMM yyyy"}
             hideExtraDays={false}
@@ -660,7 +676,6 @@ const CalendarMain = () => {
           </View>
         </View>
 
-        {/* CHANGED: This section now includes the new "Investment" tab */}
         <View style={styles.chartCard}>
           <View style={styles.chartTabsContainer}>
             <TouchableOpacity
