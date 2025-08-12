@@ -17,7 +17,7 @@ const API_CONFIG = {
 // --- Controls ---
 // Set this to `true` to always use the PRODUCTION URLs.
 // Set this to `false` when you are testing with a local server.
-const FORCE_PRODUCTION = false;
+const FORCE_PRODUCTION = true;
 
 // --- Environment Detection ---
 // Determines which set of URLs to use based on the control above and the environment.
@@ -57,11 +57,15 @@ export const ENDPOINTS = {
   // Mutual Funds (Used in MFScreen.js)
   MUTUAL_FUNDS: "/mutualfunds",
   MUTUAL_FUNDS_COMPANIES: "/mutualfunds/companies", // Grouped by company endpoint
+  UPDATE_NAV: "/update-nav", // Manually trigger NAV update
+  MF_STATS: "/mf-stats", // Get MF database statistics
+  TEST_NAV_PARSING: "/test-nav-parsing", // Test NAV parsing without database update
 
   // Investments (Used in MFCalculator.js)
   // CORRECTED: The server route is `/investment` for POST (create) and `/investments` for GET (fetch all).
-  // We define the base path here. The `createInvestment` function in the calculator will use POST /investment.
-  INVESTMENTS: "/investment",
+  // We define the base path here. Use GET /investments for fetching and POST /investment for creating.
+  INVESTMENTS: "/investments", // For GET - fetching all investments
+  CREATE_INVESTMENT: "/investment", // For POST - creating a new investment
 
   // Transactions
   // Note: This endpoint requires a username, e.g., /transactions/john_doe

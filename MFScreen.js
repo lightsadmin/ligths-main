@@ -27,6 +27,7 @@ const MFScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [isSearching, setIsSearching] = useState(false); // Add searching state
   const navigation = useNavigation();
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
@@ -49,7 +50,7 @@ const MFScreen = () => {
         return;
       }
 
-      const response = await fetch(buildURL("/investments"), {
+      const response = await fetch(buildURL(ENDPOINTS.INVESTMENTS), {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -73,7 +74,8 @@ const MFScreen = () => {
   };
 
   /**
-   * Fetches mutual fund data, now grouped by company, from the server.
+   * Fetches mutual fund data directly from /mutualfunds endpoint with high limit,
+   * then groups by company in frontend to ensure all 17,000 funds are displayed.
    */
   const fetchCompanies = async () => {
     try {
@@ -82,12 +84,18 @@ const MFScreen = () => {
         setLoading(true);
       }
 
-      // Use the new '/mutualfunds/companies' endpoint with timestamp for fresh data
+      // Use the regular '/mutualfunds' endpoint with high limit to get ALL funds
       const timestamp = new Date().getTime();
-      const url = buildURL(ENDPOINTS.MUTUAL_FUNDS_COMPANIES, { t: timestamp });
+      const url = buildURL(ENDPOINTS.MUTUAL_FUNDS, {
+        limit: 25000, // Set high limit to get all 17,000+ funds
+        page: 1,
+        t: timestamp,
+      });
+
+      console.log("💰 Fetching ALL mutual funds from URL:", url);
 
       const response = await fetch(url, {
-        timeout: 60000,
+        timeout: 120000, // Increase timeout for large dataset
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
@@ -96,112 +104,130 @@ const MFScreen = () => {
       });
 
       if (!response.ok) {
+        console.error("❌ MF API Error:", response.status, response.statusText);
         throw new Error(`Server error: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log(
+        "📊 MF API Response received:",
+        data.funds
+          ? `${data.funds.length} total funds from ${data.totalFunds} in database`
+          : typeof data
+      );
 
-      // Ensure data is an array before setting it
-      if (Array.isArray(data)) {
-        // Group schemes by actual company name (extract base company name)
-        const companyGroups = {};
+      // Group funds by company in frontend
+      if (data.funds && Array.isArray(data.funds)) {
+        const groupedByCompany = {};
 
-        data.forEach((company) => {
-          if (
-            company.schemes &&
-            company.schemes.length > 0 &&
-            company.companyName
-          ) {
-            // Extract base company name (first word or two)
-            let baseCompanyName = company.companyName.trim();
+        data.funds.forEach((fund) => {
+          if (fund.schemeName) {
+            // Extract proper company name by finding common prefixes or use regex patterns
+            let companyName = "Other";
 
-            // Skip if company name is too generic or empty
-            if (
-              !baseCompanyName ||
-              baseCompanyName.length < 3 ||
-              baseCompanyName.toLowerCase().includes("unknown") ||
-              baseCompanyName.toLowerCase().includes("unclaimed")
+            // Better company name extraction logic
+            const schemeName = fund.schemeName.trim();
+
+            // Common patterns for extracting company names
+            if (schemeName.includes("Aditya Birla Sun Life")) {
+              companyName = "Aditya Birla Sun Life";
+            } else if (schemeName.includes("ICICI Prudential")) {
+              companyName = "ICICI Prudential";
+            } else if (
+              schemeName.includes("SBI ") ||
+              schemeName.startsWith("SBI ")
             ) {
-              return;
+              companyName = "SBI Mutual Fund";
+            } else if (
+              schemeName.includes("HDFC ") ||
+              schemeName.startsWith("HDFC ")
+            ) {
+              companyName = "HDFC Mutual Fund";
+            } else if (
+              schemeName.includes("Axis ") ||
+              schemeName.startsWith("Axis ")
+            ) {
+              companyName = "Axis Mutual Fund";
+            } else if (
+              schemeName.includes("Kotak ") ||
+              schemeName.startsWith("Kotak ")
+            ) {
+              companyName = "Kotak Mahindra";
+            } else if (schemeName.includes("Franklin Templeton")) {
+              companyName = "Franklin Templeton";
+            } else if (
+              schemeName.includes("DSP ") ||
+              schemeName.startsWith("DSP ")
+            ) {
+              companyName = "DSP Mutual Fund";
+            } else if (schemeName.includes("Nippon India")) {
+              companyName = "Nippon India";
+            } else if (
+              schemeName.includes("UTI ") ||
+              schemeName.startsWith("UTI ")
+            ) {
+              companyName = "UTI Mutual Fund";
+            } else if (
+              schemeName.includes("360 ONE") ||
+              schemeName.startsWith("360 ONE")
+            ) {
+              companyName = "360 ONE";
+            } else {
+              // Fallback: take first 2-3 words as company name
+              const words = schemeName.split(" ");
+              if (words.length >= 2) {
+                companyName = words.slice(0, 2).join(" ");
+              } else {
+                companyName = words[0] || "Unknown";
+              }
             }
 
-            // Common company name patterns to extract
-            if (baseCompanyName.includes("ICICI"))
-              baseCompanyName = "ICICI Prudential";
-            else if (baseCompanyName.includes("HDFC")) baseCompanyName = "HDFC";
-            else if (baseCompanyName.includes("SBI")) baseCompanyName = "SBI";
-            else if (baseCompanyName.includes("AXIS")) baseCompanyName = "Axis";
-            else if (baseCompanyName.includes("TATA")) baseCompanyName = "TATA";
-            else if (baseCompanyName.includes("Aditya Birla"))
-              baseCompanyName = "Aditya Birla Sun Life";
-            else if (baseCompanyName.includes("Kotak"))
-              baseCompanyName = "Kotak";
-            else if (baseCompanyName.includes("UTI")) baseCompanyName = "UTI";
-            else if (baseCompanyName.includes("Nippon"))
-              baseCompanyName = "Nippon India";
-            else if (baseCompanyName.includes("DSP")) baseCompanyName = "DSP";
-            else if (baseCompanyName.includes("Franklin"))
-              baseCompanyName = "Franklin Templeton";
-            else if (baseCompanyName.includes("Mirae"))
-              baseCompanyName = "Mirae Asset";
-            else if (baseCompanyName.includes("Motilal"))
-              baseCompanyName = "Motilal Oswal";
-            else if (
-              baseCompanyName.includes("Quant") ||
-              baseCompanyName.includes("quant")
-            )
-              baseCompanyName = "Quant";
-            else if (baseCompanyName.includes("WhiteOak"))
-              baseCompanyName = "WhiteOak Capital";
-            else {
-              // Extract first 2-3 words as company name
-              const words = baseCompanyName.split(" ");
-              baseCompanyName = words
-                .slice(0, Math.min(3, words.length))
-                .join(" ");
-            }
-
-            if (!companyGroups[baseCompanyName]) {
-              companyGroups[baseCompanyName] = {
-                companyName: baseCompanyName,
-                lastUpdated: company.lastUpdated,
+            if (!groupedByCompany[companyName]) {
+              groupedByCompany[companyName] = {
+                companyName: companyName,
                 schemes: [],
+                lastUpdated: fund.lastUpdated,
               };
             }
 
-            // Add all schemes from this company to the group
-            const validSchemes = company.schemes.filter(
-              (scheme) =>
-                scheme &&
-                scheme.schemeName &&
-                scheme.schemeCode &&
-                scheme.nav &&
-                !scheme.schemeName.toLowerCase().includes("unknown") &&
-                parseFloat(scheme.nav) > 0
-            );
-
-            if (validSchemes.length > 0) {
-              companyGroups[baseCompanyName].schemes.push(...validSchemes);
-            }
+            groupedByCompany[companyName].schemes.push({
+              schemeCode: fund.schemeCode || "",
+              schemeName: fund.schemeName || "Unknown Fund",
+              nav: fund.nav || 0,
+              lastUpdated: fund.lastUpdated || new Date().toISOString(),
+            });
 
             // Update lastUpdated to the most recent
             if (
-              new Date(company.lastUpdated) >
-              new Date(companyGroups[baseCompanyName].lastUpdated)
+              new Date(fund.lastUpdated) >
+              new Date(groupedByCompany[companyName].lastUpdated)
             ) {
-              companyGroups[baseCompanyName].lastUpdated = company.lastUpdated;
+              groupedByCompany[companyName].lastUpdated = fund.lastUpdated;
             }
           }
         });
 
-        // Convert to array and transform for SectionList
-        const transformedData = Object.values(companyGroups)
+        // Convert to array and filter valid companies
+        const transformedData = Object.values(groupedByCompany)
+          .filter((company) => {
+            return (
+              company &&
+              company.schemes &&
+              Array.isArray(company.schemes) &&
+              company.schemes.length > 0 &&
+              company.companyName &&
+              typeof company.companyName === "string" &&
+              !company.companyName.toLowerCase().includes("unknown")
+            );
+          })
           .map((company) => {
             // Find investments for this company's schemes
             const companyInvestments = investments.filter((investment) =>
               company.schemes.some(
                 (scheme) =>
+                  investment &&
                   investment.name &&
+                  scheme &&
                   scheme.schemeName &&
                   (investment.name === scheme.schemeName ||
                     investment.description?.includes(scheme.schemeCode))
@@ -209,26 +235,33 @@ const MFScreen = () => {
             );
 
             return {
-              ...company,
-              data: company.schemes || [],
+              companyName: company.companyName || "Unknown Company",
+              data: (company.schemes || []).filter(
+                (scheme) => scheme && scheme.schemeCode && scheme.schemeName
+              ),
               investments: companyInvestments || [],
+              lastUpdated: company.lastUpdated || new Date().toISOString(),
             };
           })
-          .filter((company) => {
-            // Filter out companies with no valid schemes or unknown funds
-            return (
-              company.data &&
-              company.data.length > 0 &&
-              company.companyName !== "Unknown Company" &&
-              !company.companyName.toLowerCase().includes("unknown")
-            );
-          });
+          .filter((company) => company.data.length > 0) // Only include companies with valid funds
+          .sort((a, b) => a.companyName.localeCompare(b.companyName)); // Sort alphabetically
+
+        console.log(
+          `✅ Grouped ${data.funds.length} funds into ${transformedData.length} companies`
+        );
 
         setAllCompanies(transformedData);
-        // Initially show first 20 companies
-        setCompanies(transformedData.slice(0, 20));
+        // Show all companies - no limit, but ensure they're valid
+        const validCompanies = transformedData.filter(
+          (company) =>
+            company &&
+            company.data &&
+            Array.isArray(company.data) &&
+            company.data.length > 0
+        );
+        setCompanies(validCompanies);
       } else {
-        console.warn("⚠️ Expected array but received:", typeof data);
+        console.warn("⚠️ Expected funds array but received:", typeof data);
         setAllCompanies([]);
         setCompanies([]);
       }
@@ -249,51 +282,138 @@ const MFScreen = () => {
   // Client-side search function
   const filterCompanies = useCallback(
     (searchQuery) => {
-      if (!searchQuery || !searchQuery.trim()) {
-        // Show first 20 companies when no search, but ensure investments are included
-        const companiesWithInvestments = allCompanies.map((company) => ({
-          ...company,
-          investments: investments.filter((investment) =>
-            company.data.some(
-              (scheme) =>
-                investment.name &&
-                scheme.schemeName &&
-                (investment.name === scheme.schemeName ||
-                  investment.description?.includes(scheme.schemeCode))
+      try {
+        if (!Array.isArray(allCompanies)) {
+          console.warn("allCompanies is not an array:", allCompanies);
+          setCompanies([]);
+          return;
+        }
+
+        let filteredCompanies = [];
+
+        if (!searchQuery || !searchQuery.trim()) {
+          // Show all companies when no search, with investments included
+          filteredCompanies = allCompanies
+            .filter(
+              (company) =>
+                company &&
+                company.data &&
+                Array.isArray(company.data) &&
+                company.data.length > 0
             )
-          ),
-        }));
-        setCompanies(companiesWithInvestments.slice(0, 20));
-      } else {
-        // Filter companies based on search query, and include investments
-        const filtered = allCompanies
-          .filter((company) =>
-            company.companyName
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase())
-          )
-          .map((company) => ({
-            ...company,
-            investments: investments.filter((investment) =>
-              company.data.some(
-                (scheme) =>
-                  investment.name &&
-                  scheme.schemeName &&
-                  (investment.name === scheme.schemeName ||
-                    investment.description?.includes(scheme.schemeCode))
-              )
-            ),
-          }));
-        setCompanies(filtered);
+            .map((company, companyIndex) => ({
+              ...company,
+              // Add stable section key
+              sectionKey: `company-${companyIndex}-${company.companyName.replace(
+                /\s+/g,
+                "-"
+              )}`,
+              data: company.data.map((item, itemIndex) => ({
+                ...item,
+                // Add stable item key
+                itemKey: `${company.companyName}-${item.schemeCode}-${itemIndex}`,
+              })),
+              investments: Array.isArray(investments)
+                ? investments.filter((investment) =>
+                    company.data.some(
+                      (scheme) =>
+                        investment &&
+                        investment.name &&
+                        scheme &&
+                        scheme.schemeName &&
+                        (investment.name === scheme.schemeName ||
+                          investment.description?.includes(scheme.schemeCode))
+                    )
+                  )
+                : [],
+            }));
+        } else {
+          // Filter companies based on search query, and include investments
+          filteredCompanies = allCompanies
+            .filter(
+              (company) =>
+                company &&
+                company.companyName &&
+                company.data &&
+                Array.isArray(company.data) &&
+                company.data.length > 0 &&
+                company.companyName
+                  .toLowerCase()
+                  .includes(searchQuery.toLowerCase())
+            )
+            .map((company, companyIndex) => ({
+              ...company,
+              // Add stable section key
+              sectionKey: `search-${companyIndex}-${company.companyName.replace(
+                /\s+/g,
+                "-"
+              )}`,
+              data: company.data.map((item, itemIndex) => ({
+                ...item,
+                // Add stable item key
+                itemKey: `${company.companyName}-${item.schemeCode}-${itemIndex}`,
+              })),
+              investments: Array.isArray(investments)
+                ? investments.filter((investment) =>
+                    company.data.some(
+                      (scheme) =>
+                        investment &&
+                        investment.name &&
+                        scheme &&
+                        scheme.schemeName &&
+                        (investment.name === scheme.schemeName ||
+                          investment.description?.includes(scheme.schemeCode))
+                    )
+                  )
+                : [],
+            }));
+        }
+
+        // Ensure we have valid data before setting
+        const validFilteredCompanies = filteredCompanies.filter(
+          (company) =>
+            company &&
+            company.data &&
+            Array.isArray(company.data) &&
+            company.data.length > 0 &&
+            company.sectionKey
+        );
+
+        console.log(
+          `🔍 Filtered to ${validFilteredCompanies.length} companies`
+        );
+        setCompanies(validFilteredCompanies);
+      } catch (error) {
+        console.error("Error in filterCompanies:", error);
+        setCompanies([]); // Fallback to empty array
       }
     },
     [allCompanies, investments]
   );
 
+  // Debounced search function
+  const debouncedFilterCompanies = useCallback(
+    debounce((searchQuery) => {
+      setIsSearching(true);
+      filterCompanies(searchQuery);
+      setIsSearching(false);
+    }, 300),
+    [filterCompanies]
+  );
+
   // Handle search text change and investment updates
   useEffect(() => {
-    filterCompanies(searchText);
-  }, [searchText, filterCompanies, investments]);
+    try {
+      console.log(
+        `🔍 Filtering companies with search: "${searchText}", allCompanies: ${allCompanies.length}`
+      );
+      debouncedFilterCompanies(searchText);
+    } catch (error) {
+      console.error("Error in filterCompanies:", error);
+      setCompanies([]); // Fallback to empty array
+      setIsSearching(false);
+    }
+  }, [searchText, debouncedFilterCompanies, investments]);
 
   // Initial data fetch
   useEffect(() => {
@@ -341,104 +461,268 @@ const MFScreen = () => {
     navigation.navigate("MFCalculator", { fund });
   };
 
-  // --- Render Functions for SectionList ---
+  // Handle clear search
+  const handleClearSearch = useCallback(() => {
+    setSearchText("");
+    setIsSearching(false);
+    // Force immediate refresh of companies
+    setTimeout(() => {
+      filterCompanies("");
+    }, 0);
+  }, [filterCompanies]);
 
-  const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionHeaderLeft}>
-        <Text style={styles.sectionHeaderText}>
-          {section?.companyName || "Unknown Company"}
-        </Text>
-        {section?.investments && section.investments.length > 0 && (
-          <View style={styles.investmentBadge}>
-            <Text style={styles.investmentBadgeText}>
-              {section.investments.length} Investment
-              {section.investments.length > 1 ? "s" : ""}
-            </Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.sectionHeaderDate}>
-        Live:{" "}
-        {section?.lastUpdated
-          ? new Date(section.lastUpdated).toLocaleDateString()
-          : "N/A"}
-      </Text>
-    </View>
-  );
+  // Debug function to trigger NAV update
+  const triggerNAVUpdate = async () => {
+    try {
+      Alert.alert(
+        "Update NAV Data",
+        "This will fetch fresh mutual fund data from AMFI. This may take a few minutes.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Update",
+            onPress: async () => {
+              setLoading(true);
+              try {
+                const response = await fetch(buildURL(ENDPOINTS.UPDATE_NAV), {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                });
 
-  const renderFundItem = ({ item, section }) => {
-    // Check if this fund has an investment (for badge indicator only)
-    const fundInvestment = section?.investments?.find(
-      (investment) =>
-        investment.name === item.schemeName ||
-        investment.description?.includes(item.schemeCode)
-    );
+                const result = await response.json();
+                console.log("NAV Update result:", result);
 
-    return (
-      <TouchableOpacity
-        style={[
-          styles.fundCard,
-          fundInvestment && styles.fundCardWithInvestment,
-        ]}
-        onPress={() => handleFundPress(item)}
-      >
-        <View style={styles.fundMainContent}>
-          <View style={styles.companySection}>
-            <View style={styles.fundNameRow}>
-              <Text style={styles.fundName} numberOfLines={2}>
-                {item?.schemeName
-                  ? (() => {
-                      let cleanName = item.schemeName
-                        .replace(
-                          new RegExp(section?.companyName || "", "gi"),
-                          ""
-                        )
-                        .replace(/^[\s\-]+/, "")
-                        .replace(/DIRECT PLAN|REGULAR PLAN|GROWTH|IDCW/gi, "")
-                        .replace(/\s+/g, " ")
-                        .trim();
+                Alert.alert(
+                  "Success",
+                  `NAV data updated! Total funds: ${result.totalFunds}`
+                );
 
-                      return cleanName || "Fund Name Not Available";
-                    })()
-                  : "Fund Name Not Available"}
-              </Text>
-              {fundInvestment && (
-                <View style={styles.investmentIndicator}>
-                  <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                </View>
-              )}
-            </View>
-            <Text style={styles.schemeCode}>
-              Code: {item?.schemeCode || "N/A"}
-            </Text>
-          </View>
-          <View style={styles.navSection}>
-            <Text style={styles.navValue}>
-              ₹{(parseFloat(item?.nav) || 0).toFixed(2)}
-            </Text>
-            <View style={styles.navDate}>
-              <Text style={styles.navDateText}>
-                {item?.lastUpdated
-                  ? new Date(item.lastUpdated).toLocaleDateString()
-                  : "N/A"}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+                // Refresh the data
+                await fetchCompanies();
+              } catch (error) {
+                console.error("NAV update error:", error);
+                Alert.alert(
+                  "Error",
+                  `Failed to update NAV data: ${error.message}`
+                );
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error triggering NAV update:", error);
+    }
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Ionicons name="sad-outline" size={60} color="#9CA3AF" />
-      <Text style={styles.emptyText}>
-        {searchText
-          ? "No companies found for your search."
-          : "Could not load mutual funds."}
-      </Text>
-    </View>
+  // Debug function to test local AMFI parsing
+  const testLocalParsing = async () => {
+    try {
+      Alert.alert(
+        "Test Local Parsing",
+        "This will fetch AMFI data locally and count funds without touching the database.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Test",
+            onPress: async () => {
+              setLoading(true);
+              try {
+                const response = await fetch(
+                  "https://www.amfiindia.com/spages/NAVAll.txt"
+                );
+                const text = await response.text();
+                console.log(`📊 AMFI response size: ${text.length} characters`);
+
+                const lines = text.split("\n");
+                console.log(`📊 Total lines: ${lines.length}`);
+
+                let validLines = 0;
+                let invalidLines = 0;
+
+                for (const line of lines) {
+                  if (
+                    line.trim() === "" ||
+                    line.includes("Scheme Code") ||
+                    line.includes("ISIN") ||
+                    line.includes("Open Ended") ||
+                    line.includes("Mutual Fund") ||
+                    line.startsWith("Close")
+                  ) {
+                    continue;
+                  }
+
+                  const parts = line.split(";");
+                  if (parts.length >= 6) {
+                    const schemeCode = parts[0].trim();
+                    const schemeName = parts[3].trim();
+                    const navString = parts[4].trim();
+                    const nav = parseFloat(navString);
+
+                    if (schemeCode && schemeName && !isNaN(nav) && nav > 0) {
+                      validLines++;
+                    } else {
+                      invalidLines++;
+                    }
+                  } else {
+                    invalidLines++;
+                  }
+                }
+
+                console.log(
+                  `📊 Parsing results: Valid: ${validLines}, Invalid: ${invalidLines}`
+                );
+
+                Alert.alert(
+                  "Local Parsing Results",
+                  `Total lines: ${lines.length}\nValid funds: ${validLines}\nInvalid lines: ${invalidLines}\n\nThis should be ~14,000 valid funds!`
+                );
+              } catch (error) {
+                console.error("Local parsing error:", error);
+                Alert.alert("Error", `Local parsing failed: ${error.message}`);
+              } finally {
+                setLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error testing local parsing:", error);
+    }
+  };
+
+  // Debug function to get MF stats
+  const getMFStats = async () => {
+    try {
+      const response = await fetch(buildURL(ENDPOINTS.MF_STATS));
+      const stats = await response.json();
+      console.log("MF Stats:", stats);
+
+      Alert.alert(
+        "Database Statistics",
+        `Total funds: ${stats.totalFunds}\nLast updated: ${
+          stats.lastUpdated
+            ? new Date(stats.lastUpdated).toLocaleString()
+            : "Never"
+        }`
+      );
+    } catch (error) {
+      console.error("Error getting MF stats:", error);
+      Alert.alert("Error", "Failed to get statistics");
+    }
+  };
+
+  // --- Render Functions for SectionList (Memoized for performance) ---
+
+  const renderSectionHeader = useCallback(({ section }) => {
+    // Safety check for section
+    if (!section) {
+      return null;
+    }
+
+    return (
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeaderLeft}>
+          <Text style={styles.sectionHeaderText}>
+            {section?.companyName || "Unknown Company"}
+          </Text>
+          {section?.investments && section.investments.length > 0 && (
+            <View style={styles.investmentBadge}>
+              <Text style={styles.investmentBadgeText}>
+                {section.investments.length} Investment
+                {section.investments.length > 1 ? "s" : ""}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.sectionHeaderDate}>
+          Live:{" "}
+          {section?.lastUpdated
+            ? new Date(section.lastUpdated).toLocaleDateString()
+            : "N/A"}
+        </Text>
+      </View>
+    );
+  }, []);
+
+  const renderFundItem = useCallback(
+    ({ item, section }) => {
+      // Safety check for item
+      if (!item) {
+        return null;
+      }
+
+      // Check if this fund has an investment (for badge indicator only)
+      const fundInvestment = section?.investments?.find(
+        (investment) =>
+          investment.name === item.schemeName ||
+          investment.description?.includes(item.schemeCode)
+      );
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.fundCard,
+            fundInvestment && styles.fundCardWithInvestment,
+          ]}
+          onPress={() => handleFundPress(item)}
+        >
+          <View style={styles.fundMainContent}>
+            <View style={styles.companySection}>
+              <View style={styles.fundNameRow}>
+                <Text style={styles.fundName} numberOfLines={3}>
+                  {item?.schemeName || "Fund Name Not Available"}
+                </Text>
+                {fundInvestment && (
+                  <View style={styles.investmentIndicator}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color="#059669"
+                    />
+                  </View>
+                )}
+              </View>
+              <Text style={styles.schemeCode}>
+                Code: {item?.schemeCode || "N/A"}
+              </Text>
+            </View>
+            <View style={styles.navSection}>
+              <Text style={styles.navValue}>
+                ₹{(parseFloat(item?.nav) || 0).toFixed(2)}
+              </Text>
+              <View style={styles.navDate}>
+                <Text style={styles.navDateText}>
+                  {item?.lastUpdated
+                    ? new Date(item.lastUpdated).toLocaleDateString()
+                    : "N/A"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [handleFundPress]
+  );
+
+  const renderEmptyState = useCallback(
+    () => (
+      <View style={styles.emptyState}>
+        <Ionicons name="sad-outline" size={60} color="#9CA3AF" />
+        <Text style={styles.emptyText}>
+          {searchText
+            ? "No companies found for your search."
+            : "Could not load mutual funds."}
+        </Text>
+      </View>
+    ),
+    [searchText]
   );
 
   if (loading) {
@@ -448,7 +732,12 @@ const MFScreen = () => {
           <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
             <Ionicons name="logo-react" size={60} color="#3B82F6" />
           </Animated.View>
-          <Text style={styles.loadingText}>Fetching Fresh Data...</Text>
+          <Text style={styles.loadingText}>
+            Loading all mutual funds and grouping by company...
+          </Text>
+          <Text style={styles.loadingSubtext}>
+            This may take a moment for 17,000+ funds
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -457,8 +746,36 @@ const MFScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mutual Funds</Text>
-        <Text style={styles.subtitle}>Grouped by Company</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>Mutual Funds</Text>
+            <Text style={styles.subtitle}>
+              All Companies ({companies.length} companies,{" "}
+              {companies.reduce(
+                (total, company) => total + company.data.length,
+                0
+              )}{" "}
+              funds)
+            </Text>
+          </View>
+          <View style={styles.debugButtons}>
+            <TouchableOpacity style={styles.debugButton} onPress={getMFStats}>
+              <Ionicons name="stats-chart" size={16} color="#3B82F6" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={testLocalParsing}
+            >
+              <Ionicons name="bug" size={16} color="#DC2626" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={triggerNAVUpdate}
+            >
+              <Ionicons name="refresh" size={16} color="#059669" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       <View style={styles.searchContainer}>
@@ -471,7 +788,7 @@ const MFScreen = () => {
           placeholderTextColor="#9CA3AF"
         />
         {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchText("")}>
+          <TouchableOpacity onPress={handleClearSearch}>
             <Ionicons name="close-circle" size={20} color="#9CA3AF" />
           </TouchableOpacity>
         )}
@@ -479,14 +796,18 @@ const MFScreen = () => {
 
       <SectionList
         sections={Array.isArray(companies) ? companies : []}
-        keyExtractor={(item, index) =>
-          item?.schemeCode + index || `item-${index}`
-        }
+        keyExtractor={(item, index) => {
+          if (!item) return `empty-item-${index}`;
+          // Use stable keys that don't change between renders
+          return (
+            item.itemKey || `fallback-${item.schemeCode || "unknown"}-${index}`
+          );
+        }}
         renderItem={renderFundItem}
         renderSectionHeader={renderSectionHeader}
         ListEmptyComponent={renderEmptyState}
         contentContainerStyle={styles.listContainer}
-        stickySectionHeadersEnabled={true}
+        stickySectionHeadersEnabled={false} // Disable sticky headers to reduce complexity
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -495,6 +816,14 @@ const MFScreen = () => {
             tintColor={"#3B82F6"}
           />
         }
+        // Performance optimizations for large datasets
+        removeClippedSubviews={true}
+        initialNumToRender={10} // Reduced from 20
+        maxToRenderPerBatch={5} // Reduced from 10
+        windowSize={5} // Reduced from 10
+        updateCellsBatchingPeriod={100} // Add batching delay
+        getItemLayout={null} // Let React Native handle it for SectionList
+        onEndReachedThreshold={0.8} // Add threshold for better performance
       />
     </SafeAreaView>
   );
@@ -511,6 +840,22 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 10,
     backgroundColor: "#FFFFFF",
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  debugButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  debugButton: {
+    padding: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   title: {
     fontSize: 28,
@@ -584,10 +929,11 @@ const styles = StyleSheet.create({
   fundCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    padding: 15,
+    padding: 16,
     marginTop: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    minHeight: 80,
   },
   fundCardWithInvestment: {
     borderLeftWidth: 4,
@@ -614,6 +960,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1E293B",
     flex: 1,
+    lineHeight: 18,
+    marginBottom: 2,
   },
   investmentIndicator: {
     marginLeft: 8,
@@ -647,6 +995,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#1E293B",
+  },
+  loadingSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
   },
   emptyState: {
     flex: 1,

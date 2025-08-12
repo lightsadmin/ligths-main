@@ -173,7 +173,7 @@ export default function SavingsScreen({ navigation }) {
       }
 
       // Check if there's an existing Savings investment with the same goal and interest rate
-      const existingSavings = investments.find(
+      const existingSavings = savings.find(
         (inv) =>
           inv.investmentType === "Savings" &&
           inv.goalId === selectedGoal &&

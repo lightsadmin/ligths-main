@@ -26,8 +26,7 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-
-const API_URL = "https://ligths-backend.onrender.com";
+import { API_BASE_URL } from "./config/api";
 
 const formatDate = (dateString) => {
   const [year, month, day] = dateString.split("-");
@@ -91,8 +90,8 @@ const TransactionsPage = ({ route, navigation }) => {
 
       const method = isEditing ? "PUT" : "POST";
       const url = isEditing
-        ? `${API_URL}/transactions/${username}/${currentTransactionId}`
-        : `${API_URL}/transactions/${username}`;
+        ? `${API_BASE_URL}/transactions/${username}/${currentTransactionId}`
+        : `${API_BASE_URL}/transactions/${username}`;
 
       const response = await fetch(url, {
         method,
@@ -207,7 +206,7 @@ const TransactionsPage = ({ route, navigation }) => {
         return;
       }
 
-      const response = await fetch(`${API_URL}/transactions/${username}`);
+      const response = await fetch(`${API_BASE_URL}/transactions/${username}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -259,7 +258,7 @@ const TransactionsPage = ({ route, navigation }) => {
               const username =
                 parsedInfo?.user?.username || parsedInfo?.user?.userName;
 
-              const url = `${API_URL}/transactions/${username}/${id}`;
+              const url = `${API_BASE_URL}/transactions/${username}/${id}`;
 
               const response = await fetch(url, {
                 method: "DELETE",

@@ -45,6 +45,8 @@ import InvestmentNavigation from "./InvestmentNavigation";
 import MFScreen from "./MFScreen";
 import MFCalculator from "./MFCalculator";
 import StocksScreen from "./StocksScreen";
+import StockSearchScreen from "./StockSearchScreen";
+import StockDetailScreen from "./StockDetailScreen";
 import SavingsScreen from "./SavingsScreen";
 import OnboardingScreen from "./onboardingScreen";
 
@@ -143,6 +145,16 @@ const CalendarStackNavigator = () => (
       options={headerOptions("Mutual Fund Calculator")}
     />
     <CalendarStack.Screen name="StocksScreen" component={StocksScreen} />
+    <CalendarStack.Screen
+      name="StockSearch"
+      component={StockSearchScreen}
+      options={headerOptions("All Companies")}
+    />
+    <CalendarStack.Screen
+      name="StockDetail"
+      component={StockDetailScreen}
+      options={headerOptions("Stock Details")}
+    />
     <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
   </CalendarStack.Navigator>
 );
