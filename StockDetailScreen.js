@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,39 +11,51 @@ import {
   TextInput,
   ActivityIndicator,
   FlatList,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import {
-  getStockQuote,
-  getCompanyProfile,
+  getStockQuoteFromBackend,
   formatCurrency,
   formatPercentage,
 } from "./services/finnhubService";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
 
-const StockDetailScreen = ({ route, navigation }) => {
-  const { symbol, stockData: initialStockData } = route.params;
-  const [stockData, setStockData] = useState(initialStockData || null);
-  const [companyData, setCompanyData] = useState(null);
+const StockDetailScreen = () => {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { symbol, company, exchange } = route.params;
+
+  const [stockData, setStockData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [transactionType, setTransactionType] = useState("buy");
-  const [quantity, setQuantity] = useState("1");
-  const [price, setPrice] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [userInvestments, setUserInvestments] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingInvestment, setEditingInvestment] = useState(null);
+
+  // Additional required states
+  const [userInfo, setUserInfo] = useState(null);
+  const [price, setPrice] = useState("0");
   const [stockTransactions, setStockTransactions] = useState([]);
-  const [userStockHoldings, setUserStockHoldings] = useState([]);
   const [currentHoldings, setCurrentHoldings] = useState(0);
-  const [averagePrice, setAveragePrice] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [currentValue, setCurrentValue] = useState(0);
   const [profitLoss, setProfitLoss] = useState(0);
-  const [userInfo, setUserInfo] = useState(null);
-
-  // Goal selection state
   const [goals, setGoals] = useState([]);
+  const [transactionType, setTransactionType] = useState("buy");
   const [selectedGoal, setSelectedGoal] = useState(null);
-  const [goalModalVisible, setGoalModalVisible] = useState(false);
+  const [companyData, setCompanyData] = useState(company || null);
+
+  // Form states
+  const [investmentAmount, setInvestmentAmount] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [investmentDate, setInvestmentDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
 
   useEffect(() => {
     initializeData();
@@ -180,9 +192,9 @@ const StockDetailScreen = ({ route, navigation }) => {
       const userName = userInfo.user?.username || userInfo.user?.userName;
       if (!userName) return;
 
-      // Fetch user's stock transactions for this symbol
+      // Fetch user's stock investments for this symbol
       const response = await fetch(
-        `${API_BASE_URL}${ENDPOINTS.STOCK_TRANSACTIONS}/${userName}?symbol=${symbol}`,
+        `${API_BASE_URL}${ENDPOINTS.STOCK_INVESTMENTS}?user=${userName}&symbol=${symbol}`,
         {
           method: "GET",
           headers: {
@@ -193,35 +205,34 @@ const StockDetailScreen = ({ route, navigation }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setStockTransactions(data.transactions || []);
+        setUserInvestments(data.investments || []);
 
         // Calculate current holdings and metrics
-        calculateHoldings(data.transactions || []);
+        calculateHoldings(data.investments || []);
       }
     } catch (error) {
       console.error("Error fetching user stock data:", error);
     }
   };
 
-  const calculateHoldings = (transactions) => {
+  const calculateHoldings = (investments) => {
     let totalShares = 0;
     let totalCost = 0;
-    let buyTransactions = 0;
 
-    transactions.forEach((transaction) => {
-      if (transaction.type === "buy") {
-        totalShares += transaction.quantity;
-        totalCost += transaction.total;
-        buyTransactions++;
-      } else if (transaction.type === "sell") {
-        totalShares -= transaction.quantity;
-        totalCost -= transaction.total;
+    investments.forEach((investment) => {
+      if (investment.type === "buy") {
+        totalShares += investment.quantity || 0;
+        totalCost +=
+          (investment.quantity || 0) * (investment.purchasePrice || 0);
+      } else if (investment.type === "sell") {
+        totalShares -= investment.quantity || 0;
+        totalCost -=
+          (investment.quantity || 0) * (investment.purchasePrice || 0);
       }
     });
 
     setCurrentHoldings(Math.max(0, totalShares));
     setTotalInvested(Math.max(0, totalCost));
-    setAveragePrice(buyTransactions > 0 ? totalCost / totalShares : 0);
   };
 
   const openTransactionModal = (type) => {

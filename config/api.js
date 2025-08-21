@@ -3,8 +3,8 @@ const API_CONFIG = {
   // Development URLs (for local testing with a simulator or local network)
   DEVELOPMENT: {
     // Replace with your computer's local IP address if testing on a physical device
-    BASE_URL: "http://172.20.10.4:5000", // Updated to match current IP
-    WEBSOCKET_URL: "ws://172.20.10.4:5000",
+    BASE_URL: "http://192.168.30.236:5000", // Updated to match current IP
+    WEBSOCKET_URL: "ws://192.168.30.236:5000",
   },
 
   // Production URLs (your deployed Render server)
@@ -61,6 +61,12 @@ export const ENDPOINTS = {
   MF_STATS: "/mf-stats", // Get MF database statistics
   TEST_NAV_PARSING: "/test-nav-parsing", // Test NAV parsing without database update
 
+  // Mutual Fund Investments (Used in MFCalculator.js)
+  MF_INVESTMENTS: "/mf-investments", // For GET - fetching all MF investments
+  CREATE_MF_INVESTMENT: "/mf-investment", // For POST - creating a new MF investment
+  UPDATE_MF_INVESTMENT: "/mf-investment", // For PUT - updating MF investment (add ID)
+  DELETE_MF_INVESTMENT: "/mf-investment", // For DELETE - deleting MF investment (add ID)
+
   // Investments (Used in MFCalculator.js)
   // CORRECTED: The server route is `/investment` for POST (create) and `/investments` for GET (fetch all).
   // We define the base path here. Use GET /investments for fetching and POST /investment for creating.
@@ -74,6 +80,12 @@ export const ENDPOINTS = {
   // Goals
   // Note: This endpoint requires a username, e.g., /goals/john_doe
   GOALS: "/goals",
+
+  // Stock endpoints (using Yahoo Finance)
+  STOCK_COMPANIES: "/api/stock-companies",
+  STOCK_QUOTE: "/api/stock-quote",
+  STOCK_QUOTES: "/api/stock-quotes",
+  STOCK_INVESTMENTS: "/api/stock-investments",
 
   // Server Health Check
   TEST_SERVER: "/test",

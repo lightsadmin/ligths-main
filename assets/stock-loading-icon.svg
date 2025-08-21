@@ -1,0 +1,53 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Stock chart with growth arrow -->
+  <path d="M336 15.9994C353.6 15.9994 368 30.3994 368 47.9994V79.9994H400C417.6 79.9994 432 94.3994 432 111.9994V143.9994C432 161.5994 417.6 175.9994 400 175.9994H368V207.9994C368 225.5994 353.6 239.9994 336 239.9994H304V271.9994C304 289.5994 289.6 303.9994 272 303.9994H240V335.9994C240 353.5994 225.6 367.9994 208 367.9994H176V399.9994C176 417.5994 161.6 431.9994 144 431.9994H112V463.9994C112 481.5994 97.6 495.9994 80 495.9994H48C30.4 495.9994 16 481.5994 16 463.9994V431.9994C16 414.3994 30.4 399.9994 48 399.9994H80V367.9994C80 350.3994 94.4 335.9994 112 335.9994H144V303.9994C144 286.3994 158.4 271.9994 176 271.9994H208V239.9994C208 222.3994 222.4 207.9994 240 207.9994H272V175.9994C272 158.3994 286.4 143.9994 304 143.9994H336V111.9994C336 94.3994 350.4 79.9994 368 79.9994H400V47.9994C400 30.3994 414.4 15.9994 432 15.9994H464C481.6 15.9994 496 30.3994 496 47.9994C496 65.5994 481.6 79.9994 464 79.9994H432V111.9994H400V143.9994H368V175.9994H336V207.9994H304V239.9994H272V271.9994H240V303.9994H208V335.9994H176V367.9994H144V399.9994H112V431.9994H80V463.9994H48C30.4 495.9994 16 481.5994 16 463.9994V15.9994C16 -1.60059 30.4 -15.9994 48 -15.9994H464C481.6 -15.9994 496 -1.60059 496 15.9994V47.9994C496 65.5994 481.6 79.9994 464 79.9994Z" fill="#FF6B47"/>
+  
+  <!-- Growth line -->
+  <path d="M64 384L128 320L192 352L256 288L320 256L384 192L448 128" stroke="#FF6B47" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Bars representing data -->
+  <rect x="72" y="288" width="24" height="96" fill="#4A90E2"/>
+  <rect x="136" y="240" width="24" height="144" fill="#4A90E2"/>
+  <rect x="200" y="192" width="24" height="192" fill="#4A90E2"/>
+  <rect x="264" y="160" width="24" height="224" fill="#4A90E2"/>
+  <rect x="328" y="128" width="24" height="256" fill="#4A90E2"/>
+  <rect x="392" y="96" width="24" height="288" fill="#4A90E2"/>
+  
+  <!-- Money stacks -->
+  <rect x="32" y="448" width="64" height="32" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  <rect x="32" y="416" width="64" height="32" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  <rect x="32" y="384" width="64" height="32" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  
+  <rect x="112" y="464" width="64" height="16" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  <rect x="112" y="448" width="64" height="16" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  <rect x="112" y="432" width="64" height="16" fill="#FFB84D" stroke="#000" stroke-width="4"/>
+  
+  <!-- Green money stacks -->
+  <rect x="304" y="304" width="32" height="48" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="304" y="272" width="32" height="32" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="304" y="256" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="304" y="240" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  
+  <rect x="352" y="320" width="32" height="32" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="352" y="304" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="352" y="288" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="352" y="272" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="352" y="256" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  
+  <rect x="400" y="336" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="400" y="320" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="400" y="304" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="400" y="288" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="400" y="272" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="400" y="256" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  
+  <rect x="448" y="352" width="32" height="32" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="336" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="320" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="304" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="288" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="272" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="256" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+  <rect x="448" y="240" width="32" height="16" fill="#7ED321" stroke="#000" stroke-width="4"/>
+</svg></content>
+</invoke>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,46 @@ import { useNavigation } from "@react-navigation/native";
 import { getStockCompanies } from "./services/finnhubService";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
 
+// Memoized Company Item Component for better performance
+const CompanyItem = memo(({ item, onPress }) => {
+  const handlePress = useCallback(() => {
+    onPress(item.symbol);
+  }, [item.symbol, onPress]);
+
+  return (
+    <TouchableOpacity
+      style={styles.companyCard}
+      onPress={handlePress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.companyHeader}>
+        <View style={styles.companyInfo}>
+          <Text style={styles.companyName} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={styles.stockSymbol}>{item.symbol}</Text>
+          <View style={styles.companyMeta}>
+            <Text style={styles.stockType}>{item.type}</Text>
+            {item.exchange && (
+              <Text style={styles.exchangeInfo}>
+                {item.exchange} • {item.currency || "USD"}
+              </Text>
+            )}
+            {item.country && (
+              <Text style={styles.countryInfo}>{item.country}</Text>
+            )}
+          </View>
+        </View>
+        <View style={styles.actionContainer}>
+          <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+CompanyItem.displayName = "CompanyItem";
+
 const StocksScreen = () => {
   const navigation = useNavigation();
   const [companies, setCompanies] = useState([]);
@@ -26,32 +66,51 @@ const StocksScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedExchange, setSelectedExchange] = useState("INDIA"); // Changed default to INDIA
+  const [selectedTab, setSelectedTab] = useState("INDIA"); // Main tab: INDIA or OTHER
+  const [selectedExchange, setSelectedExchange] = useState("NSE"); // Sub-exchange for India
   const [lastUpdated, setLastUpdated] = useState(null);
 
   // Animated values for loading icon
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Exchange options - India first as main focus
-  const exchangeOptions = [
-    { key: "INDIA", label: "�� India", fullName: "NSE & BSE" },
-    { key: "NSE", label: "🇮🇳 NSE", fullName: "National Stock Exchange" },
-    { key: "BSE", label: "🇮🇳 BSE", fullName: "Bombay Stock Exchange" },
-    { key: "US", label: "�� USA", fullName: "US Exchanges" },
-    { key: "UK", label: "🇬🇧 UK", fullName: "London Stock Exchange" },
-    { key: "HONG_KONG", label: "🇭🇰 HK", fullName: "Hong Kong Exchange" },
-    { key: "CANADA", label: "🇨🇦 CA", fullName: "Toronto Exchange" },
-    { key: "JAPAN", label: "🇯🇵 JP", fullName: "Tokyo Exchange" },
+  // Main tabs - simplified
+  const mainTabs = [
+    { key: "INDIA", label: "India" },
+    { key: "OTHER", label: "Global" },
   ];
+
+  // Exchange options based on selected tab
+  const getExchangeOptions = () => {
+    if (selectedTab === "INDIA") {
+      return [
+        { key: "NSE", label: "NSE", fullName: "National Stock Exchange" },
+        { key: "BSE", label: "BSE", fullName: "Bombay Stock Exchange" },
+      ];
+    } else {
+      // For "Other" tab, return empty array to hide exchange selection
+      return [];
+    }
+  };
 
   useEffect(() => {
     fetchCompanies();
-  }, [selectedExchange]);
+  }, [selectedTab, selectedExchange]);
 
   useEffect(() => {
     handleSearch();
   }, [searchQuery, companies]);
+
+  // When tab changes, reset to first exchange of that tab (only for India)
+  useEffect(() => {
+    const exchanges = getExchangeOptions();
+    if (exchanges.length > 0) {
+      setSelectedExchange(exchanges[0].key);
+    } else {
+      // For "Other" tab, set a default value that won't be used
+      setSelectedExchange("ALL");
+    }
+  }, [selectedTab]);
 
   // Animation for loading icon
   useEffect(() => {
@@ -98,55 +157,43 @@ const StocksScreen = () => {
     }
   }, [loading, rotateAnim, pulseAnim]);
 
-  const fetchCompanies = async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setLoading(true);
-      }
+  const fetchCompanies = useCallback(
+    async (showLoading = true) => {
+      try {
+        if (showLoading) {
+          setLoading(true);
+        }
 
-      console.log("🔍 Fetching companies for exchange:", selectedExchange);
-      const data = await getStockCompanies("", 1, 1000, selectedExchange);
-      console.log(
-        "📊 Received data:",
-        data ? `${data.companies?.length} companies` : "no data"
-      );
+        // Determine the exchange parameter for the API
+        let exchangeParam = selectedExchange;
+        if (selectedTab === "INDIA") {
+          // For India tab, pass either NSE or BSE
+          exchangeParam = selectedExchange;
+        } else {
+          // For Other tab, fetch all world stocks by using a global parameter
+          exchangeParam = "ALL"; // This will fetch stocks from all exchanges
+        }
 
-      setCompanies(data.companies || []);
-      setLastUpdated(new Date());
+        console.log("🔍 Fetching companies for exchange:", exchangeParam);
+        const data = await getStockCompanies("", 1, 10000, exchangeParam);
 
-      // If Indian stocks return no data, suggest US as alternative
-      if (
-        (selectedExchange === "INDIA" ||
-          selectedExchange === "NSE" ||
-          selectedExchange === "BSE") &&
-        (!data.companies || data.companies.length === 0)
-      ) {
+        setCompanies(data.companies || []);
+        setLastUpdated(new Date());
+      } catch (error) {
+        console.error("Error fetching stock companies:", error);
         Alert.alert(
-          "Indian Stocks Unavailable",
-          "Indian stock data is currently not available with this API key. Would you like to view US stocks instead?",
-          [
-            { text: "Stay with India", style: "cancel" },
-            {
-              text: "Switch to US",
-              onPress: () => setSelectedExchange("US"),
-              style: "default",
-            },
-          ]
+          "Error",
+          "Failed to fetch stock companies. Please check your internet connection."
         );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (error) {
-      console.error("Error fetching stock companies:", error);
-      Alert.alert(
-        "Error",
-        "Failed to fetch stock companies. Please check your internet connection."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    [selectedTab, selectedExchange]
+  );
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     if (!searchQuery.trim()) {
       setFilteredCompanies(companies);
     } else {
@@ -158,97 +205,122 @@ const StocksScreen = () => {
       );
       setFilteredCompanies(filtered);
     }
-  };
+  }, [searchQuery, companies]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchCompanies(false);
-  };
+  }, [fetchCompanies]);
 
-  const navigateToDetail = (symbol) => {
-    navigation.navigate("StockDetail", { symbol });
-  };
+  const navigateToDetail = useCallback(
+    (symbol, company) => {
+      navigation.navigate("StockDetail", {
+        symbol,
+        company,
+        exchange: selectedExchange,
+      });
+    },
+    [navigation, selectedExchange]
+  );
 
-  const renderCompanyItem = ({ item }) => {
-    return (
-      <TouchableOpacity
-        style={styles.companyCard}
-        onPress={() => navigateToDetail(item.symbol)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.companyHeader}>
-          <View style={styles.companyInfo}>
-            <Text style={styles.companyName} numberOfLines={2}>
-              {item.name}
-            </Text>
-            <Text style={styles.stockSymbol}>{item.symbol}</Text>
-            <View style={styles.companyMeta}>
-              <Text style={styles.stockType}>{item.type}</Text>
-              {item.exchange && (
-                <Text style={styles.exchangeInfo}>
-                  {item.exchange} • {item.currency || "USD"}
-                </Text>
-              )}
-              {item.country && (
-                <Text style={styles.countryInfo}>{item.country}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.actionContainer}>
-            <Ionicons name="chevron-forward" size={20} color="#0F9D58" />
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  // Memoized render function for FlatList
+  const renderCompanyItem = useCallback(
+    ({ item }) => (
+      <CompanyItem
+        item={item}
+        onPress={(symbol) => navigateToDetail(symbol, item)}
+      />
+    ),
+    [navigateToDetail]
+  );
+
+  // Memoized key extractor
+  const keyExtractor = useCallback((item) => item.symbol, []);
+
+  // Memoized item layout
+  const getItemLayout = useCallback(
+    (data, index) => ({
+      length: 80,
+      offset: 80 * index,
+      index,
+    }),
+    []
+  );
 
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.titleContainer}>
-        <Ionicons name="business" size={28} color="#0F9D58" />
-        <Text style={styles.headerTitle}>Stock Markets</Text>
+        <Ionicons name="trending-up" size={24} color="#007AFF" />
+        <Text style={styles.headerTitle}>Stocks</Text>
       </View>
 
-      {/* Exchange Selection */}
-      <View style={styles.exchangeContainer}>
-        <Text style={styles.sectionLabel}>Select Market:</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.exchangeScroll}
-        >
-          {exchangeOptions.map((exchange) => (
+      {/* Main Tabs - India vs Global */}
+      <View style={styles.mainTabsContainer}>
+        <View style={styles.mainTabsRow}>
+          {mainTabs.map((tab) => (
             <TouchableOpacity
-              key={exchange.key}
+              key={tab.key}
               style={[
-                styles.exchangeButton,
-                selectedExchange === exchange.key &&
-                  styles.selectedExchangeButton,
+                styles.mainTabButton,
+                selectedTab === tab.key && styles.selectedMainTabButton,
               ]}
-              onPress={() => setSelectedExchange(exchange.key)}
+              onPress={() => setSelectedTab(tab.key)}
             >
               <Text
                 style={[
-                  styles.exchangeButtonText,
-                  selectedExchange === exchange.key &&
-                    styles.selectedExchangeButtonText,
+                  styles.mainTabText,
+                  selectedTab === tab.key && styles.selectedMainTabText,
                 ]}
               >
-                {exchange.label}
-              </Text>
-              <Text
-                style={[
-                  styles.exchangeSubtext,
-                  selectedExchange === exchange.key &&
-                    styles.selectedExchangeSubtext,
-                ]}
-              >
-                {exchange.fullName}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       </View>
+
+      {/* Sub-Exchange Selection - Only show for India tab */}
+      {selectedTab === "INDIA" && (
+        <View style={styles.exchangeContainer}>
+          <Text style={styles.sectionLabel}>Select Exchange:</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.exchangeScroll}
+          >
+            {getExchangeOptions().map((exchange) => (
+              <TouchableOpacity
+                key={exchange.key}
+                style={[
+                  styles.exchangeButton,
+                  selectedExchange === exchange.key &&
+                    styles.selectedExchangeButton,
+                ]}
+                onPress={() => setSelectedExchange(exchange.key)}
+              >
+                <Text
+                  style={[
+                    styles.exchangeButtonText,
+                    selectedExchange === exchange.key &&
+                      styles.selectedExchangeButtonText,
+                  ]}
+                >
+                  {exchange.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.exchangeSubtext,
+                    selectedExchange === exchange.key &&
+                      styles.selectedExchangeSubtext,
+                  ]}
+                >
+                  {exchange.fullName}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
@@ -350,11 +422,55 @@ const StocksScreen = () => {
           style={[
             styles.loadingIconContainer,
             {
-              transform: [{ scale: pulseAnim }, { rotate: rotate }],
+              transform: [{ scale: pulseAnim }],
             },
           ]}
         >
-          <Ionicons name="business" size={40} color="#0F9D58" />
+          {/* Stock chart bars */}
+          <View style={styles.stockBarsContainer}>
+            <Animated.View
+              style={[
+                styles.stockBar,
+                styles.bar1,
+                { transform: [{ scaleY: pulseAnim }] },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.stockBar,
+                styles.bar2,
+                { transform: [{ scaleY: pulseAnim }] },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.stockBar,
+                styles.bar3,
+                { transform: [{ scaleY: pulseAnim }] },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.stockBar,
+                styles.bar4,
+                { transform: [{ scaleY: pulseAnim }] },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.stockBar,
+                styles.bar5,
+                { transform: [{ scaleY: pulseAnim }] },
+              ]}
+            />
+          </View>
+          {/* Growth arrow */}
+          <Ionicons
+            name="trending-up"
+            size={24}
+            color="#007AFF"
+            style={styles.growthArrow}
+          />
         </Animated.View>
         <Animated.View
           style={[
@@ -365,16 +481,12 @@ const StocksScreen = () => {
           ]}
         />
         <Text style={styles.loadingText}>
-          Loading {selectedExchange === "INDIA" ? "Indian" : selectedExchange}{" "}
-          stocks...
+          Loading {selectedTab === "INDIA" ? "Indian" : "Global"} stocks...
         </Text>
         <Text style={styles.loadingSubtext}>
-          {selectedExchange === "INDIA"
+          {selectedTab === "INDIA"
             ? "Fetching companies from NSE & BSE"
-            : `Connecting to ${
-                exchangeOptions.find((ex) => ex.key === selectedExchange)
-                  ?.fullName || selectedExchange
-              }`}
+            : "Connecting to global markets"}
         </Text>
       </View>
     );
@@ -393,7 +505,7 @@ const StocksScreen = () => {
       <FlatList
         data={filteredCompanies}
         renderItem={renderCompanyItem}
-        keyExtractor={(item) => item.symbol}
+        keyExtractor={keyExtractor}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         refreshControl={
@@ -406,14 +518,13 @@ const StocksScreen = () => {
         }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        initialNumToRender={20}
-        maxToRenderPerBatch={20}
-        windowSize={10}
-        getItemLayout={(data, index) => ({
-          length: 80,
-          offset: 80 * index,
-          index,
-        })}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        getItemLayout={getItemLayout}
+        updateCellsBatchingPeriod={50}
+        legacyImplementation={false}
       />
     </SafeAreaView>
   );
@@ -422,7 +533,7 @@ const StocksScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#FFFFFF",
   },
   listContent: {
     paddingBottom: 16,
@@ -436,77 +547,98 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#FFFFFF",
   },
   loadingIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#FFFFFF",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#F8F9FA",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0F9D58",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  stockBarsContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    width: 40,
+    height: 30,
+    position: "absolute",
+  },
+  stockBar: {
+    width: 4,
+    backgroundColor: "#007AFF",
+    borderRadius: 2,
+  },
+  bar1: {
+    height: 10,
+  },
+  bar2: {
+    height: 16,
+  },
+  bar3: {
+    height: 12,
+  },
+  bar4: {
+    height: 20,
+  },
+  bar5: {
+    height: 24,
+  },
+  growthArrow: {
+    position: "absolute",
+    top: -8,
+    right: -8,
   },
   loadingRing: {
     position: "absolute",
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: "#E5F7EC",
-    borderTopColor: "#0F9D58",
-    marginBottom: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: "#F0F0F0",
+    borderTopColor: "#007AFF",
   },
   loadingText: {
-    marginTop: 32,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0F9D58",
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#007AFF",
     textAlign: "center",
   },
   loadingSubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
     paddingHorizontal: 40,
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
     backgroundColor: "#FFFFFF",
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
   },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#111827",
-    marginLeft: 12,
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    marginLeft: 8,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderColor: "#E5E7EB",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     marginBottom: 16,
   },
   searchIcon: {
@@ -515,13 +647,15 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#111827",
+    color: "#1C1C1E",
   },
   clearButton: {
     padding: 4,
   },
   statsContainer: {
     alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 8,
   },
   inlineLoadingContainer: {
     flexDirection: "row",
@@ -529,38 +663,27 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#E5F7EC",
-    borderRadius: 20,
+    backgroundColor: "#E3F2FD",
+    borderRadius: 15,
   },
   inlineLoadingText: {
     marginLeft: 8,
     fontSize: 12,
-    color: "#0F9D58",
-    fontWeight: "600",
-  },
-  statsText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 4,
+    color: "#007AFF",
+    fontWeight: "500",
   },
   lastUpdated: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 12,
+    color: "#8E8E93",
   },
   companyCard: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
-    marginVertical: 4,
+    marginVertical: 6,
     borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-    borderLeftWidth: 3,
-    borderLeftColor: "#0F9D58",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
   companyHeader: {
     flexDirection: "row",
@@ -573,31 +696,31 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#111827",
+    color: "#1C1C1E",
     marginBottom: 4,
   },
   stockSymbol: {
     fontSize: 14,
-    color: "#0F9D58",
-    fontWeight: "600",
+    color: "#007AFF",
+    fontWeight: "500",
     marginBottom: 2,
   },
   stockType: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#8E8E93",
   },
   companyMeta: {
     marginTop: 4,
   },
   exchangeInfo: {
     fontSize: 11,
-    color: "#0F9D58",
-    fontWeight: "500",
+    color: "#007AFF",
+    fontWeight: "400",
     marginTop: 2,
   },
   countryInfo: {
     fontSize: 10,
-    color: "#9CA3AF",
+    color: "#C7C7CC",
     marginTop: 1,
   },
   // Exchange Selection Styles
@@ -606,8 +729,8 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
+    fontWeight: "500",
+    color: "#8E8E93",
     marginBottom: 8,
   },
   exchangeScroll: {
@@ -615,24 +738,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   exchangeButton: {
-    backgroundColor: "#F9FAFB",
-    borderColor: "#E5E7EB",
-    borderWidth: 1,
-    borderRadius: 12,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     marginRight: 12,
-    minWidth: 120,
+    minWidth: 100,
     alignItems: "center",
   },
   selectedExchangeButton: {
-    backgroundColor: "#0F9D58",
-    borderColor: "#0F9D58",
+    backgroundColor: "#007AFF",
   },
   exchangeButtonText: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
+    fontWeight: "500",
+    color: "#1C1C1E",
     textAlign: "center",
   },
   selectedExchangeButtonText: {
@@ -640,12 +760,38 @@ const styles = StyleSheet.create({
   },
   exchangeSubtext: {
     fontSize: 10,
-    color: "#6B7280",
+    color: "#8E8E93",
     textAlign: "center",
     marginTop: 2,
   },
   selectedExchangeSubtext: {
-    color: "#E5F7EC",
+    color: "#E3F2FD",
+  },
+  mainTabsContainer: {
+    paddingBottom: 16,
+  },
+  mainTabsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+  },
+  mainTabButton: {
+    flex: 1,
+    backgroundColor: "#F8F9FA",
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginRight: 8,
+    alignItems: "center",
+  },
+  selectedMainTabButton: {
+    backgroundColor: "#007AFF",
+  },
+  mainTabText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1C1C1E",
+  },
+  selectedMainTabText: {
+    color: "#FFFFFF",
   },
   actionContainer: {
     padding: 8,
@@ -659,21 +805,21 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
+    fontWeight: "500",
+    color: "#1C1C1E",
     marginTop: 16,
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "#8E8E93",
     marginBottom: 24,
     textAlign: "center",
     lineHeight: 20,
   },
   retryButton: {
-    backgroundColor: "#0F9D58",
+    backgroundColor: "#007AFF",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -681,7 +827,7 @@ const styles = StyleSheet.create({
   retryText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "500",
   },
 });
 

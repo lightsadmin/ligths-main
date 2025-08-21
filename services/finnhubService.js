@@ -1,29 +1,12 @@
 import axios from "axios";
 import { API_BASE_URL, ENDPOINTS } from "../config/api";
 
-const API_KEY = "d28seapr01qle9gsj64gd28seapr01qle9gsj650";
-const BASE_URL = "https://finnhub.io/api/v1";
-
-// Demo stock symbols
-export const STOCK_SYMBOLS = [
-  "AAPL",
-  "MSFT",
-  "TSLA",
-  "AMZN",
-  "GOOGL",
-  "META",
-  "NVDA",
-  "NFLX",
-  "CRM",
-  "AMD",
-];
-
-// Get all stock companies with search and pagination
+// Get all stock companies with search and pagination (now using Yahoo Finance backend)
 export const getStockCompanies = async (
   search = "",
   page = 1,
   limit = 50,
-  exchange = "US"
+  exchange = "INDIA"
 ) => {
   try {
     const response = await axios.get(
@@ -44,7 +27,7 @@ export const getStockCompanies = async (
   }
 };
 
-// Get stock quote from backend
+// Get stock quote from backend (Yahoo Finance)
 export const getStockQuoteFromBackend = async (symbol) => {
   try {
     const response = await axios.get(
@@ -57,7 +40,7 @@ export const getStockQuoteFromBackend = async (symbol) => {
   }
 };
 
-// Get multiple stock quotes from backend
+// Get multiple stock quotes from backend (Yahoo Finance)
 export const getMultipleQuotesFromBackend = async (symbols) => {
   try {
     const response = await axios.post(
@@ -73,49 +56,66 @@ export const getMultipleQuotesFromBackend = async (symbols) => {
   }
 };
 
-// Get real-time quote for a stock (direct from Finnhub - keeping for backward compatibility)
+// Legacy functions for backward compatibility (now using Yahoo Finance backend)
+// These are kept for any existing code that might still use them
+
+// Get real-time quote for a stock (now redirects to backend)
 export const getStockQuote = async (symbol) => {
   try {
-    const response = await axios.get(`${BASE_URL}/quote`, {
-      params: {
-        symbol: symbol,
-        token: API_KEY,
-      },
-    });
-    return response.data;
+    return await getStockQuoteFromBackend(symbol);
   } catch (error) {
     console.error(`Error fetching quote for ${symbol}:`, error);
     throw error;
   }
 };
 
-// Get company profile (direct from Finnhub - keeping for backward compatibility)
+// Get company profile (now using Yahoo Finance data from backend)
 export const getCompanyProfile = async (symbol) => {
   try {
-    const response = await axios.get(`${BASE_URL}/stock/profile2`, {
-      params: {
-        symbol: symbol,
-        token: API_KEY,
-      },
-    });
-    return response.data;
+    const quote = await getStockQuoteFromBackend(symbol);
+    // Convert Yahoo Finance data to Finnhub-like format for compatibility
+    return {
+      name: quote.longName || quote.shortName,
+      ticker: symbol,
+      exchange: quote.exchange,
+      finnhubIndustry: quote.sector || "Unknown",
+      country:
+        quote.country ||
+        (symbol.includes(".NS") || symbol.includes(".BO") ? "India" : "US"),
+      currency:
+        quote.currency ||
+        (symbol.includes(".NS") || symbol.includes(".BO") ? "INR" : "USD"),
+      marketCapitalization: quote.marketCap || 0,
+      shareOutstanding: quote.sharesOutstanding || 0,
+    };
   } catch (error) {
     console.error(`Error fetching profile for ${symbol}:`, error);
     throw error;
   }
 };
 
-// Get multiple stock quotes (keeping for backward compatibility)
+// Get multiple stock quotes (now using Yahoo Finance backend)
 export const getMultipleQuotes = async (symbols) => {
   try {
     const promises = symbols.map((symbol) =>
       Promise.all([getStockQuote(symbol), getCompanyProfile(symbol)]).then(
         ([quote, profile]) => ({
           symbol,
-          quote,
+          quote: {
+            c: quote.regularMarketPrice,
+            pc: quote.regularMarketPreviousClose,
+            o: quote.regularMarketOpen,
+            h: quote.regularMarketDayHigh,
+            l: quote.regularMarketDayLow,
+            t: Math.floor(new Date(quote.regularMarketTime).getTime() / 1000),
+          },
           profile,
-          percentChange: quote.pc
-            ? (((quote.c - quote.pc) / quote.pc) * 100).toFixed(2)
+          percentChange: quote.regularMarketPreviousClose
+            ? (
+                ((quote.regularMarketPrice - quote.regularMarketPreviousClose) /
+                  quote.regularMarketPreviousClose) *
+                100
+              ).toFixed(2)
             : 0,
         })
       )

@@ -509,7 +509,14 @@ const MFScreen = () => {
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.title}>Mutual Funds</Text>
-            <Text style={styles.subtitle}>Grouped by Company</Text>
+            <Text style={styles.subtitle}>
+              Grouped by Company ({companies.length} companies,{" "}
+              {companies.reduce(
+                (total, company) => total + (company.data?.length || 0),
+                0
+              )}{" "}
+              funds)
+            </Text>
           </View>
         </View>
       </View>
