@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Swiper from "react-native-swiper";
 
 const { width, height } = Dimensions.get("window");
@@ -52,13 +53,20 @@ const OnboardingScreen = ({ navigation }) => {
     },
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < slides.length - 1) {
       swiperRef.current.scrollBy(1);
     } else {
+      // Mark onboarding as completed
+      try {
+        await AsyncStorage.setItem("hasSeenOnboarding", "true");
+        console.log("✅ Onboarding completed, flag set to true");
+      } catch (error) {
+        console.error("❌ Error setting onboarding flag:", error);
+      }
+
       // After the last onboarding slide, navigate to SplashScreen
-      -navigation.replace("Login"); // Old path
-      +navigation.replace("SplashScreen"); // New path
+      navigation.replace("SplashScreen");
     }
   };
 

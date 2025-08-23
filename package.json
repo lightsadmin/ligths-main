@@ -20,8 +20,10 @@
     "expo": "~53.0.8",
     "expo-auth-session": "~6.1.5",
     "expo-dev-client": "~5.1.8",
+    "expo-location": "^18.1.6",
     "expo-status-bar": "~2.2.3",
     "expo-web-browser": "~14.1.6",
+    "lottie-react-native": "^7.3.2",
     "react": "19.0.0",
     "react-native": "0.79.2",
     "react-native-calendars": "^1.1312.0",
@@ -31,8 +33,9 @@
     "react-native-linear-gradient": "^2.8.3",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.10.0",
-    "react-native-svg": "15.11.2",
-    "react-native-swiper": "^1.6.0"
+    "react-native-svg": "^15.11.2",
+    "react-native-swiper": "^1.6.0",
+    "expo-av": "~15.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

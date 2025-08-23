@@ -299,7 +299,12 @@ const ProfilePage = ({ navigation }) => {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() =>
+                navigation.navigate("Auth", { screen: "ForgotPassword" })
+              }
+            >
               <Ionicons name="key-outline" size={22} color="#1E293B" />
               <Text style={styles.actionButtonText}>Change Password</Text>
               <Ionicons name="chevron-forward" size={20} color="#94A3B8" />

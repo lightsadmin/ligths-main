@@ -139,9 +139,18 @@ export default function GoalCalculator() {
   useEffect(() => {
     // Listen for investment additions to refresh data
     const listener = EventRegister.addEventListener("investmentAdded", () => {
+      console.log(
+        "📡 🚨 Event received: investmentAdded - refreshing goal data"
+      );
+      console.log("📡 Current userName:", userName);
       if (userName) {
+        console.log("📡 Calling fetchInvestmentsByGoal...");
         fetchInvestmentsByGoal();
+        console.log("📡 Calling fetchGoals...");
         fetchGoals(); // Also refresh goals in case calculations changed
+        console.log("📡 Data refresh completed");
+      } else {
+        console.log("📡 ❌ No userName found, skipping refresh");
       }
     });
 
@@ -217,15 +226,24 @@ export default function GoalCalculator() {
 
   const fetchInvestmentsByGoal = async () => {
     if (!userName) return;
+    console.log("📊 ======= FETCH INVESTMENTS DEBUG =======");
+    console.log("📊 fetchInvestmentsByGoal called for user:", userName);
     try {
       // Get user token for investments API
       const userInfoString = await AsyncStorage.getItem("userInfo");
-      if (!userInfoString) return;
+      if (!userInfoString) {
+        console.log("📊 ❌ No userInfo found in AsyncStorage");
+        return;
+      }
 
       const parsedInfo = JSON.parse(userInfoString);
       const token = parsedInfo.token;
-      if (!token) return;
+      if (!token) {
+        console.log("📊 ❌ No token found in userInfo");
+        return;
+      }
 
+      console.log("📊 Making API call to fetch investments...");
       // Fetch all investments for the user
       const response = await fetch(`${API_BASE_URL}/investments`, {
         method: "GET",
@@ -237,24 +255,70 @@ export default function GoalCalculator() {
 
       if (response.ok) {
         const investments = await response.json();
-        console.log("Fetched investments:", investments);
+        console.log("📊 ✅ API Response successful");
+        console.log("📊 Raw investments received:", investments);
+        console.log("📊 Total investments fetched:", investments.length);
+
+        // Debug: Check for MF investments specifically
+        const mfInvestments = investments.filter(
+          (inv) => inv.investmentType === "Mutual Fund"
+        );
+        console.log("📊 MF investments found:", mfInvestments.length);
+        if (mfInvestments.length > 0) {
+          console.log("📊 MF investment details:", mfInvestments);
+          mfInvestments.forEach((mf, index) => {
+            console.log(
+              `📊 MF ${index + 1}: Name="${
+                mf.name || mf.schemeName
+              }", Amount=₹${mf.amount}, Goal ID="${mf.goalId}"`
+            );
+          });
+        }
 
         // Group investments by goal ID
         const investmentsByGoalMap = {};
         investments.forEach((investment) => {
+          console.log(
+            `📊 Processing investment: "${
+              investment.name || investment.schemeName
+            }", type: "${investment.investmentType}", goalId: "${
+              investment.goalId
+            }", amount: ₹${investment.amount}`
+          );
           if (investment.goalId) {
             if (!investmentsByGoalMap[investment.goalId]) {
               investmentsByGoalMap[investment.goalId] = [];
             }
             investmentsByGoalMap[investment.goalId].push(investment);
+            console.log(`📊 ✅ Added investment to goal ${investment.goalId}`);
+          } else {
+            console.log(
+              `📊 ⚠️ Investment has no goalId: ${
+                investment.name || investment.schemeName
+              }`
+            );
           }
         });
 
-        console.log("Investments grouped by goal:", investmentsByGoalMap);
+        console.log(
+          "📊 Final investments grouped by goal:",
+          investmentsByGoalMap
+        );
+        console.log(
+          "📊 Goals with investments:",
+          Object.keys(investmentsByGoalMap)
+        );
         setInvestmentsByGoal(investmentsByGoalMap);
+        console.log("📊 ======= FETCH INVESTMENTS COMPLETE =======");
+      } else {
+        console.log(
+          "📊 ❌ API Response failed:",
+          response.status,
+          response.statusText
+        );
       }
     } catch (error) {
-      console.error("Error fetching investments:", error);
+      console.error("📊 ❌ Error fetching investments:", error);
     }
   };
 
@@ -612,15 +676,85 @@ export default function GoalCalculator() {
     return Math.max(currentValue, monthlyDeposit * depositsCompleted);
   };
 
+  // Calculate current value of MF investment based on NAV changes
+  const calculateMFCurrentValue = (investment) => {
+    console.log(
+      "🔍 calculateMFCurrentValue called with investment:",
+      investment
+    );
+
+    const units = investment.units || investment.amount / (investment.nav || 1);
+    const originalNAV = investment.nav || investment.averageNAV || 1;
+
+    console.log(
+      `🔍 MF Calculation inputs - Units: ${units}, Original NAV: ₹${originalNAV}, Amount: ₹${investment.amount}`
+    );
+
+    // For real MF investments, we would fetch current NAV from API
+    // For now, simulate some growth based on expected returns and time elapsed
+    const investmentDate = investment.investmentDate || investment.startDate;
+    if (!investmentDate) {
+      console.log(
+        "🔍 No investment date found, returning original amount:",
+        investment.currentAmount || investment.amount || 0
+      );
+      return investment.currentAmount || investment.amount || 0;
+    }
+
+    const startDate = new Date(investmentDate);
+    const now = new Date();
+    const monthsElapsed = Math.max(
+      0,
+      (now.getFullYear() - startDate.getFullYear()) * 12 +
+        (now.getMonth() - startDate.getMonth())
+    );
+
+    console.log(
+      `🔍 Date calculation - Start: ${startDate}, Now: ${now}, Months elapsed: ${monthsElapsed}`
+    );
+
+    // Calculate growth based on expected annual return (default 12%)
+    const annualReturn = (investment.interestRate || 12) / 100;
+    const monthlyGrowthRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
+
+    // Calculate current NAV with growth and some volatility
+    const baseGrowth = Math.pow(1 + monthlyGrowthRate, monthsElapsed);
+    const volatility = (Math.random() - 0.5) * 0.1; // ±5% volatility
+    const currentNAV = originalNAV * baseGrowth * (1 + volatility);
+
+    // Current value = units * current NAV
+    const currentValue = units * currentNAV;
+
+    console.log(
+      `🔍 MF Calculation - Units: ${units}, Original NAV: ₹${originalNAV}, Current NAV: ₹${currentNAV.toFixed(
+        2
+      )}, Current Value: ₹${currentValue.toFixed(0)}`
+    );
+
+    const finalValue = Math.max(currentValue, investment.amount || 0); // Ensure it's at least the original investment
+    console.log(`🔍 Final MF value: ₹${finalValue}`);
+    return finalValue;
+  };
+
   const getPieChartData = (goal) => {
     const data = [];
 
     // Calculate investment amounts by type for this goal
     const goalInvestments = investmentsByGoal[goal._id] || [];
-    console.log(
-      `Goal ${goal.name} (${goal._id}) investments:`,
-      goalInvestments
-    );
+    console.log("🎯 =================");
+    console.log(`🎯 PIECHAR DATA DEBUG for Goal: ${goal.name} (${goal._id})`);
+    console.log(`🎯 Total investments found: ${goalInvestments.length}`);
+    console.log("🎯 All goal investments:", goalInvestments);
+    console.log("🎯 =================");
+
+    // Debug: Check investment types
+    goalInvestments.forEach((inv, index) => {
+      console.log(
+        `🔍 Investment ${index + 1}: "${inv.name}" - Type: "${
+          inv.investmentType
+        }" - Amount: ₹${inv.amount} - Goal ID: ${inv.goalId}`
+      );
+    });
 
     // Track investment amounts by type - shows different colors for each type
     const investmentAmountsByType = {
@@ -660,10 +794,17 @@ export default function GoalCalculator() {
         totalInvestmentAmount += amount;
         console.log(`SIP/MF amount: ₹${amount}`);
       } else if (investment.investmentType === "Mutual Fund") {
-        amount = investment.currentAmount || investment.amount || 0;
+        // For MF, calculate current value based on NAV changes
+        try {
+          amount = calculateMFCurrentValue(investment);
+        } catch (error) {
+          console.error("❌ Error in calculateMFCurrentValue:", error);
+          // Fallback to original amount if calculation fails
+          amount = investment.currentAmount || investment.amount || 0;
+        }
         investmentAmountsByType["Mutual Fund"] += amount;
         totalInvestmentAmount += amount;
-        console.log(`Mutual Fund amount: ₹${amount}`);
+        console.log(`Mutual Fund amount calculated: ₹${amount}`);
       } else {
         // Handle any other investment types
         console.log(`Unknown investment type: ${investment.investmentType}`);
@@ -682,10 +823,14 @@ export default function GoalCalculator() {
     console.log(`Investment amounts by type:`, investmentAmountsByType);
 
     // Debug: Show which investment types have amounts > 0
+    console.log("🎨 PIE CHART COLOR MAPPING:");
     Object.keys(investmentAmountsByType).forEach((type) => {
       const amount = investmentAmountsByType[type];
+      const color = investmentColors[type];
       if (amount > 0) {
-        console.log(`✅ ${type}: ₹${amount} - Will be shown in pie chart`);
+        console.log(
+          `✅ ${type}: ₹${amount} - Color: ${color} - Will be shown in pie chart`
+        );
       } else {
         console.log(`❌ ${type}: ₹${amount} - Will NOT be shown in pie chart`);
       }
@@ -693,14 +838,14 @@ export default function GoalCalculator() {
 
     // Create pie chart data with distinct colors for each investment type
     // When a user has multiple investment types for one goal, each will show with its own color
-    // Color scheme: FD=Light Cyan, RD=Light Purple, Savings=Light Yellow, SIP/MF=Purple, Mutual Fund=Teal
+    // Color scheme: FD=Light Cyan, RD=Light Purple, Savings=Light Yellow, SIP/MF=Purple, Mutual Fund=Orange
     // Add investment type slices to pie chart with distinct colors
     const investmentColors = {
       FD: "#4ce4f8ff", // Light Cyan for Fixed Deposit
       RD: "#ee99fcff", // Light Purple for Recurring Deposit
       Savings: "#ffe88aff", // Light Yellow for Savings
       "SIP/MF": "#8B5CF6", // Purple for SIP/MF
-      "Mutual Fund": "#14B8A6", // Teal for Mutual Funds
+      "Mutual Fund": "#FF6B35", // Bright Orange for Mutual Funds (more visible)
     };
 
     // Add each investment type as separate slice if amount > 0
@@ -1379,8 +1524,8 @@ export default function GoalCalculator() {
                         } else if (
                           investment.investmentType === "Mutual Fund"
                         ) {
-                          amount =
-                            investment.currentAmount || investment.amount || 0;
+                          // For MF, calculate current value based on NAV changes
+                          amount = calculateMFCurrentValue(investment);
                           investmentAmountsByType["Mutual Fund"] += amount;
                           totalInvestmentAmount += amount;
                         }

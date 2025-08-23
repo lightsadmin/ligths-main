@@ -717,6 +717,8 @@ const MFCalculator = () => {
         investmentDate: investmentDate.toISOString(),
         sipDate: calculationType === "SIP" ? investmentDate.getDate() : null,
         interestRate: parseFloat(expectedReturn) || 12,
+        goalId: tempInvestmentData.goal._id, // Link to goal for tracking
+        investmentType: "Mutual Fund", // Explicit investment type for pie chart
       };
 
       console.log("🚀 Creating MF investment:", mfInvestmentData);
@@ -741,6 +743,9 @@ const MFCalculator = () => {
         "✅ MF investment created successfully:",
         savedMFInvestment._id
       );
+      console.log("✅ MF investment goalId:", savedMFInvestment.goalId);
+      console.log("✅ MF investment type:", savedMFInvestment.investmentType);
+      console.log("✅ Full MF investment data:", savedMFInvestment);
 
       // 🔹 STEP 2: Update the selected goal (secondary operation)
       const updatedGoal = {
@@ -784,6 +789,41 @@ const MFCalculator = () => {
         // Don't throw error - MF investment is the primary record
       } else {
         console.log("✅ Goal updated successfully");
+
+        // 🔹 STEP 3: Create a transaction record for calendar display
+        const transactionData = {
+          amount: tempInvestmentData.amount,
+          type: "Investment",
+          subType: "Mutual Fund",
+          description: `MF Investment: ${fund.schemeName}`,
+          date: investmentDate.toISOString().split("T")[0], // YYYY-MM-DD format
+          goalId: tempInvestmentData.goal._id,
+          investmentId: savedMFInvestment._id, // Link to the MF investment
+          units: tempInvestmentData.amount / parseFloat(fund.nav),
+          nav: parseFloat(fund.nav),
+        };
+
+        console.log("📅 Creating transaction for calendar:", transactionData);
+
+        const transactionResponse = await fetch(
+          "https://ligths-backend.onrender.com/transactions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(transactionData),
+          }
+        );
+
+        if (transactionResponse.ok) {
+          console.log("✅ Transaction created successfully for calendar");
+        } else {
+          console.warn(
+            "⚠️ Transaction creation failed, but MF investment was created successfully"
+          );
+        }
       }
 
       // Set first investment date if this is the first investment
@@ -846,6 +886,12 @@ const MFCalculator = () => {
       setCalculationResult(null);
 
       EventRegister.emit("goalUpdated");
+      EventRegister.emit("investmentAdded");
+      EventRegister.emit("transactionAdded"); // Also emit transaction event for calendar
+      console.log(
+        "📡 🚨 EVENTS EMITTED: goalUpdated, investmentAdded, transactionAdded"
+      );
+      console.log("📡 Event emitted at:", new Date().toISOString());
       Alert.alert(
         "Investment Successful! 🎉",
         `₹${tempInvestmentData.amount.toLocaleString()} has been invested in ${

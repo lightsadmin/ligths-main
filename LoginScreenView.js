@@ -24,6 +24,8 @@ import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import { makeRedirectUri } from "expo-auth-session";
 import { API_BASE_URL } from "./config/api";
+import LottieView from "lottie-react-native";
+import mainLoadingAnimation from "./animations/mainloading.json";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -36,6 +38,7 @@ export default function LoginScreenView({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     expoClientId:
@@ -155,11 +158,13 @@ export default function LoginScreenView({ navigation }) {
         await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
         // --- REMOVED: AsyncStorage.removeItem("hasSeenOnboarding"); ---
 
-        Alert.alert("Login Success", "Redirecting to home...");
-        navigation.navigate("MainApp", {
-          screen: "Calendar",
-          params: { screen: "CalendarMain" },
-        });
+        setShowSuccessAnimation(true);
+        setTimeout(() => {
+          navigation.navigate("MainApp", {
+            screen: "Calendar",
+            params: { screen: "CalendarMain" },
+          });
+        }, 2000); // Show animation for 2 seconds before navigating
       }
     } catch (error) {
       console.error("Google sign-in error:", error);
@@ -189,11 +194,13 @@ export default function LoginScreenView({ navigation }) {
 
         await AsyncStorage.setItem("userInfo", JSON.stringify(response.data));
 
-        Alert.alert("Login Success", "Redirecting to CalendarMain...");
-        navigation.navigate("MainApp", {
-          screen: "Calendar",
-          params: { screen: "CalendarMain" },
-        });
+        setShowSuccessAnimation(true);
+        setTimeout(() => {
+          navigation.navigate("MainApp", {
+            screen: "Calendar",
+            params: { screen: "CalendarMain" },
+          });
+        }, 2000); // Show animation for 2 seconds before navigating
       }
     } catch (err) {
       console.error("❌ Login Error:", err.response?.data || err.message);
@@ -351,6 +358,19 @@ export default function LoginScreenView({ navigation }) {
           </TouchableWithoutFeedback>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Success Animation Overlay */}
+      {showSuccessAnimation && (
+        <View style={styles.animationOverlay}>
+          <LottieView
+            source={mainLoadingAnimation}
+            autoPlay
+            loop={false}
+            style={styles.successAnimation}
+            onAnimationFinish={() => console.log("Animation finished")}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -522,5 +542,20 @@ const styles = StyleSheet.create({
   signupLink: {
     color: "#2563EB",
     fontWeight: "600",
+  },
+  animationOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  successAnimation: {
+    width: 200,
+    height: 200,
   },
 });

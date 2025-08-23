@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { buildURL, ENDPOINTS } from "./config/api";
 import { EventRegister } from "react-native-event-listeners";
+import LottieView from "lottie-react-native";
 
 const debounce = (func, delay) => {
   let timeoutId;
@@ -35,7 +36,6 @@ const MFScreen = () => {
   const [searchText, setSearchText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const navigation = useNavigation();
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   /**
    * Fetches user's mutual fund investments from the server.
@@ -107,7 +107,8 @@ const MFScreen = () => {
    */
   const fetchCompanies = async () => {
     try {
-      if (!refreshing && (!allCompanies || allCompanies.length === 0)) {
+      if (!refreshing) {
+        console.log("🔄 Setting loading to true in MFScreen");
         setLoading(true);
       }
 
@@ -350,23 +351,6 @@ const MFScreen = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (loading) {
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        })
-      ).start();
-    }
-  }, [loading]);
-
-  const rotateInterpolate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
   const onRefresh = () => {
     setRefreshing(true);
     Promise.all([fetchCompanies(), fetchInvestments()]).finally(() => {
@@ -490,12 +474,25 @@ const MFScreen = () => {
   );
 
   if (loading) {
+    console.log("📱 Showing loading animation in MFScreen");
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-            <Ionicons name="logo-react" size={60} color="#3B82F6" />
-          </Animated.View>
+          <LottieView
+            source={require("./animations/stocks.json")}
+            autoPlay={true}
+            loop={true}
+            style={styles.lottieAnimation}
+            resizeMode="contain"
+            onAnimationFailure={(error) => {
+              console.error("Lottie animation failed:", error);
+            }}
+          />
+          <ActivityIndicator
+            size="large"
+            color="#3B82F6"
+            style={{ marginTop: 10 }}
+          />
           <Text style={styles.loadingText}>Loading mutual funds...</Text>
           <Text style={styles.loadingSubtext}>This may take a moment</Text>
         </View>
@@ -711,6 +708,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  lottieAnimation: {
+    width: 200,
+    height: 200,
+    marginBottom: 20,
+    backgroundColor: "transparent",
   },
   loadingText: {
     marginTop: 15,

@@ -49,6 +49,7 @@ import StockSearchScreen from "./StockSearchScreen";
 import StockDetailScreen from "./StockDetailScreen";
 import SavingsScreen from "./SavingsScreen";
 import OnboardingScreen from "./onboardingScreen";
+import NoteAIScreen from "./noteaiscreen";
 
 const Tab = createBottomTabNavigator();
 const MainStack = createStackNavigator();
@@ -156,12 +157,19 @@ const CalendarStackNavigator = () => (
       options={headerOptions("Stock Details")}
     />
     <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
+    <CalendarStack.Screen
+      name="NoteAIScreen"
+      component={NoteAIScreen}
+      options={headerOptions("AI Notes")}
+    />
   </CalendarStack.Navigator>
 );
 
 // Auth Stack Navigator
-const AuthNavigator = () => (
-  <AuthStack.Navigator>
+const AuthNavigator = ({ hasSeenOnboarding }) => (
+  <AuthStack.Navigator
+    initialRouteName={hasSeenOnboarding ? "SplashScreen" : "Onboarding"}
+  >
     {/* Onboarding will be dynamically set as initial screen by App.js root */}
     <AuthStack.Screen
       name="Onboarding"
@@ -256,14 +264,18 @@ const MainApp = () => {
 const App = () => {
   const [initialRoute, setInitialRoute] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
     const checkAppStatus = async () => {
       try {
-        const hasSeenOnboarding = await AsyncStorage.getItem(
+        const hasSeenOnboardingValue = await AsyncStorage.getItem(
           "hasSeenOnboarding"
         );
         const userInfo = await AsyncStorage.getItem("userInfo");
+
+        const onboardingSeen = hasSeenOnboardingValue === "true";
+        setHasSeenOnboarding(onboardingSeen);
 
         if (userInfo) {
           // User is logged in, go directly to MainApp
@@ -271,23 +283,19 @@ const App = () => {
           console.log(
             "App.js: Existing user logged in, navigating to MainApp."
           );
-        } else if (hasSeenOnboarding === "true") {
-          // User is not logged in, but onboarding has been seen.
-          // Go to Auth stack, but specifically to SplashScreen (which will then lead to Login).
-          setInitialRoute("Auth");
-          // We need to tell the Auth stack to start at SplashScreen, not Onboarding.
-          // This requires a dynamic initialRouteName for AuthStack or an immediate navigate inside App.js.
-          // A simpler approach is to use params and let the AuthStack handle initial navigation.
-          // For now, let AuthStack's default be Onboarding and we'll adjust SplashScreen.
-          console.log(
-            "App.js: Onboarding seen, not logged in. Navigating to Auth (will lead to Splash/Login)."
-          );
         } else {
-          // First time launching the app on this device, show onboarding.
+          // User is not logged in, go to Auth stack
+          // The Auth stack will handle whether to show Onboarding or SplashScreen
           setInitialRoute("Auth");
-          console.log(
-            "App.js: First time launch on device. Navigating to Auth (Onboarding)."
-          );
+          if (onboardingSeen) {
+            console.log(
+              "App.js: Returning user not logged in. Navigating to Auth (SplashScreen -> Login)."
+            );
+          } else {
+            console.log(
+              "App.js: First time user. Navigating to Auth (Onboarding)."
+            );
+          }
         }
       } catch (e) {
         console.error("Failed to check app status:", e);
@@ -322,7 +330,12 @@ const App = () => {
           screenOptions={{ headerShown: false }}
           initialRouteName={initialRoute}
         >
-          <MainStack.Screen name="Auth" component={AuthNavigator} />
+          <MainStack.Screen
+            name="Auth"
+            children={() => (
+              <AuthNavigator hasSeenOnboarding={hasSeenOnboarding} />
+            )}
+          />
           <MainStack.Screen
             name="MainApp"
             component={MainApp}

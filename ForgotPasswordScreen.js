@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
 
 const { width, height } = Dimensions.get("window");
@@ -30,6 +31,51 @@ export default function ForgotPasswordScreen({ navigation }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [userHasSecurityKey, setUserHasSecurityKey] = useState(null);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
+  const [isFromProfile, setIsFromProfile] = useState(false);
+
+  // Check if user came from Profile and get their email
+  useEffect(() => {
+    const checkUserSecurityStatus = async () => {
+      try {
+        const userInfo = await AsyncStorage.getItem("userInfo");
+        if (userInfo) {
+          const user = JSON.parse(userInfo);
+          setEmail(user.email || "");
+          setIsFromProfile(true);
+          await checkIfUserHasSecurityKey(user.email);
+        }
+      } catch (error) {
+        console.error("Error checking user status:", error);
+      }
+    };
+
+    checkUserSecurityStatus();
+  }, []);
+
+  const checkIfUserHasSecurityKey = async (userEmail) => {
+    if (!userEmail) return;
+
+    setIsCheckingUser(true);
+    try {
+      // Check with backend if user has security key
+      const response = await axios.post(
+        `${API_BASE_URL}${ENDPOINTS.CHECK_SECURITY_PIN}`,
+        {
+          email: userEmail,
+        }
+      );
+
+      setUserHasSecurityKey(response.data.hasSecurityPin);
+    } catch (error) {
+      console.error("Error checking security key status:", error);
+      // If error, assume they might not have one
+      setUserHasSecurityKey(false);
+    } finally {
+      setIsCheckingUser(false);
+    }
+  };
 
   const validateInputs = () => {
     if (!email.trim()) {
@@ -42,14 +88,26 @@ export default function ForgotPasswordScreen({ navigation }) {
       setError("Please enter a valid email address");
       return false;
     }
+
+    // Security PIN validation - different logic for Profile vs Login users
     if (!securityPin.trim()) {
       setError("Security PIN is required");
       return false;
     }
-    if (securityPin.length < 4) {
-      setError("Security PIN must be at least 4 characters");
+
+    // For users WITHOUT security key but NOT from Profile, block them
+    if (userHasSecurityKey === false && !isFromProfile) {
+      setError(
+        "You don't have a security PIN. Please contact support or access this from your profile settings."
+      );
       return false;
     }
+
+    if (securityPin.length < 4 || securityPin.length > 6) {
+      setError("Security PIN must be 4-6 characters");
+      return false;
+    }
+
     if (!newPassword.trim()) {
       setError("New password is required");
       return false;
@@ -77,11 +135,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     try {
       const endpoint = `${API_BASE_URL}${ENDPOINTS.FORGOT_PASSWORD}`;
       console.log("🔗 Forgot Password URL:", endpoint);
-      console.log("📦 Sending data:", {
-        email: email.trim(),
-        securityPin: securityPin.trim(),
-        newPassword: newPassword.trim(),
-      });
+      console.log("📦 Sending forgot password request...");
 
       const response = await axios.post(endpoint, {
         email: email.trim(),
@@ -135,171 +189,218 @@ export default function ForgotPasswordScreen({ navigation }) {
                 <Feather name="lock" size={32} color="#2563EB" />
               </View>
 
-              <Text style={styles.title}>Reset Password</Text>
+              <Text style={styles.title}>
+                {userHasSecurityKey === false && isFromProfile
+                  ? "Create Security Key & Reset Password"
+                  : "Reset Password"}
+              </Text>
               <Text style={styles.subtitle}>
-                Enter your email, security PIN, and new password
+                {userHasSecurityKey === false && isFromProfile
+                  ? "Create a secure 4-6 character key and reset your password"
+                  : userHasSecurityKey === false && !isFromProfile
+                  ? "Security PIN required. Please contact support or access from Profile settings."
+                  : "Enter your email, security PIN, and new password"}
               </Text>
             </View>
 
             {/* Form */}
-            <View style={styles.formContainer}>
-              {/* Email Input */}
-              <View style={styles.inputContainer}>
-                <Feather
-                  name="mail"
-                  size={20}
-                  color="#64748B"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Email"
-                  style={styles.input}
-                  placeholderTextColor="#94A3B8"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError("");
-                  }}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                />
+            {isCheckingUser ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text style={styles.loadingText}>
+                  Checking security status...
+                </Text>
               </View>
-
-              {/* Security PIN Input */}
-              <View style={styles.inputContainer}>
-                <Feather
-                  name="shield"
-                  size={20}
-                  color="#64748B"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Security PIN"
-                  style={styles.input}
-                  secureTextEntry={!showPin}
-                  placeholderTextColor="#94A3B8"
-                  value={securityPin}
-                  onChangeText={(text) => {
-                    setSecurityPin(text);
-                    setError("");
-                  }}
-                  maxLength={10}
-                />
+            ) : userHasSecurityKey === false && !isFromProfile ? (
+              <View style={styles.blockedContainer}>
+                <View style={styles.blockedIconContainer}>
+                  <Feather name="shield-off" size={48} color="#EF4444" />
+                </View>
+                <Text style={styles.blockedTitle}>Security PIN Required</Text>
+                <Text style={styles.blockedMessage}>
+                  Your account doesn't have a security PIN set. To reset your
+                  password:
+                  {"\n\n"}• Access this from your Profile settings after logging
+                  in
+                  {"\n"}• Or contact support for assistance
+                </Text>
                 <TouchableOpacity
-                  onPress={() => setShowPin(!showPin)}
-                  style={styles.eyeIcon}
+                  style={styles.goBackButton}
+                  onPress={() => navigation.goBack()}
                 >
-                  <Feather
-                    name={showPin ? "eye-off" : "eye"}
-                    size={20}
-                    color="#64748B"
-                  />
+                  <Text style={styles.goBackButtonText}>Go Back</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* New Password Input */}
-              <View style={styles.inputContainer}>
-                <Feather
-                  name="key"
-                  size={20}
-                  color="#64748B"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="New Password"
-                  style={styles.input}
-                  secureTextEntry={!showPassword}
-                  placeholderTextColor="#94A3B8"
-                  value={newPassword}
-                  onChangeText={(text) => {
-                    setNewPassword(text);
-                    setError("");
-                  }}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
+            ) : (
+              <View style={styles.formContainer}>
+                {/* Email Input */}
+                <View style={styles.inputContainer}>
                   <Feather
-                    name={showPassword ? "eye-off" : "eye"}
+                    name="mail"
                     size={20}
                     color="#64748B"
+                    style={styles.inputIcon}
                   />
-                </TouchableOpacity>
-              </View>
+                  <TextInput
+                    placeholder="Email"
+                    style={styles.input}
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      setError("");
+                      // Check security status when email changes
+                      if (text.includes("@") && text.includes(".")) {
+                        checkIfUserHasSecurityKey(text);
+                      }
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                  />
+                </View>
 
-              {/* Confirm New Password Input */}
-              <View style={styles.inputContainer}>
-                <Feather
-                  name="key"
-                  size={20}
-                  color="#64748B"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Confirm New Password"
-                  style={styles.input}
-                  secureTextEntry={!showConfirmPassword}
-                  placeholderTextColor="#94A3B8"
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    setError("");
-                  }}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeIcon}
-                >
+                {/* Security PIN Input */}
+                <View style={styles.inputContainer}>
                   <Feather
-                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    name="shield"
                     size={20}
                     color="#64748B"
+                    style={styles.inputIcon}
                   />
-                </TouchableOpacity>
-              </View>
+                  <TextInput
+                    placeholder={
+                      userHasSecurityKey === false && isFromProfile
+                        ? "Create Security PIN (4-6 characters)"
+                        : "Security PIN"
+                    }
+                    style={styles.input}
+                    secureTextEntry={!showPin}
+                    placeholderTextColor="#94A3B8"
+                    value={securityPin}
+                    onChangeText={(text) => {
+                      setSecurityPin(text);
+                      setError("");
+                    }}
+                    maxLength={6}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPin(!showPin)}
+                    style={styles.eyeIcon}
+                  >
+                    <Feather
+                      name={showPin ? "eye-off" : "eye"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Error Message */}
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                {/* New Password Input */}
+                <View style={styles.inputContainer}>
+                  <Feather
+                    name="key"
+                    size={20}
+                    color="#64748B"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    placeholder="New Password"
+                    style={styles.input}
+                    secureTextEntry={!showPassword}
+                    placeholderTextColor="#94A3B8"
+                    value={newPassword}
+                    onChangeText={(text) => {
+                      setNewPassword(text);
+                      setError("");
+                    }}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Reset Button */}
-              <TouchableOpacity
-                style={[
-                  styles.resetButton,
-                  (!email ||
+                {/* Confirm New Password Input */}
+                <View style={styles.inputContainer}>
+                  <Feather
+                    name="key"
+                    size={20}
+                    color="#64748B"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    placeholder="Confirm New Password"
+                    style={styles.input}
+                    secureTextEntry={!showConfirmPassword}
+                    placeholderTextColor="#94A3B8"
+                    value={confirmPassword}
+                    onChangeText={(text) => {
+                      setConfirmPassword(text);
+                      setError("");
+                    }}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={styles.eyeIcon}
+                  >
+                    <Feather
+                      name={showConfirmPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#64748B"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Error Message */}
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                {/* Reset Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.resetButton,
+                    (!email ||
+                      !securityPin ||
+                      !newPassword ||
+                      !confirmPassword ||
+                      loading) &&
+                      styles.resetButtonDisabled,
+                  ]}
+                  onPress={handleResetPassword}
+                  disabled={
+                    !email ||
                     !securityPin ||
                     !newPassword ||
                     !confirmPassword ||
-                    loading) &&
-                    styles.resetButtonDisabled,
-                ]}
-                onPress={handleResetPassword}
-                disabled={
-                  !email ||
-                  !securityPin ||
-                  !newPassword ||
-                  !confirmPassword ||
-                  loading
-                }
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.resetButtonText}>Reset Password</Text>
-                )}
-              </TouchableOpacity>
+                    loading
+                  }
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.resetButtonText}>Reset Password</Text>
+                  )}
+                </TouchableOpacity>
 
-              {/* Info Text */}
-              <View style={styles.infoContainer}>
-                <Feather name="info" size={16} color="#64748B" />
-                <Text style={styles.infoText}>
-                  Use the security PIN you set during registration
-                </Text>
+                {/* Info Text */}
+                <View style={styles.infoContainer}>
+                  <Feather name="info" size={16} color="#64748B" />
+                  <Text style={styles.infoText}>
+                    {userHasSecurityKey === false && isFromProfile
+                      ? "You don't have a security PIN yet. Create a secure 4-6 character PIN that you'll remember. This PIN will be saved securely to your account."
+                      : "Use the security PIN you set during registration."}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -356,6 +457,18 @@ const styles = StyleSheet.create({
     color: "#64748B",
     textAlign: "center",
     paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#64748B",
+    textAlign: "center",
   },
   formContainer: {
     width: "100%",
@@ -426,5 +539,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
     textAlign: "center",
+  },
+  blockedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  blockedIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  blockedTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  blockedMessage: {
+    fontSize: 16,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  goBackButton: {
+    backgroundColor: "#64748B",
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  goBackButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

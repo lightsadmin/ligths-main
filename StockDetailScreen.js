@@ -20,7 +20,7 @@ import {
   getStockQuoteFromBackend,
   formatCurrency,
   formatPercentage,
-} from "./services/finnhubService";
+} from "./services/  finnhubService";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
 
 const StockDetailScreen = () => {

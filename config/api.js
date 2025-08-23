@@ -48,6 +48,7 @@ export const ENDPOINTS = {
   REGISTER: "/api/register",
   LOGIN: "/api/login",
   FORGOT_PASSWORD: "/api/forgot-password",
+  CHECK_SECURITY_PIN: "/api/check-security-pin",
   CHECK_USERNAME: "/api/check-username",
   CHECK_EMAIL: "/api/check-email",
 
@@ -63,7 +64,7 @@ export const ENDPOINTS = {
 
   // Mutual Fund Investments (Used in MFCalculator.js)
   MF_INVESTMENTS: "/mf-investments", // For GET - fetching all MF investments
-  CREATE_MF_INVESTMENT: "/mf-investment", // For POST - creating a new MF investment
+  CREATE_MF_INVESTMENT: "/investment", // For POST - creating a new MF investment (uses generic investment endpoint)
   UPDATE_MF_INVESTMENT: "/mf-investment", // For PUT - updating MF investment (add ID)
   DELETE_MF_INVESTMENT: "/mf-investment", // For DELETE - deleting MF investment (add ID)
 

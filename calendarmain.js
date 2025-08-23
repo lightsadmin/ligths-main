@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   Platform,
   RefreshControl,
+  Animated,
+  Image,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Calendar } from "react-native-calendars";
@@ -18,6 +20,8 @@ import { useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { EventRegister } from "react-native-event-listeners";
+import LottieView from "lottie-react-native";
+import chatbotAnimation from "./animations/Live chatbot.json";
 
 const CalendarMain = () => {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -478,7 +482,11 @@ const CalendarMain = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>LigthsON</Text>
+        <Image
+          source={require("./assets/main-header.png")}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -803,6 +811,21 @@ const CalendarMain = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* Animated Waving Robot - Bottom Right */}
+      <View style={styles.animatedIconContainer}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("NoteAIScreen")}
+          activeOpacity={0.8}
+        >
+          <LottieView
+            source={chatbotAnimation}
+            autoPlay
+            loop
+            style={styles.animatedIcon}
+          />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -816,12 +839,19 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#FFFFFF",
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 0, // Remove horizontal padding
+    paddingLeft: 8, // Minimal left padding
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
     marginBottom: 8,
-    alignItems: "flex-start", // Add this
+    alignItems: "flex-start", // Align to the left
+  },
+  headerLogo: {
+    height: 40,
+    width: 200,
+    alignSelf: "flex-start",
+    marginLeft: 0, // No left margin
   },
   headerTitle: {
     fontSize: 20,
@@ -1135,6 +1165,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748b",
     lineHeight: 18,
+  },
+  // Animated icon styles
+  animatedIconContainer: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 110 : 90,
+    right: 20,
+    width: 100,
+    height: 100,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  animatedIcon: {
+    width: 100,
+    height: 100,
   },
 });
 

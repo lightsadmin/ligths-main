@@ -18,6 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { getStockCompanies } from "./services/finnhubService";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
+import LottieView from "lottie-react-native";
+import stocksAnimation from "./animations/stocks.json";
 
 // Memoized Company Item Component for better performance
 const CompanyItem = memo(({ item, onPress }) => {
@@ -70,7 +72,7 @@ const StocksScreen = () => {
   const [selectedExchange, setSelectedExchange] = useState("NSE"); // Sub-exchange for India
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Animated values for loading icon
+  // Animation refs for loading states
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -161,6 +163,7 @@ const StocksScreen = () => {
     async (showLoading = true) => {
       try {
         if (showLoading) {
+          console.log("🔄 Setting loading to true in StocksScreen");
           setLoading(true);
         }
 
@@ -411,74 +414,13 @@ const StocksScreen = () => {
 
   // Animated Loading Component
   const AnimatedLoadingIcon = () => {
-    const rotate = rotateAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: ["0deg", "360deg"],
-    });
-
     return (
       <View style={styles.animatedLoadingContainer}>
-        <Animated.View
-          style={[
-            styles.loadingIconContainer,
-            {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}
-        >
-          {/* Stock chart bars */}
-          <View style={styles.stockBarsContainer}>
-            <Animated.View
-              style={[
-                styles.stockBar,
-                styles.bar1,
-                { transform: [{ scaleY: pulseAnim }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.stockBar,
-                styles.bar2,
-                { transform: [{ scaleY: pulseAnim }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.stockBar,
-                styles.bar3,
-                { transform: [{ scaleY: pulseAnim }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.stockBar,
-                styles.bar4,
-                { transform: [{ scaleY: pulseAnim }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.stockBar,
-                styles.bar5,
-                { transform: [{ scaleY: pulseAnim }] },
-              ]}
-            />
-          </View>
-          {/* Growth arrow */}
-          <Ionicons
-            name="trending-up"
-            size={24}
-            color="#007AFF"
-            style={styles.growthArrow}
-          />
-        </Animated.View>
-        <Animated.View
-          style={[
-            styles.loadingRing,
-            {
-              transform: [{ rotate: rotate }],
-            },
-          ]}
+        <LottieView
+          source={stocksAnimation}
+          autoPlay
+          loop
+          style={styles.lottieAnimation}
         />
         <Text style={styles.loadingText}>
           Loading {selectedTab === "INDIA" ? "Indian" : "Global"} stocks...
@@ -492,7 +434,8 @@ const StocksScreen = () => {
     );
   };
 
-  if (loading && companies.length === 0) {
+  if (loading) {
+    console.log("📱 Showing loading animation in StocksScreen");
     return (
       <SafeAreaView style={styles.container}>
         <AnimatedLoadingIcon />
@@ -549,56 +492,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
-  loadingIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#F8F9FA",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  stockBarsContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    width: 40,
-    height: 30,
-    position: "absolute",
-  },
-  stockBar: {
-    width: 4,
-    backgroundColor: "#007AFF",
-    borderRadius: 2,
-  },
-  bar1: {
-    height: 10,
-  },
-  bar2: {
-    height: 16,
-  },
-  bar3: {
-    height: 12,
-  },
-  bar4: {
-    height: 20,
-  },
-  bar5: {
-    height: 24,
-  },
-  growthArrow: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-  },
-  loadingRing: {
-    position: "absolute",
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: "#F0F0F0",
-    borderTopColor: "#007AFF",
+  lottieAnimation: {
+    width: 200,
+    height: 200,
+    marginBottom: 20,
   },
   loadingText: {
     fontSize: 16,
@@ -656,6 +553,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 8,
+  },
+  statsText: {
+    fontSize: 14,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 4,
   },
   inlineLoadingContainer: {
     flexDirection: "row",
