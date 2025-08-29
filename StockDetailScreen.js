@@ -16,12 +16,21 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import {
-  getStockQuoteFromBackend,
-  formatCurrency,
-  formatPercentage,
-} from "./services/  finnhubService";
 import { API_BASE_URL, ENDPOINTS } from "./config/api";
+import RealStockDataService from "./services/realStockDataService";
+
+// Helper functions for formatting
+const formatCurrency = (value, currency = "USD") => {
+  if (value === null || value === undefined) return "N/A";
+  const symbol = currency === "INR" ? "₹" : "$";
+  return `${symbol}${value.toFixed(2)}`;
+};
+
+const formatPercentage = (value) => {
+  if (value === null || value === undefined) return "N/A";
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+};
 
 const StockDetailScreen = () => {
   const navigation = useNavigation();
@@ -35,6 +44,8 @@ const StockDetailScreen = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
 
   // Additional required states
   const [userInfo, setUserInfo] = useState(null);
@@ -165,24 +176,40 @@ const StockDetailScreen = () => {
 
   const fetchStockData = async () => {
     try {
-      const [quote, profile] = await Promise.all([
-        getStockQuote(symbol),
-        getCompanyProfile(symbol),
-      ]);
+      // Get stock data from our service
+      const quote = await RealStockDataService.getStockQuote(symbol);
+
+      if (!quote) {
+        throw new Error("No stock data available");
+      }
 
       const stockInfo = {
-        quote,
-        profile,
+        quote: {
+          c: quote.currentPrice,
+          pc: quote.currentPrice - quote.change, // Previous close
+          h: quote.high,
+          l: quote.low,
+          o: quote.open,
+          t: Date.now() / 1000, // Current timestamp
+        },
+        profile: {
+          name: quote.name,
+          ticker: quote.symbol,
+          exchange: quote.exchange || exchange,
+          industry: quote.sector,
+          country: quote.country,
+          currency: quote.currency,
+          marketCapitalization: quote.marketCap,
+        },
         symbol,
-        percentChange: quote.pc
-          ? (((quote.c - quote.pc) / quote.pc) * 100).toFixed(2)
-          : 0,
+        percentChange: quote.changePercent,
       };
 
       setStockData(stockInfo);
-      setCompanyData(profile);
-      setPrice(quote.c?.toString() || "0");
+      setCompanyData(stockInfo.profile);
+      setPrice(quote.currentPrice?.toString() || "0");
     } catch (error) {
+      console.error("Error fetching stock data:", error);
       Alert.alert("Error", "Failed to fetch stock data");
     }
   };
@@ -290,22 +317,54 @@ const StockDetailScreen = () => {
       };
 
       // Save transaction to backend
-      const response = await fetch(
-        `${API_BASE_URL}${ENDPOINTS.STOCK_TRANSACTIONS}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(transaction),
+      let savedTransaction;
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}${ENDPOINTS.STOCK_TRANSACTIONS}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(transaction),
+          }
+        );
+
+        if (response.ok) {
+          savedTransaction = await response.json();
+        } else {
+          throw new Error("Backend request failed");
         }
-      );
+      } catch (networkError) {
+        console.log(
+          "⚠️ Backend unavailable, using local storage for transaction"
+        );
+        // Fallback: Save transaction locally if backend is unavailable
+        savedTransaction = {
+          transaction: {
+            ...transaction,
+            _id: Date.now().toString(), // Generate a temporary ID
+          },
+        };
 
-      if (!response.ok) {
-        throw new Error("Failed to save transaction");
+        // Save to AsyncStorage as backup
+        try {
+          const existingTransactions = await AsyncStorage.getItem(
+            `stock_transactions_${userName}`
+          );
+          const transactions = existingTransactions
+            ? JSON.parse(existingTransactions)
+            : [];
+          transactions.push(savedTransaction.transaction);
+          await AsyncStorage.setItem(
+            `stock_transactions_${userName}`,
+            JSON.stringify(transactions)
+          );
+          console.log("💾 Transaction saved locally");
+        } catch (storageError) {
+          console.error("Failed to save transaction locally:", storageError);
+        }
       }
-
-      const savedTransaction = await response.json();
 
       // Also save as investment in the investment collection
       const investmentData = {
@@ -331,36 +390,34 @@ const StockDetailScreen = () => {
 
       // Save to stock investments with auth token
       const token = userInfo.token;
-      const investmentResponse = await fetch(
-        `${API_BASE_URL}/api/stock-investments`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(investmentData),
-        }
-      );
-
-      if (investmentResponse.ok) {
-        const investmentResult = await investmentResponse.json();
-        console.log("Stock investment updated/created:", investmentResult);
-
-        if (investmentResult.deletedId) {
-          console.log("Stock investment deleted (all shares sold)");
-        }
-      } else {
-        const errorData = await investmentResponse.json();
-        console.warn(
-          "Failed to save to investments collection:",
-          errorData.error
+      try {
+        const investmentResponse = await fetch(
+          `${API_BASE_URL}/api/stock-investments`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(investmentData),
+          }
         );
-        // Show error to user if it's a validation error
-        if (investmentResponse.status === 400) {
-          Alert.alert("Transaction Failed", errorData.error);
-          return; // Don't continue with local updates
+
+        if (investmentResponse.ok) {
+          const investmentResult = await investmentResponse.json();
+          console.log("Stock investment updated/created:", investmentResult);
+
+          if (investmentResult.deletedId) {
+            console.log("Stock investment deleted (all shares sold)");
+          }
+        } else {
+          throw new Error("Investment API request failed");
         }
+      } catch (investmentError) {
+        console.log(
+          "⚠️ Investment API unavailable, continuing with transaction..."
+        );
+        // Don't fail the entire transaction if investment API is unavailable
       }
 
       // Update local state

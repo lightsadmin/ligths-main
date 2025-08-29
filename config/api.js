@@ -87,6 +87,7 @@ export const ENDPOINTS = {
   STOCK_QUOTE: "/api/stock-quote",
   STOCK_QUOTES: "/api/stock-quotes",
   STOCK_INVESTMENTS: "/api/stock-investments",
+  STOCK_TRANSACTIONS: "/api/stock-transactions",
 
   // Server Health Check
   TEST_SERVER: "/test",

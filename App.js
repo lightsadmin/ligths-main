@@ -3,8 +3,6 @@ import { enableScreens } from "react-native-screens";
 
 enableScreens();
 
-import "react-native-gesture-handler";
-
 import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "./navigationRef";

@@ -18,12 +18,18 @@ import { PieChart } from "react-native-chart-kit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { EventRegister } from "react-native-event-listeners";
-import { formatCurrency } from "./services/finnhubService";
 
 const screenWidth = Dimensions.get("window").width;
 
 // Backend API URL
 const API_BASE_URL = "https://ligths-backend.onrender.com";
+
+// Helper function for formatting currency
+const formatCurrency = (value, currency = "USD") => {
+  if (value === null || value === undefined) return "N/A";
+  const symbol = currency === "INR" ? "₹" : "$";
+  return `${symbol}${value.toFixed(2)}`;
+};
 
 // New Pie Chart Colors
 const INCOME_GREEN = "#22C55E";

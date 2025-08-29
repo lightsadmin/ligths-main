@@ -13,18 +13,20 @@ import {
   RefreshControl,
   TouchableOpacity,
   Linking,
+  Dimensions,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native"; // Import useNavigation
+import { useNavigation } from "@react-navigation/native";
+import { PieChart } from "react-native-chart-kit";
 
 const API_URL = "https://ligths-backend.onrender.com";
+const screenWidth = Dimensions.get("window").width;
 
 const FireNumber = () => {
-  const navigation = useNavigation(); // Initialize navigation
+  const navigation = useNavigation();
 
-  // ... (all existing states remain the same) ...
   const [currentAge, setCurrentAge] = useState("");
   const [retirementAge, setRetirementAge] = useState("");
   const [monthlyExpense, setMonthlyExpense] = useState("");
@@ -51,7 +53,11 @@ const FireNumber = () => {
   const [filterMonth, setFilterMonth] = useState("All");
   const [filterYear, setFilterYear] = useState("All");
 
-  // ... (all existing functions remain the same) ...
+  const [fireNumberGoal, setFireNumberGoal] = useState(null);
+  const [linkedInvestments, setLinkedInvestments] = useState([]);
+  const [totalInvested, setTotalInvested] = useState(0);
+  const [investmentsByType, setInvestmentsByType] = useState({});
+
   const getInflationRate = () => {
     const countryData = inflationData.find(
       (country) => country.country_name === selectedCountry
@@ -127,6 +133,145 @@ const FireNumber = () => {
     }
   };
 
+  const fetchFireNumberGoal = async (username) => {
+    try {
+      const response = await fetch(`${API_URL}/goals/${username}`);
+      if (response.ok) {
+        const goals = await response.json();
+        const fireGoal = goals.find(
+          (g) => g.name === "FIRE Number" || g.customName === "FIRE Number"
+        );
+        setFireNumberGoal(fireGoal);
+        return fireGoal;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error fetching Fire Number goal:", err);
+      return null;
+    }
+  };
+
+  const fetchLinkedInvestments = async (username, fireGoalId) => {
+    if (!fireGoalId) return;
+
+    try {
+      const userInfoString = await AsyncStorage.getItem("userInfo");
+      if (!userInfoString) return;
+
+      const parsedInfo = JSON.parse(userInfoString);
+      const token = parsedInfo.token;
+
+      const response = await fetch(`${API_URL}/investments`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const allInvestments = await response.json();
+        const fireLinkedInvestments = allInvestments.filter(
+          (inv) => inv.goalId === fireGoalId || inv.goalName === "FIRE Number"
+        );
+
+        setLinkedInvestments(fireLinkedInvestments);
+
+        const byType = {};
+        let total = 0;
+
+        fireLinkedInvestments.forEach((inv) => {
+          const type = inv.investmentType || inv.type || "Other";
+          const amount = parseFloat(inv.amount || inv.currentValue || 0);
+
+          if (!byType[type]) {
+            byType[type] = { amount: 0, count: 0, investments: [] };
+          }
+          byType[type].amount += amount;
+          byType[type].count += 1;
+          byType[type].investments.push(inv);
+          total += amount;
+        });
+
+        setInvestmentsByType(byType);
+        setTotalInvested(total);
+      }
+    } catch (err) {
+      console.error("Error fetching linked investments:", err);
+    }
+  };
+
+  const linkAllInvestmentsToFireGoal = async (username, fireGoalId) => {
+    if (!fireGoalId) return;
+
+    try {
+      const userInfoString = await AsyncStorage.getItem("userInfo");
+      if (!userInfoString) return;
+
+      const parsedInfo = JSON.parse(userInfoString);
+      const token = parsedInfo.token;
+
+      const response = await fetch(`${API_URL}/investments`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const allInvestments = await response.json();
+
+        const unlinkedInvestments = allInvestments.filter(
+          (inv) => inv.goalId !== fireGoalId && inv.goalName !== "FIRE Number"
+        );
+
+        const updatePromises = unlinkedInvestments.map(async (investment) => {
+          try {
+            const updateResponse = await fetch(
+              `${API_URL}/investments/${investment._id}`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  ...investment,
+                  goalId: fireGoalId,
+                  goalName: "FIRE Number",
+                }),
+              }
+            );
+
+            if (updateResponse.ok) {
+              console.log(
+                `Linked ${
+                  investment.investmentType || investment.type
+                } investment to Fire Number`
+              );
+            }
+          } catch (error) {
+            console.error(`Error linking investment ${investment._id}:`, error);
+          }
+        });
+
+        await Promise.all(updatePromises);
+        await fetchLinkedInvestments(username, fireGoalId);
+
+        if (unlinkedInvestments.length > 0) {
+          Alert.alert(
+            "Investments Linked",
+            `Successfully linked ${unlinkedInvestments.length} investment(s) to your FIRE Number goal!`,
+            [{ text: "OK" }]
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Error linking investments to Fire goal:", err);
+    }
+  };
+
   const fetchUserData = async () => {
     try {
       const userInfoString = await AsyncStorage.getItem("userInfo");
@@ -192,6 +337,13 @@ const FireNumber = () => {
       } else {
         throw new Error("Failed to fetch monthly expenses");
       }
+
+      const fireGoal = await fetchFireNumberGoal(username);
+      if (fireGoal) {
+        await linkAllInvestmentsToFireGoal(username, fireGoal._id);
+        await fetchLinkedInvestments(username, fireGoal._id);
+      }
+
       return true;
     } catch (err) {
       console.error("Error fetching user data:", err);
@@ -315,6 +467,114 @@ const FireNumber = () => {
     }
   };
 
+  const getPieChartData = () => {
+    const fireTarget = parseFloat(fireNumber) || 0;
+    const invested = totalInvested || 0;
+    const remaining = Math.max(0, fireTarget - invested);
+
+    const investmentColors = {
+      FD: "#3B82F6",
+      RD: "#10B981",
+      "SIP/MF": "#8B5CF6",
+      Stocks: "#F59E0B",
+      Savings: "#EF4444",
+      Other: "#6B7280",
+    };
+
+    const chartData = [];
+
+    Object.keys(investmentsByType).forEach((type) => {
+      const typeData = investmentsByType[type];
+      if (typeData.amount > 0) {
+        chartData.push({
+          name: type,
+          amount: typeData.amount,
+          color: investmentColors[type] || "#6B7280",
+          legendFontColor: "#1E293B",
+          legendFontSize: 12,
+        });
+      }
+    });
+
+    if (remaining > 0) {
+      chartData.push({
+        name: "Remaining",
+        amount: remaining,
+        color: "#E5E7EB",
+        legendFontColor: "#64748B",
+        legendFontSize: 12,
+      });
+    }
+
+    // Add logic to display required amount if no investments
+    if (chartData.length === 0 && fireTarget > 0) {
+      return [
+        {
+          name: "Required Amount",
+          amount: fireTarget,
+          color: "#E5E7EB",
+          legendFontColor: "#64748B",
+          legendFontSize: 12,
+        },
+      ];
+    }
+
+    return chartData.length > 0
+      ? chartData
+      : [
+          {
+            name: "No Data",
+            amount: 1,
+            color: "#E5E7EB",
+            legendFontColor: "#64748B",
+            legendFontSize: 12,
+          },
+        ];
+  };
+
+  const renderCustomLegend = (data, title) => {
+    const total = data.reduce((sum, item) => sum + item.amount, 0);
+
+    return (
+      <View style={styles.customLegendContainer}>
+        <Text style={styles.customLegendTitle}>{title}</Text>
+        {data.map((item, index) => {
+          if (item.name === "No Data" || item.name === "Required Amount")
+            return null;
+
+          const percentage =
+            total > 0 ? ((item.amount / total) * 100).toFixed(1) : "0.0";
+
+          return (
+            <View key={index} style={styles.customLegendItem}>
+              <View style={styles.customLegendLeft}>
+                <View
+                  style={[
+                    styles.customLegendColor,
+                    { backgroundColor: item.color },
+                  ]}
+                />
+                <Text style={styles.customLegendName}>{item.name}</Text>
+              </View>
+              <View style={styles.customLegendRight}>
+                <Text style={styles.customLegendAmount}>
+                  ₹{formatCurrency(item.amount)}
+                </Text>
+                <Text style={styles.customLegendPercent}>({percentage}%)</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const getProgressPercentage = () => {
+    const target = parseFloat(fireNumber) || 0;
+    if (target === 0) return 0;
+    return Math.min(100, (totalInvested / target) * 100);
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
@@ -348,7 +608,7 @@ const FireNumber = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#1f2937" />
           </TouchableOpacity>
-          <Text style={styles.title}>F.I.R.E Number</Text>
+          <Text style={styles.title}>F.I.R.E. Number</Text>
           <View style={styles.headerIconContainer} />
         </View>
 
@@ -361,7 +621,6 @@ const FireNumber = () => {
         >
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Basic Information</Text>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Current Age</Text>
               <TextInput
@@ -372,7 +631,6 @@ const FireNumber = () => {
                 placeholder="Enter your current age"
               />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Retirement Age</Text>
               <TextInput
@@ -383,7 +641,6 @@ const FireNumber = () => {
                 placeholder="Enter your target retirement age"
               />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Years to Retirement</Text>
               <View style={styles.calculatedField}>
@@ -409,7 +666,6 @@ const FireNumber = () => {
                 </Text>
               </TouchableOpacity>
             </View>
-
             <View style={styles.inputGroup}>
               <View style={styles.labelWithHint}>
                 <Text style={styles.label}>
@@ -437,7 +693,6 @@ const FireNumber = () => {
               </View>
               <Text style={styles.labelHint}>{getExpensesSummary()}</Text>
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Yearly Essential Expenses</Text>
               <View style={styles.calculatedField}>
@@ -446,7 +701,6 @@ const FireNumber = () => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
                 Country (Avg. Inflation Rate: {getInflationRate().toFixed(2)}%)
@@ -467,7 +721,6 @@ const FireNumber = () => {
                 ))}
               </Picker>
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Safe Withdrawal Rate (%)</Text>
               <TextInput
@@ -482,7 +735,6 @@ const FireNumber = () => {
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Results</Text>
-
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Future Annual Expenses</Text>
               <View style={styles.calculatedField}>
@@ -491,17 +743,15 @@ const FireNumber = () => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.fireNumberContainer}>
-              <Text style={styles.fireNumberLabel}>Your F.I.R.E Number</Text>
+              <Text style={styles.fireNumberLabel}>Your F.I.R.E. Number</Text>
               <Text style={styles.fireNumber}>
                 {fireNumber ? `₹${formatCurrency(fireNumber)}` : "₹0.00"}
               </Text>
             </View>
-
             <View style={styles.sipTableContainer}>
               <Text style={styles.sipTableTitle}>
-                Monthly SIP to reach F.I.R.E Number
+                Monthly SIP to reach F.I.R.E. Number
               </Text>
               <View style={styles.table}>
                 <View style={styles.tableRow}>
@@ -534,9 +784,9 @@ const FireNumber = () => {
             <Ionicons name="rocket-outline" size={32} color="#10B981" />
             <Text style={styles.investmentTitle}>Ready to Invest?</Text>
             <Text style={styles.investmentText}>
-              Your F.I.R.E number is a great starting point. The next step is to
-              put your money to work. Start your investment journey today with
-              one of our trusted partners.
+              Your F.I.R.E. number is a great starting point. The next step is
+              to put your money to work. Start your investment journey today
+              with one of our trusted partners.
             </Text>
             <View style={styles.buttonContainer}>
               <TouchableOpacity
@@ -570,104 +820,65 @@ const FireNumber = () => {
             </View>
           </View>
 
+          {/* Debug section to check MF investments */}
           <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Essential Expenses</Text>
-              <TouchableOpacity
-                onPress={toggleFilters}
-                style={styles.filterButton}
-              >
-                <Ionicons name="filter" size={20} color="#e67e22" />
-                <Text style={styles.filterButtonText}>Filter</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>
+              Debug: Check All Investments
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: "#8B5CF6" }]}
+              onPress={async () => {
+                try {
+                  const userInfoString = await AsyncStorage.getItem("userInfo");
+                  if (!userInfoString) return;
 
-            {showFilters && (
-              <View style={styles.filtersContainer}>
-                <View style={styles.filterRow}>
-                  <View style={styles.filterItem}>
-                    <Text style={styles.filterLabel}>Month</Text>
-                    <Picker
-                      selectedValue={filterMonth}
-                      style={styles.filterPicker}
-                      itemStyle={styles.pickerItem}
-                      onValueChange={setFilterMonth}
-                    >
-                      <Picker.Item label="All Months" value="All" />
-                      {availableFilters.months.map((month) => (
-                        <Picker.Item
-                          key={month.value}
-                          label={month.name}
-                          value={month.value.toString()}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
+                  const parsedInfo = JSON.parse(userInfoString);
+                  const token = parsedInfo.token;
 
-                  <View style={styles.filterItem}>
-                    <Text style={styles.filterLabel}>Year</Text>
-                    <Picker
-                      selectedValue={filterYear}
-                      style={styles.filterPicker}
-                      itemStyle={styles.pickerItem}
-                      onValueChange={setFilterYear}
-                    >
-                      <Picker.Item label="All Years" value="All" />
-                      {availableFilters.years.map((year) => (
-                        <Picker.Item
-                          key={year}
-                          label={year.toString()}
-                          value={year.toString()}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                </View>
+                  // Get all investments
+                  const response = await fetch(`${API_URL}/investments`, {
+                    method: "GET",
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                      "Content-Type": "application/json",
+                    },
+                  });
 
-                <TouchableOpacity
-                  style={styles.resetButton}
-                  onPress={resetFilters}
-                >
-                  <Text style={styles.resetButtonText}>Reset Filters</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                  if (response.ok) {
+                    const allInvestments = await response.json();
+                    console.log("🔍 All investments:", allInvestments);
 
-            <View style={styles.filterSummary}>
-              <Text style={styles.filterSummaryText}>
-                Showing {filteredExpenses.length} of {expenses.length} expenses
-                {filterMonth !== "All" || filterYear !== "All"
-                  ? " (filtered)"
-                  : ""}
-              </Text>
-            </View>
+                    // Filter MF investments
+                    const mfInvestments = allInvestments.filter(
+                      (inv) =>
+                        inv.investmentType === "Mutual Fund" ||
+                        inv.investmentType === "SIP/MF" ||
+                        inv.type === "Mutual Fund"
+                    );
 
-            {filteredExpenses.length > 0 ? (
-              filteredExpenses.map((expense) => (
-                <View key={expense._id} style={styles.expenseItem}>
-                  <View style={styles.expenseDetails}>
-                    <Text style={styles.expenseName}>{expense.name}</Text>
-                    <Text style={styles.expenseDate}>
-                      {formatDate(expense.date)}
-                    </Text>
-                  </View>
-                  <Text style={styles.expenseAmount}>
-                    ₹{expense.amount.toLocaleString("en-IN")}
-                  </Text>
-                </View>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No essential expenses found
-                </Text>
-                <Text style={styles.emptyStateSubtext}>
-                  {expenses.length > 0
-                    ? "Adjust your filters to see expenses"
-                    : "Record essential expenses in Calendar to see them here"}
-                </Text>
-              </View>
-            )}
+                    console.log("💼 MF investments found:", mfInvestments);
+                    console.log("💼 MF count:", mfInvestments.length);
+
+                    // Show current Fire goal ID
+                    console.log(
+                      "🎯 Current Fire Goal ID:",
+                      fireNumberGoal?._id
+                    );
+
+                    Alert.alert(
+                      "Debug Info",
+                      `Total Investments: ${allInvestments.length}\nMF Investments: ${mfInvestments.length}\nCheck console for details`,
+                      [{ text: "OK" }]
+                    );
+                  }
+                } catch (error) {
+                  console.error("Debug error:", error);
+                  Alert.alert("Error", "Failed to debug investments");
+                }
+              }}
+            >
+              <Text style={styles.buttonText}>Debug: Check My Investments</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -713,7 +924,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
   },
   headerIconContainer: {
-    width: 24, // Matches icon size to ensure proper centering
+    width: 24,
   },
   title: {
     fontSize: 20,
@@ -1058,6 +1269,238 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 8,
+  },
+  progressBadge: {
+    backgroundColor: "#10B981",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  progressText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  progressSummary: {
+    marginTop: 20,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 16,
+  },
+  progressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  progressItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  progressValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+    textAlign: "center",
+  },
+  chartContainer: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 16,
+  },
+  emptyInvestmentState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyInvestmentText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyInvestmentSubtext: {
+    fontSize: 14,
+    color: "#94A3B8",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  investmentDetails: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingTop: 16,
+  },
+  investmentDetailsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 12,
+  },
+  investmentTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  investmentTypeInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  investmentTypeColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  investmentTypeName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1E293B",
+  },
+  investmentTypeCount: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  investmentTypeAmount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  customLegendContainer: {
+    width: "100%",
+    marginTop: 12,
+    paddingHorizontal: 8,
+  },
+  customLegendTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 12,
+  },
+  customLegendItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  customLegendLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 2,
+  },
+  customLegendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  customLegendName: {
+    fontSize: 14,
+    color: "#1E293B",
+    fontWeight: "500",
+  },
+  customLegendRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  customLegendAmount: {
+    fontSize: 14,
+    color: "#1E293B",
+    fontWeight: "500",
+    marginRight: 4,
+  },
+  customLegendPercent: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  pieChartWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 10,
+  },
+  progressSummary: {
+    marginTop: 20,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    padding: 16,
+  },
+  progressRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  progressItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  progressValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+    textAlign: "center",
+  },
+  linkInvestmentsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3B82F6",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  linkInvestmentsButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  linkButtonContainer: {
+    marginVertical: 16,
+    paddingHorizontal: 16,
+  },
+  linkAllInvestmentsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#10B981",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  linkAllInvestmentsButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 });
 

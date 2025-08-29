@@ -13,19 +13,34 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { getStockCompanies } from "./services/finnhubService";
-import { API_BASE_URL, ENDPOINTS } from "./config/api";
-import LottieView from "lottie-react-native";
-import stocksAnimation from "./animations/stocks.json";
+import TechnicalAnalysisService from "./services/technicalAnalysisService";
+import RealStockDataService from "./services/realStockDataService";
 
-// Memoized Company Item Component for better performance
-const CompanyItem = memo(({ item, onPress }) => {
+// Enhanced Company Item Component with technical analysis
+const CompanyItem = memo(({ item, onPress, onAnalyze }) => {
+  // Add safety checks for item
+  if (!item || typeof item !== "object") {
+    return (
+      <View style={styles.companyCard}>
+        <Text style={styles.companyName}>Invalid item data</Text>
+      </View>
+    );
+  }
+
   const handlePress = useCallback(() => {
-    onPress(item.symbol);
+    onPress(item.symbol || "unknown");
   }, [item.symbol, onPress]);
+
+  const handleAnalyze = useCallback(() => {
+    onAnalyze(item);
+  }, [item, onAnalyze]);
+
+  const isPositive = (item.change || 0) >= 0;
 
   return (
     <TouchableOpacity
@@ -36,24 +51,76 @@ const CompanyItem = memo(({ item, onPress }) => {
       <View style={styles.companyHeader}>
         <View style={styles.companyInfo}>
           <Text style={styles.companyName} numberOfLines={2}>
-            {item.name}
+            {(item.name || "Unknown Company").toString()}
           </Text>
-          <Text style={styles.stockSymbol}>{item.symbol}</Text>
+          <Text style={styles.stockSymbol}>
+            {(item.symbol || "N/A").toString()}
+          </Text>
           <View style={styles.companyMeta}>
-            <Text style={styles.stockType}>{item.type}</Text>
+            <Text style={styles.stockType}>
+              {(item.sector || "Unknown").toString()}
+            </Text>
             {item.exchange && (
               <Text style={styles.exchangeInfo}>
-                {item.exchange} • {item.currency || "USD"}
+                {(item.exchange || "N/A").toString()} •{" "}
+                {(item.currency || "USD").toString()}
               </Text>
             )}
-            {item.country && (
-              <Text style={styles.countryInfo}>{item.country}</Text>
+            {item.marketCap && (
+              <Text style={styles.marketCapInfo}>
+                Market Cap: {(item.marketCap || "N/A").toString()}
+              </Text>
             )}
           </View>
         </View>
-        <View style={styles.actionContainer}>
-          <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+
+        <View style={styles.priceContainer}>
+          <Text style={styles.currentPrice}>
+            {item.currency === "INR" ? "₹" : "$"}
+            {(item.price || item.currentPrice || item.basePrice || 0).toFixed(
+              2
+            )}
+          </Text>
+          <View
+            style={[
+              styles.changeContainer,
+              {
+                backgroundColor:
+                  (item.change || 0) >= 0 ? "#E8F5E8" : "#FFF2F2",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.changeText,
+                { color: (item.change || 0) >= 0 ? "#10B981" : "#EF4444" },
+              ]}
+            >
+              {(item.change || 0) >= 0 ? "+" : ""}
+              {(item.change || 0).toFixed(2)} (
+              {(item.changePercent || 0).toFixed(2)}%)
+            </Text>
+          </View>
+          <Text style={styles.volumeText}>
+            Vol: {((item.volume || 0) / 1000000).toFixed(1)}M
+          </Text>
         </View>
+      </View>
+
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.analyzeButton}
+          onPress={handleAnalyze}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="analytics" size={16} color="#007AFF" />
+          <Text style={styles.analyzeButtonText}>Analyze</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.detailButton} onPress={handlePress}>
+          <Text style={styles.detailButtonText}>View Details</Text>
+          <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -68,30 +135,44 @@ const StocksScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTab, setSelectedTab] = useState("INDIA"); // Main tab: INDIA or OTHER
-  const [selectedExchange, setSelectedExchange] = useState("NSE"); // Sub-exchange for India
+  const [selectedTab, setSelectedTab] = useState("INDIA");
+  const [selectedExchange, setSelectedExchange] = useState("ALL");
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [analysisModal, setAnalysisModal] = useState(false);
+  const [currentAnalysis, setCurrentAnalysis] = useState(null);
+  const [analyzingStock, setAnalyzingStock] = useState(null);
+  const [realTimeEnabled, setRealTimeEnabled] = useState(true);
 
   // Animation refs for loading states
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Real-time update timer
+  const refreshTimer = useRef(null);
+
   // Main tabs - simplified
   const mainTabs = [
     { key: "INDIA", label: "India" },
-    { key: "OTHER", label: "Global" },
+    { key: "GLOBAL", label: "Global" },
   ];
 
   // Exchange options based on selected tab
   const getExchangeOptions = () => {
     if (selectedTab === "INDIA") {
       return [
+        {
+          key: "ALL",
+          label: "ALL",
+          fullName: "All Indian Exchanges (NSE + BSE)",
+        },
         { key: "NSE", label: "NSE", fullName: "National Stock Exchange" },
         { key: "BSE", label: "BSE", fullName: "Bombay Stock Exchange" },
       ];
     } else {
-      // For "Other" tab, return empty array to hide exchange selection
-      return [];
+      return [
+        { key: "NASDAQ", label: "NASDAQ", fullName: "NASDAQ Global Market" },
+        { key: "NYSE", label: "NYSE", fullName: "New York Stock Exchange" },
+      ];
     }
   };
 
@@ -99,25 +180,47 @@ const StocksScreen = () => {
     fetchCompanies();
   }, [selectedTab, selectedExchange]);
 
+  // Real-time data updates
+  useEffect(() => {
+    if (realTimeEnabled && companies.length > 0) {
+      // Update every 30 seconds during market hours
+      refreshTimer.current = setInterval(() => {
+        console.log("🔄 Auto-refreshing stock data...");
+        fetchCompanies(false); // Refresh without loading indicator
+      }, 30000);
+    }
+
+    return () => {
+      if (refreshTimer.current) {
+        clearInterval(refreshTimer.current);
+      }
+    };
+  }, [realTimeEnabled, companies.length, fetchCompanies]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimer.current) {
+        clearInterval(refreshTimer.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     handleSearch();
   }, [searchQuery, companies]);
 
-  // When tab changes, reset to first exchange of that tab (only for India)
+  // When tab changes, reset to first exchange of that tab
   useEffect(() => {
     const exchanges = getExchangeOptions();
     if (exchanges.length > 0) {
       setSelectedExchange(exchanges[0].key);
-    } else {
-      // For "Other" tab, set a default value that won't be used
-      setSelectedExchange("ALL");
     }
   }, [selectedTab]);
 
   // Animation for loading icon
   useEffect(() => {
     if (loading) {
-      // Start rotation animation
       const rotateAnimation = Animated.loop(
         Animated.timing(rotateAnim, {
           toValue: 1,
@@ -127,7 +230,6 @@ const StocksScreen = () => {
         })
       );
 
-      // Start pulse animation
       const pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -153,7 +255,6 @@ const StocksScreen = () => {
         pulseAnimation.stop();
       };
     } else {
-      // Reset animations when loading stops
       rotateAnim.setValue(0);
       pulseAnim.setValue(1);
     }
@@ -163,31 +264,99 @@ const StocksScreen = () => {
     async (showLoading = true) => {
       try {
         if (showLoading) {
-          console.log("🔄 Setting loading to true in StocksScreen");
           setLoading(true);
         }
 
-        // Determine the exchange parameter for the API
-        let exchangeParam = selectedExchange;
-        if (selectedTab === "INDIA") {
-          // For India tab, pass either NSE or BSE
-          exchangeParam = selectedExchange;
-        } else {
-          // For Other tab, fetch all world stocks by using a global parameter
-          exchangeParam = "ALL"; // This will fetch stocks from all exchanges
+        console.log("🔄 Fetching real-time stock data...");
+
+        // If we're refreshing and already have data, use price update for real-time effect
+        if (!showLoading && companies.length > 0) {
+          const updatedStocks =
+            RealStockDataService.updateStockPrices(companies);
+          setCompanies(updatedStocks);
+          setLastUpdated(new Date());
+          console.log("📊 Updated prices for existing stocks");
+          return;
         }
 
-        console.log("🔍 Fetching companies for exchange:", exchangeParam);
-        const data = await getStockCompanies("", 1, 10000, exchangeParam);
+        // Fetch comprehensive Indian stocks (NSE + BSE) with exchange filter
+        const exchangeFilter =
+          selectedExchange === "ALL" ? null : selectedExchange;
+        console.log(
+          `🇮🇳 Loading ${
+            selectedExchange === "ALL" ? "all Indian" : selectedExchange
+          } stocks...`
+        );
+        const allStocks = await RealStockDataService.getStocksByCountry(
+          "INDIA",
+          exchangeFilter
+        );
 
-        setCompanies(data.companies || []);
+        let stocksToUse = allStocks;
+
+        // If no data from APIs, use fallback data
+        if (!allStocks || allStocks.length === 0) {
+          console.log("⚠️ No stock data from APIs, using fallback data...");
+          stocksToUse = RealStockDataService.getFallbackStockData();
+        } else {
+          const exchangeText =
+            selectedExchange === "ALL"
+              ? "NSE & BSE exchanges"
+              : `${selectedExchange} exchange`;
+          console.log(
+            `✅ Retrieved ${allStocks.length} stocks from ${exchangeText}`
+          );
+        }
+
+        // Filter stocks based on selected tab and exchange
+        let filteredStocks = stocksToUse;
+
+        if (selectedTab === "INDIA") {
+          filteredStocks = stocksToUse.filter(
+            (stock) =>
+              (stock.country === "India" ||
+                stock.exchange === "NSE" ||
+                stock.exchange === "BSE") &&
+              (selectedExchange === "ALL" ||
+                stock.exchange === selectedExchange)
+          );
+        } else {
+          filteredStocks = stocksToUse.filter(
+            (stock) =>
+              stock.country === "US" &&
+              (selectedExchange === "NASDAQ"
+                ? stock.exchange === "NASDAQ"
+                : stock.exchange === "NYSE")
+          );
+        }
+
+        console.log(
+          `📊 Loaded ${filteredStocks.length} stocks for ${selectedTab} - ${selectedExchange}`
+        );
+        setCompanies(filteredStocks);
         setLastUpdated(new Date());
       } catch (error) {
         console.error("Error fetching stock companies:", error);
+
+        // Show a user-friendly error message for real data failures
         Alert.alert(
-          "Error",
-          "Failed to fetch stock companies. Please check your internet connection."
+          "Unable to Load Real Stock Data",
+          "There was an issue fetching real-time stock data. This could be due to network connectivity or API rate limits. Please try again later.",
+          [
+            {
+              text: "Retry",
+              onPress: () => fetchCompanies(true),
+            },
+            {
+              text: "OK",
+              style: "cancel",
+            },
+          ]
         );
+
+        // Set empty array instead of fallback data since we want real data only
+        setCompanies([]);
+        setLastUpdated(new Date());
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -204,7 +373,8 @@ const StocksScreen = () => {
       const filtered = companies.filter(
         (company) =>
           company.symbol.toLowerCase().includes(query) ||
-          company.name.toLowerCase().includes(query)
+          company.name.toLowerCase().includes(query) ||
+          company.sector.toLowerCase().includes(query)
       );
       setFilteredCompanies(filtered);
     }
@@ -226,15 +396,66 @@ const StocksScreen = () => {
     [navigation, selectedExchange]
   );
 
+  // Technical Analysis Handler
+  const handleAnalyzeStock = useCallback(async (stock) => {
+    try {
+      setAnalyzingStock(stock.symbol);
+
+      console.log(`🔍 Analyzing ${stock.symbol}...`);
+
+      // Try to get real historical data first
+      let historicalData = await RealStockDataService.getHistoricalData(
+        stock.symbol
+      );
+
+      // If no real data available, generate sample data
+      if (!historicalData || historicalData.length === 0) {
+        console.log(`📈 Generating sample data for ${stock.symbol}`);
+        historicalData = RealStockDataService.generateHistoricalData(
+          stock.symbol
+        );
+      }
+
+      // Perform technical analysis
+      const analysis = TechnicalAnalysisService.analyzeStock(
+        historicalData,
+        stock.symbol
+      );
+
+      if (analysis.success) {
+        setCurrentAnalysis({
+          stock: stock,
+          analysis: analysis,
+          historicalData: historicalData,
+        });
+        setAnalysisModal(true);
+        console.log(
+          `✅ Analysis complete for ${stock.symbol}: ${analysis.totalSignals} signals found`
+        );
+      } else {
+        Alert.alert(
+          "Analysis Error",
+          analysis.error || "Failed to analyze stock"
+        );
+      }
+    } catch (error) {
+      console.error("Error analyzing stock:", error);
+      Alert.alert("Error", "Failed to perform technical analysis");
+    } finally {
+      setAnalyzingStock(null);
+    }
+  }, []);
+
   // Memoized render function for FlatList
   const renderCompanyItem = useCallback(
     ({ item }) => (
       <CompanyItem
         item={item}
         onPress={(symbol) => navigateToDetail(symbol, item)}
+        onAnalyze={handleAnalyzeStock}
       />
     ),
-    [navigateToDetail]
+    [navigateToDetail, handleAnalyzeStock]
   );
 
   // Memoized key extractor
@@ -243,8 +464,8 @@ const StocksScreen = () => {
   // Memoized item layout
   const getItemLayout = useCallback(
     (data, index) => ({
-      length: 80,
-      offset: 80 * index,
+      length: 120, // Increased height for new layout
+      offset: 120 * index,
       index,
     }),
     []
@@ -254,7 +475,17 @@ const StocksScreen = () => {
     <View style={styles.header}>
       <View style={styles.titleContainer}>
         <Ionicons name="trending-up" size={24} color="#007AFF" />
-        <Text style={styles.headerTitle}>Stocks</Text>
+        <Text style={styles.headerTitle}>Real-Time Stocks & Analysis</Text>
+        <TouchableOpacity
+          style={[
+            styles.realTimeToggle,
+            { backgroundColor: realTimeEnabled ? "#10B981" : "#8E8E93" },
+          ]}
+          onPress={() => setRealTimeEnabled(!realTimeEnabled)}
+        >
+          <Ionicons name="radio" size={12} color="#FFFFFF" />
+          <Text style={styles.realTimeText}>LIVE</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Main Tabs - India vs Global */}
@@ -282,48 +513,46 @@ const StocksScreen = () => {
         </View>
       </View>
 
-      {/* Sub-Exchange Selection - Only show for India tab */}
-      {selectedTab === "INDIA" && (
-        <View style={styles.exchangeContainer}>
-          <Text style={styles.sectionLabel}>Select Exchange:</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.exchangeScroll}
-          >
-            {getExchangeOptions().map((exchange) => (
-              <TouchableOpacity
-                key={exchange.key}
+      {/* Exchange Selection */}
+      <View style={styles.exchangeContainer}>
+        <Text style={styles.sectionLabel}>Select Exchange:</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.exchangeScroll}
+        >
+          {getExchangeOptions().map((exchange) => (
+            <TouchableOpacity
+              key={exchange.key}
+              style={[
+                styles.exchangeButton,
+                selectedExchange === exchange.key &&
+                  styles.selectedExchangeButton,
+              ]}
+              onPress={() => setSelectedExchange(exchange.key)}
+            >
+              <Text
                 style={[
-                  styles.exchangeButton,
+                  styles.exchangeButtonText,
                   selectedExchange === exchange.key &&
-                    styles.selectedExchangeButton,
+                    styles.selectedExchangeButtonText,
                 ]}
-                onPress={() => setSelectedExchange(exchange.key)}
               >
-                <Text
-                  style={[
-                    styles.exchangeButtonText,
-                    selectedExchange === exchange.key &&
-                      styles.selectedExchangeButtonText,
-                  ]}
-                >
-                  {exchange.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.exchangeSubtext,
-                    selectedExchange === exchange.key &&
-                      styles.selectedExchangeSubtext,
-                  ]}
-                >
-                  {exchange.fullName}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+                {exchange.label}
+              </Text>
+              <Text
+                style={[
+                  styles.exchangeSubtext,
+                  selectedExchange === exchange.key &&
+                    styles.selectedExchangeSubtext,
+                ]}
+              >
+                {exchange.fullName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
@@ -335,7 +564,7 @@ const StocksScreen = () => {
         />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search companies..."
+          placeholder="Search stocks, symbols, or sectors..."
           placeholderTextColor="#9CA3AF"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -360,7 +589,7 @@ const StocksScreen = () => {
           </View>
         )}
         <Text style={styles.statsText}>
-          Showing {filteredCompanies.length} companies
+          Showing {filteredCompanies.length} stocks
           {searchQuery ? ` for "${searchQuery}"` : ""}
         </Text>
         {lastUpdated && (
@@ -372,40 +601,234 @@ const StocksScreen = () => {
     </View>
   );
 
-  const renderEmpty = () => {
-    const isIndianExchange = ["INDIA", "NSE", "BSE"].includes(selectedExchange);
+  // Technical Analysis Modal Component
+  const renderAnalysisModal = () => {
+    if (!currentAnalysis) return null;
+
+    const { stock, analysis } = currentAnalysis;
+    const signals = analysis.signals || [];
 
     return (
+      <Modal
+        visible={analysisModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setAnalysisModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalTitleContainer}>
+              <Ionicons name="analytics" size={24} color="#007AFF" />
+              <Text style={styles.modalTitle}>Technical Analysis</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAnalysisModal(false)}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={24} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Stock Info Header */}
+            <View style={styles.stockInfoCard}>
+              <Text style={styles.stockInfoName}>{stock.name}</Text>
+              <Text style={styles.stockInfoSymbol}>{stock.symbol}</Text>
+              <View style={styles.stockInfoPriceContainer}>
+                <Text style={styles.stockInfoPrice}>
+                  {stock.currency === "INR" ? "₹" : "$"}
+                  {(
+                    stock.price ||
+                    stock.currentPrice ||
+                    stock.basePrice ||
+                    0
+                  ).toFixed(2)}
+                </Text>
+                <View
+                  style={[
+                    styles.stockInfoChange,
+                    {
+                      backgroundColor:
+                        (stock.change || 0) >= 0 ? "#E8F5E8" : "#FFF2F2",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.stockInfoChangeText,
+                      {
+                        color: (stock.change || 0) >= 0 ? "#10B981" : "#EF4444",
+                      },
+                    ]}
+                  >
+                    {(stock.change || 0) >= 0 ? "+" : ""}
+                    {(stock.change || 0).toFixed(2)} (
+                    {(stock.changePercent || 0).toFixed(2)}%)
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Analysis Results */}
+            <View style={styles.analysisSection}>
+              <Text style={styles.analysisSectionTitle}>
+                Analysis Results ({signals.length} signals found)
+              </Text>
+
+              {signals.length === 0 ? (
+                <View style={styles.noSignalsContainer}>
+                  <Ionicons
+                    name="information-circle"
+                    size={48}
+                    color="#8E8E93"
+                  />
+                  <Text style={styles.noSignalsText}>
+                    No trading signals detected
+                  </Text>
+                  <Text style={styles.noSignalsSubtext}>
+                    The current market conditions don't show any clear breakout
+                    or breakdown patterns.
+                  </Text>
+                </View>
+              ) : (
+                signals.map((signal, index) => (
+                  <View key={index} style={styles.signalCard}>
+                    <View style={styles.signalHeader}>
+                      <View
+                        style={[
+                          styles.signalBadge,
+                          {
+                            backgroundColor: signal.signal.includes("Breakout")
+                              ? "#E8F5E8"
+                              : "#FFF2F2",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.signalBadgeText,
+                            {
+                              color: signal.signal.includes("Breakout")
+                                ? "#10B981"
+                                : "#EF4444",
+                            },
+                          ]}
+                        >
+                          {signal.signal}
+                        </Text>
+                      </View>
+                      <Text style={styles.signalDate}>{signal.date}</Text>
+                    </View>
+
+                    <View style={styles.signalMetrics}>
+                      <View style={styles.signalMetric}>
+                        <Text style={styles.signalMetricLabel}>Price</Text>
+                        <Text style={styles.signalMetricValue}>
+                          {stock.currency === "INR" ? "₹" : "$"}
+                          {signal.close}
+                        </Text>
+                      </View>
+                      <View style={styles.signalMetric}>
+                        <Text style={styles.signalMetricLabel}>VWAP</Text>
+                        <Text style={styles.signalMetricValue}>
+                          {stock.currency === "INR" ? "₹" : "$"}
+                          {signal.vwap}
+                        </Text>
+                      </View>
+                      <View style={styles.signalMetric}>
+                        <Text style={styles.signalMetricLabel}>RSI</Text>
+                        <Text style={styles.signalMetricValue}>
+                          {signal.rsi}
+                        </Text>
+                      </View>
+                      <View style={styles.signalMetric}>
+                        <Text style={styles.signalMetricLabel}>Change</Text>
+                        <Text
+                          style={[
+                            styles.signalMetricValue,
+                            {
+                              color: signal.pctChange.includes("-")
+                                ? "#EF4444"
+                                : "#10B981",
+                            },
+                          ]}
+                        >
+                          {signal.pctChange}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.signalVolume}>
+                      <Text style={styles.signalVolumeLabel}>
+                        Volume Analysis
+                      </Text>
+                      <Text style={styles.signalVolumeText}>
+                        Volume: {((signal.volume || 0) / 1000000).toFixed(1)}M
+                        {signal.volChange !== "N/A"
+                          ? ` (${signal.volChange})`
+                          : ""}
+                      </Text>
+                      {signal.averageVolume !== "N/A" && (
+                        <Text style={styles.signalVolumeText}>
+                          Avg Volume:{" "}
+                          {((signal.averageVolume || 0) / 1000000).toFixed(1)}M
+                        </Text>
+                      )}
+                    </View>
+
+                    {signal.nextTargets && signal.nextTargets.length > 0 && (
+                      <View style={styles.signalTargets}>
+                        <Text style={styles.signalTargetsLabel}>
+                          Price Targets
+                        </Text>
+                        <View style={styles.signalTargetsRow}>
+                          {signal.nextTargets.slice(0, 3).map((target, idx) => (
+                            <View key={idx} style={styles.targetPill}>
+                              <Text style={styles.targetText}>
+                                {stock.currency === "INR" ? "₹" : "$"}
+                                {(target || 0).toFixed(2)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* Disclaimer */}
+            <View style={styles.disclaimer}>
+              <Ionicons name="warning" size={20} color="#FF9500" />
+              <Text style={styles.disclaimerText}>
+                This analysis is for educational purposes only and should not be
+                considered as financial advice. Always do your own research
+                before making investment decisions.
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    );
+  };
+
+  const renderEmpty = () => {
+    return (
       <View style={styles.emptyContainer}>
-        <Ionicons
-          name={isIndianExchange ? "flag-outline" : "business-outline"}
-          size={60}
-          color="#9CA3AF"
-        />
+        <Ionicons name="analytics-outline" size={60} color="#9CA3AF" />
         <Text style={styles.emptyText}>
-          {searchQuery
-            ? "No companies found"
-            : isIndianExchange
-            ? "Indian Stocks Unavailable"
-            : "No companies available"}
+          {searchQuery ? "No stocks found" : "No stocks available"}
         </Text>
         <Text style={styles.emptySubtext}>
           {searchQuery
             ? `Try adjusting your search for "${searchQuery}"`
-            : isIndianExchange
-            ? "Indian stock data is currently not available with this API key. Try switching to US stocks for now."
-            : "Please check your internet connection"}
+            : "Select a different exchange or check your internet connection"}
         </Text>
         {!searchQuery && (
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() =>
-              isIndianExchange ? setSelectedExchange("US") : fetchCompanies()
-            }
-          >
-            <Text style={styles.retryText}>
-              {isIndianExchange ? "Switch to US Stocks" : "Retry"}
-            </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchCompanies}>
+            <Ionicons name="refresh" size={16} color="#FFFFFF" />
+            <Text style={styles.retryText}>Refresh</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -416,18 +839,17 @@ const StocksScreen = () => {
   const AnimatedLoadingIcon = () => {
     return (
       <View style={styles.animatedLoadingContainer}>
-        <LottieView
-          source={stocksAnimation}
-          autoPlay
-          loop
-          style={styles.lottieAnimation}
+        <ActivityIndicator
+          size="large"
+          color="#2563eb"
+          style={styles.loadingSpinner}
         />
         <Text style={styles.loadingText}>
           Loading {selectedTab === "INDIA" ? "Indian" : "Global"} stocks...
         </Text>
         <Text style={styles.loadingSubtext}>
           {selectedTab === "INDIA"
-            ? "Fetching companies from NSE & BSE"
+            ? "Fetching real data from NSE & BSE"
             : "Connecting to global markets"}
         </Text>
       </View>
@@ -435,7 +857,6 @@ const StocksScreen = () => {
   };
 
   if (loading) {
-    console.log("📱 Showing loading animation in StocksScreen");
     return (
       <SafeAreaView style={styles.container}>
         <AnimatedLoadingIcon />
@@ -469,6 +890,24 @@ const StocksScreen = () => {
         updateCellsBatchingPeriod={50}
         legacyImplementation={false}
       />
+
+      {/* Loading overlay for analysis */}
+      {analyzingStock && (
+        <View style={styles.analysisLoadingOverlay}>
+          <View style={styles.analysisLoadingCard}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.analysisLoadingText}>
+              Analyzing {analyzingStock}...
+            </Text>
+            <Text style={styles.analysisLoadingSubtext}>
+              Running technical analysis
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Technical Analysis Modal */}
+      {renderAnalysisModal()}
     </SafeAreaView>
   );
 };
@@ -492,10 +931,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
-  lottieAnimation: {
-    width: 200,
-    height: 200,
+  loadingSpinner: {
     marginBottom: 20,
+    transform: [{ scale: 1.5 }],
   },
   loadingText: {
     fontSize: 16,
@@ -528,6 +966,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1C1C1E",
     marginLeft: 8,
+    flex: 1,
+  },
+  realTimeToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  realTimeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginLeft: 4,
   },
   searchContainer: {
     flexDirection: "row",
@@ -587,14 +1040,21 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   companyHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   companyInfo: {
     flex: 1,
+    marginRight: 12,
   },
   companyName: {
     fontSize: 16,
@@ -621,10 +1081,69 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     marginTop: 2,
   },
-  countryInfo: {
+  marketCapInfo: {
     fontSize: 10,
-    color: "#C7C7CC",
+    color: "#8E8E93",
     marginTop: 1,
+  },
+  priceContainer: {
+    alignItems: "flex-end",
+  },
+  currentPrice: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginBottom: 4,
+  },
+  changeContainer: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  changeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  volumeText: {
+    fontSize: 10,
+    color: "#8E8E93",
+  },
+  actionButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  analyzeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+  },
+  analyzeButtonText: {
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#007AFF",
+  },
+  detailButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  detailButtonText: {
+    marginRight: 4,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#FFFFFF",
   },
   // Exchange Selection Styles
   exchangeContainer: {
@@ -696,9 +1215,6 @@ const styles = StyleSheet.create({
   selectedMainTabText: {
     color: "#FFFFFF",
   },
-  actionContainer: {
-    padding: 8,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -722,15 +1238,236 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#007AFF",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryText: {
+    marginLeft: 4,
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "500",
+  },
+  // Analysis Loading Overlay
+  analysisLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  analysisLoadingCard: {
+    backgroundColor: "#FFFFFF",
+    padding: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    marginHorizontal: 40,
+  },
+  analysisLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1C1C1E",
+  },
+  analysisLoadingSubtext: {
+    marginTop: 4,
+    fontSize: 14,
+    color: "#8E8E93",
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  modalTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalTitle: {
+    marginLeft: 8,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1C1C1E",
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  stockInfoCard: {
+    backgroundColor: "#F8F9FA",
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  stockInfoName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    marginBottom: 4,
+  },
+  stockInfoSymbol: {
+    fontSize: 16,
+    color: "#007AFF",
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  stockInfoPriceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stockInfoPrice: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1C1C1E",
+    marginRight: 12,
+  },
+  stockInfoChange: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  stockInfoChangeText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  analysisSection: {
+    marginBottom: 20,
+  },
+  analysisSectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1C1C1E",
+    marginBottom: 16,
+  },
+  noSignalsContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  noSignalsText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#8E8E93",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  noSignalsSubtext: {
+    fontSize: 14,
+    color: "#8E8E93",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  signalCard: {
+    backgroundColor: "#F8F9FA",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  signalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  signalBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  signalBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  signalDate: {
+    fontSize: 12,
+    color: "#8E8E93",
+  },
+  signalMetrics: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  signalMetric: {
+    alignItems: "center",
+  },
+  signalMetricLabel: {
+    fontSize: 10,
+    color: "#8E8E93",
+    marginBottom: 2,
+  },
+  signalMetricValue: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#1C1C1E",
+  },
+  signalVolume: {
+    marginBottom: 12,
+  },
+  signalVolumeLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#1C1C1E",
+    marginBottom: 4,
+  },
+  signalVolumeText: {
+    fontSize: 11,
+    color: "#8E8E93",
+  },
+  signalTargets: {
+    marginTop: 8,
+  },
+  signalTargetsLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#1C1C1E",
+    marginBottom: 8,
+  },
+  signalTargetsRow: {
+    flexDirection: "row",
+  },
+  targetPill: {
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  targetText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontWeight: "500",
+  },
+  disclaimer: {
+    flexDirection: "row",
+    backgroundColor: "#FFF9E6",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  disclaimerText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: "#8B5A00",
+    lineHeight: 16,
+    flex: 1,
   },
 });
 

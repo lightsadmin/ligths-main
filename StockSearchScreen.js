@@ -13,12 +13,19 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import {
-  getStockCompanies,
-  getStockQuoteFromBackend,
-  formatCurrency,
-  formatPercentage,
-} from "./services/finnhubService";
+
+// Helper functions for formatting
+const formatCurrency = (value, currency = "USD") => {
+  if (value === null || value === undefined) return "N/A";
+  const symbol = currency === "INR" ? "₹" : "$";
+  return `${symbol}${value.toFixed(2)}`;
+};
+
+const formatPercentage = (value) => {
+  if (value === null || value === undefined) return "N/A";
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+};
 
 // Debounce function implementation
 const debounce = (func, wait) => {
