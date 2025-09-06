@@ -80,16 +80,6 @@ const GOAL_TEMPLATES = {
     investmentType: "SIP/MF",
     description: "",
   },
-  "FIRE Number": {
-    name: "FIRE Number",
-    presentCost: "",
-    years: "",
-    inflation: "7.5",
-    returnRate: "12",
-    currentSip: "",
-    investmentType: "SIP/MF",
-    description: "",
-  },
   Custom: {
     name: "Custom Goal",
     customName: "",
@@ -432,11 +422,7 @@ export default function GoalCalculator() {
         value: parseFloat(g.currentAge),
         fieldValue: g.currentAge,
       });
-    } else if (
-      g.name === "Dream Home" ||
-      g.name === "Custom Goal" ||
-      g.name === "FIRE Number"
-    ) {
+    } else if (g.name === "Dream Home" || g.name === "Custom Goal") {
       requiredFields.push({
         key: "years",
         value: parseFloat(g.years),
@@ -923,8 +909,6 @@ export default function GoalCalculator() {
         return "home";
       case "Wealth Creation":
         return "trending-up";
-      case "FIRE Number":
-        return "flame";
       case "Custom Goal":
         return "star";
       default:
@@ -1114,7 +1098,6 @@ export default function GoalCalculator() {
           </>
         );
       case "Dream Home":
-      case "FIRE Number":
         return (
           <>
             {commonInputs}

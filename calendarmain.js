@@ -21,7 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { EventRegister } from "react-native-event-listeners";
 import LottieView from "lottie-react-native";
-import chatbotAnimation from "./animations/Live chatbot.json";
+import voiceRecordingAnimation from "./animations/voice recording.json";
 
 const CalendarMain = () => {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -812,14 +812,14 @@ const CalendarMain = () => {
         </View>
       </ScrollView>
 
-      {/* Animated Waving Robot - Bottom Right */}
+      {/* Animated Voice Recording Icon - Bottom Right */}
       <View style={styles.animatedIconContainer}>
         <TouchableOpacity
           onPress={() => navigation.navigate("NoteAIScreen")}
           activeOpacity={0.8}
         >
           <LottieView
-            source={chatbotAnimation}
+            source={voiceRecordingAnimation}
             autoPlay
             loop
             style={styles.animatedIcon}

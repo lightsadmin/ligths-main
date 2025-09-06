@@ -99,7 +99,30 @@ const TransactionsPage = ({ route, navigation }) => {
         body: JSON.stringify(newTransaction),
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        const responseText = await response.text();
+        if (
+          responseText.trim().startsWith("{") ||
+          responseText.trim().startsWith("[")
+        ) {
+          result = JSON.parse(responseText);
+        } else {
+          throw new Error(
+            `Server returned non-JSON response: ${responseText.substring(
+              0,
+              100
+            )}`
+          );
+        }
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        Alert.alert(
+          "Error",
+          "Server returned an invalid response. Please try again."
+        );
+        return;
+      }
 
       if (response.ok) {
         await fetchTransactions(); // Refresh the list
@@ -125,7 +148,22 @@ const TransactionsPage = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error saving transaction:", error);
-      Alert.alert("Network Error", "Could not connect to the server.");
+      if (
+        error.message.includes("Network request failed") ||
+        error.message.includes("fetch")
+      ) {
+        Alert.alert(
+          "Network Error",
+          "Could not connect to the server. Please check your internet connection."
+        );
+      } else if (error.message.includes("non-JSON response")) {
+        Alert.alert(
+          "Server Error",
+          "The server is having issues. Please try again later."
+        );
+      } else {
+        Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -207,7 +245,31 @@ const TransactionsPage = ({ route, navigation }) => {
       }
 
       const response = await fetch(`${API_BASE_URL}/transactions/${username}`);
-      const data = await response.json();
+
+      let data;
+      try {
+        const responseText = await response.text();
+        if (
+          responseText.trim().startsWith("{") ||
+          responseText.trim().startsWith("[")
+        ) {
+          data = JSON.parse(responseText);
+        } else {
+          throw new Error(
+            `Server returned non-JSON response: ${responseText.substring(
+              0,
+              100
+            )}`
+          );
+        }
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        Alert.alert(
+          "Error",
+          "Server returned an invalid response. Please try again."
+        );
+        return;
+      }
 
       if (!response.ok) {
         Alert.alert("Error", data.error || "Error fetching transactions.");
@@ -225,7 +287,25 @@ const TransactionsPage = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
-      Alert.alert("Network Error", "Could not connect to the server.");
+      if (
+        error.message.includes("Network request failed") ||
+        error.message.includes("fetch")
+      ) {
+        Alert.alert(
+          "Network Error",
+          "Could not connect to the server. Please check your internet connection."
+        );
+      } else if (error.message.includes("non-JSON response")) {
+        Alert.alert(
+          "Server Error",
+          "The server is having issues. Please try again later."
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          "An unexpected error occurred while fetching data."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -264,7 +344,30 @@ const TransactionsPage = ({ route, navigation }) => {
                 method: "DELETE",
               });
 
-              const result = await response.json();
+              let result;
+              try {
+                const responseText = await response.text();
+                if (
+                  responseText.trim().startsWith("{") ||
+                  responseText.trim().startsWith("[")
+                ) {
+                  result = JSON.parse(responseText);
+                } else {
+                  throw new Error(
+                    `Server returned non-JSON response: ${responseText.substring(
+                      0,
+                      100
+                    )}`
+                  );
+                }
+              } catch (parseError) {
+                console.error("JSON Parse Error:", parseError);
+                Alert.alert(
+                  "Error",
+                  "Server returned an invalid response. Please try again."
+                );
+                return;
+              }
 
               if (response.ok && result.success) {
                 setTransactions(
@@ -279,7 +382,25 @@ const TransactionsPage = ({ route, navigation }) => {
               }
             } catch (error) {
               console.error("Error deleting transaction:", error);
-              Alert.alert("Network Error", "Could not connect to the server.");
+              if (
+                error.message.includes("Network request failed") ||
+                error.message.includes("fetch")
+              ) {
+                Alert.alert(
+                  "Network Error",
+                  "Could not connect to the server. Please check your internet connection."
+                );
+              } else if (error.message.includes("non-JSON response")) {
+                Alert.alert(
+                  "Server Error",
+                  "The server is having issues. Please try again later."
+                );
+              } else {
+                Alert.alert(
+                  "Error",
+                  "An unexpected error occurred while deleting."
+                );
+              }
             } finally {
               setLoading(false);
             }

@@ -35,6 +35,11 @@ const MFScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [displayedCompanies, setDisplayedCompanies] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const ITEMS_PER_PAGE = 5; // Load 5 companies at a time
   const navigation = useNavigation();
 
   /**
@@ -214,6 +219,9 @@ const MFScreen = () => {
             company.data.length > 0
         );
         setCompanies(validCompanies);
+
+        // Initialize lazy loading
+        initializeLazyLoading(validCompanies);
       } else {
         console.warn(
           "⚠️ Expected companies array but received:",
@@ -233,6 +241,81 @@ const MFScreen = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  /**
+   * Initialize lazy loading with first batch of companies
+   */
+  const initializeLazyLoading = (allValidCompanies) => {
+    console.log(
+      `🚀 Initializing lazy loading with ${allValidCompanies.length} total companies`
+    );
+
+    const firstBatch = allValidCompanies.slice(0, ITEMS_PER_PAGE);
+    setDisplayedCompanies(firstBatch);
+    setCurrentPage(1);
+    setHasMoreData(allValidCompanies.length > ITEMS_PER_PAGE);
+
+    console.log(`📦 Loaded first batch: ${firstBatch.length} companies`);
+  };
+
+  /**
+   * Load more companies for lazy loading
+   */
+  const loadMoreCompanies = () => {
+    if (loadingMore || !hasMoreData) {
+      return;
+    }
+
+    console.log(`🔄 Loading more companies - page ${currentPage + 1}`);
+    setLoadingMore(true);
+
+    setTimeout(() => {
+      const currentCompanies = searchText
+        ? companies
+        : allCompanies.filter(
+            (company) =>
+              company &&
+              company.data &&
+              Array.isArray(company.data) &&
+              company.data.length > 0
+          );
+
+      const startIndex = currentPage * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE;
+      const nextBatch = currentCompanies.slice(startIndex, endIndex);
+
+      if (nextBatch.length > 0) {
+        setDisplayedCompanies((prev) => [...prev, ...nextBatch]);
+        setCurrentPage((prev) => prev + 1);
+        setHasMoreData(endIndex < currentCompanies.length);
+
+        console.log(
+          `📦 Loaded ${nextBatch.length} more companies. Total displayed: ${
+            displayedCompanies.length + nextBatch.length
+          }`
+        );
+      } else {
+        setHasMoreData(false);
+        console.log("📭 No more companies to load");
+      }
+
+      setLoadingMore(false);
+    }, 300); // Small delay to show loading state
+  };
+
+  /**
+   * Reset lazy loading state
+   */
+  const resetLazyLoading = (newCompanies = []) => {
+    setDisplayedCompanies([]);
+    setCurrentPage(0);
+    setHasMoreData(false);
+    setLoadingMore(false);
+
+    if (newCompanies.length > 0) {
+      initializeLazyLoading(newCompanies);
     }
   };
 
@@ -306,6 +389,9 @@ const MFScreen = () => {
           `🔍 Filtered to ${validFilteredCompanies.length} companies`
         );
         setCompanies(validFilteredCompanies);
+
+        // Reset lazy loading with filtered results
+        resetLazyLoading(validFilteredCompanies);
       } catch (error) {
         console.error("Error in filterCompanies:", error);
         setCompanies([]);
@@ -353,6 +439,7 @@ const MFScreen = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    resetLazyLoading(); // Reset lazy loading state
     Promise.all([fetchCompanies(), fetchInvestments()]).finally(() => {
       setRefreshing(false);
     });
@@ -528,7 +615,7 @@ const MFScreen = () => {
       </View>
 
       <SectionList
-        sections={Array.isArray(companies) ? companies : []}
+        sections={Array.isArray(displayedCompanies) ? displayedCompanies : []}
         keyExtractor={(item, index) => {
           if (!item) return `empty-item-${index}`;
           return (
@@ -538,6 +625,28 @@ const MFScreen = () => {
         renderItem={renderFundItem}
         renderSectionHeader={renderSectionHeader}
         ListEmptyComponent={renderEmptyState}
+        ListFooterComponent={() => {
+          if (loadingMore) {
+            return (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadingMoreText}>
+                  Loading more funds...
+                </Text>
+              </View>
+            );
+          }
+          if (!hasMoreData && displayedCompanies.length > 0) {
+            return (
+              <View style={styles.endOfListContainer}>
+                <Text style={styles.endOfListText}>
+                  You've reached the end of the list
+                </Text>
+              </View>
+            );
+          }
+          return null;
+        }}
         contentContainerStyle={styles.listContainer}
         stickySectionHeadersEnabled={false}
         refreshControl={
@@ -555,6 +664,7 @@ const MFScreen = () => {
         updateCellsBatchingPeriod={100}
         getItemLayout={null}
         onEndReachedThreshold={0.8}
+        onEndReached={loadMoreCompanies}
       />
     </SafeAreaView>
   );
@@ -737,6 +847,35 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: "#64748B",
+  },
+  loadingMoreContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 20,
+    backgroundColor: "#F7F8FC",
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  loadingMoreText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  endOfListContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 20,
+    backgroundColor: "#F7F8FC",
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  endOfListText: {
+    fontSize: 14,
+    color: "#94A3B8",
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
 

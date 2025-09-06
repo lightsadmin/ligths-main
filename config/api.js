@@ -83,6 +83,7 @@ export const ENDPOINTS = {
   GOALS: "/goals",
 
   // Stock endpoints (using Yahoo Finance)
+  STOCKS: "/api/all-stocks", // CSV-based stock data endpoint
   STOCK_COMPANIES: "/api/stock-companies",
   STOCK_QUOTE: "/api/stock-quote",
   STOCK_QUOTES: "/api/stock-quotes",

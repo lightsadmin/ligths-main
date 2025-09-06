@@ -244,7 +244,31 @@ export default function ExpenseTracker({ navigation, route }) {
       const response = await fetch(`${API_URL}/transactions/${username}`);
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
-      const data = await response.json();
+      let data;
+      try {
+        const responseText = await response.text();
+        if (
+          responseText.trim().startsWith("{") ||
+          responseText.trim().startsWith("[")
+        ) {
+          data = JSON.parse(responseText);
+        } else {
+          throw new Error(
+            `Server returned non-JSON response: ${responseText.substring(
+              0,
+              100
+            )}`
+          );
+        }
+      } catch (parseError) {
+        console.error("JSON Parse Error in fetchTransactions:", parseError);
+        Alert.alert(
+          "Error",
+          "Server returned an invalid response. Please try again."
+        );
+        setLoading(false);
+        return;
+      }
       const incomeTransactions = (data.transactions || []).filter(
         (transaction) => transaction && transaction.type === "Income"
       );
@@ -292,35 +316,135 @@ export default function ExpenseTracker({ navigation, route }) {
         date: newTransaction.date,
       };
 
-      // Determine if we're updating or creating
-      const method = isEditMode ? "PUT" : "POST";
-      const url = isEditMode
-        ? `${API_URL}/transactions/${username}/${editTransactionId}`
-        : `${API_URL}/transactions/${username}`;
+      let response;
 
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transactionData),
-      });
+      if (isEditMode) {
+        // For editing: Delete the old transaction first, then create a new one
+        console.log(
+          "📡 Edit Mode: Deleting original transaction with ID:",
+          editTransactionId
+        );
+
+        const deleteResponse = await fetch(
+          `${API_URL}/transactions/${username}/${editTransactionId}`,
+          { method: "DELETE" }
+        );
+
+        if (!deleteResponse.ok) {
+          throw new Error(
+            `Failed to delete original transaction (Status: ${deleteResponse.status})`
+          );
+        }
+
+        console.log("📡 Original transaction deleted successfully");
+        console.log("📡 Creating updated transaction:", transactionData);
+
+        // Now create the new transaction with updated data
+        response = await fetch(`${API_URL}/transactions/${username}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transactionData),
+        });
+
+        console.log("📡 Create request for updated transaction completed");
+      } else {
+        // For new transactions: Just create normally
+        console.log("📡 Create Mode: Adding new transaction");
+        console.log("📡 Transaction data:", transactionData);
+
+        response = await fetch(`${API_URL}/transactions/${username}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(transactionData),
+        });
+      }
+
+      console.log("📡 Response status:", response.status);
+      console.log("📡 Response ok:", response.ok);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          const responseText = await response.text();
+          console.log(
+            "📡 Response text (first 200 chars):",
+            responseText.substring(0, 200)
+          );
+
+          if (
+            responseText.trim().startsWith("{") ||
+            responseText.trim().startsWith("[")
+          ) {
+            errorData = JSON.parse(responseText);
+          } else {
+            throw new Error(
+              `Server returned non-JSON response (Status: ${
+                response.status
+              }): ${responseText.substring(0, 100)}`
+            );
+          }
+        } catch (parseError) {
+          console.error(
+            "JSON Parse Error in addTransaction error handling:",
+            parseError
+          );
+          throw new Error(
+            `Failed to ${
+              isEditMode ? "update" : "add"
+            } transaction - Server returned HTML error page (Status: ${
+              response.status
+            })`
+          );
+        }
+
         throw new Error(
           errorData.error ||
             `Failed to ${isEditMode ? "update" : "add"} transaction`
         );
       }
 
-      const savedTransaction = await response.json();
+      let savedTransaction;
+      try {
+        const responseText = await response.text();
+        console.log(
+          "📡 Success response text (first 200 chars):",
+          responseText.substring(0, 200)
+        );
+
+        if (
+          responseText.trim().startsWith("{") ||
+          responseText.trim().startsWith("[")
+        ) {
+          savedTransaction = JSON.parse(responseText);
+        } else {
+          throw new Error(
+            `Server returned non-JSON response: ${responseText.substring(
+              0,
+              100
+            )}`
+          );
+        }
+      } catch (parseError) {
+        console.error(
+          "JSON Parse Error in addTransaction success handling:",
+          parseError
+        );
+        Alert.alert(
+          "Error",
+          "Transaction may have been saved, but server returned an invalid response."
+        );
+        setLoading(false);
+        return;
+      }
 
       if (isEditMode) {
-        // Update the transactions list for edit mode
-        setTransactions((prevTransactions) =>
-          prevTransactions.map((t) =>
-            t._id === editTransactionId ? savedTransaction.transaction : t
-          )
-        );
+        // For edit mode: Remove the old transaction and add the new one
+        setTransactions((prevTransactions) => {
+          const filteredTransactions = prevTransactions.filter(
+            (t) => t._id !== editTransactionId
+          );
+          return [...filteredTransactions, savedTransaction.transaction];
+        });
         Alert.alert("Success", "Transaction updated successfully");
       } else {
         // Add new transaction for create mode
@@ -333,13 +457,14 @@ export default function ExpenseTracker({ navigation, route }) {
 
       // Reset State
       handleCancel();
+      setLoading(false);
 
       // If coming from date expenses, navigate back
       if (route.params?.date || fromDailyTransactions) {
         navigation.goBack();
       }
     } catch (error) {
-      console.error(error);
+      console.error("❌ Error in addTransaction:", error);
       Alert.alert(
         "Error",
         error.message ||
@@ -372,7 +497,27 @@ export default function ExpenseTracker({ navigation, route }) {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          const responseText = await response.text();
+          if (
+            responseText.trim().startsWith("{") ||
+            responseText.trim().startsWith("[")
+          ) {
+            errorData = JSON.parse(responseText);
+          } else {
+            throw new Error(
+              `Server returned non-JSON response: ${responseText.substring(
+                0,
+                100
+              )}`
+            );
+          }
+        } catch (parseError) {
+          console.error("JSON Parse Error in deleteTransaction:", parseError);
+          throw new Error("Failed to delete transaction - Server error");
+        }
+
         throw new Error(errorData.error || "Failed to delete transaction");
       }
 

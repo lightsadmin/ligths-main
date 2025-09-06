@@ -12,11 +12,15 @@ import {
   Alert,
   Modal,
   PanResponder,
+  SafeAreaView,
 } from "react-native";
 import * as Location from "expo-location";
 import { Audio } from "expo-av";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import LottieView from "lottie-react-native";
+import voiceRecordingAnimation from "./animations/Voice UI.json";
+import notebookAnimation from "./animations/Notebook.json";
 
 const { width } = Dimensions.get("window");
 
@@ -32,14 +36,15 @@ export default function NoteAIScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [sound, setSound] = useState();
   const [showIntroGuide, setShowIntroGuide] = useState(false);
+  const [showManualNoteModal, setShowManualNoteModal] = useState(false);
+  const [manualNoteText, setManualNoteText] = useState("");
+  const noteFadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Load today's notes on startup
   useEffect(() => {
     loadNotes();
     checkFirstTimeUser();
   }, []);
 
-  // Check if this is user's first time in Notes
   const checkFirstTimeUser = async () => {
     try {
       const hasSeenNotesIntro = await AsyncStorage.getItem("hasSeenNotesIntro");
@@ -61,14 +66,12 @@ export default function NoteAIScreen() {
     }
   };
 
-  // Reload notes when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       loadNotes();
     }, [])
   );
 
-  // Cleanup sound on unmount
   useEffect(() => {
     return sound
       ? () => {
@@ -77,7 +80,6 @@ export default function NoteAIScreen() {
       : undefined;
   }, [sound]);
 
-  // Pulse animation for recording button
   useEffect(() => {
     if (isRecording) {
       const pulse = Animated.loop(
@@ -103,12 +105,23 @@ export default function NoteAIScreen() {
 
   const loadNotes = async () => {
     try {
-      const stored = await AsyncStorage.getItem(`notes_${today}`);
-      if (stored) {
-        setNotes(JSON.parse(stored));
-      } else {
-        setNotes([]);
+      const allNotes = [];
+      const today = new Date();
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        const stored = await AsyncStorage.getItem(`notes_${dateStr}`);
+        if (stored) {
+          const dayNotes = JSON.parse(stored);
+          allNotes.push(...dayNotes);
+        }
       }
+
+      allNotes.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      setNotes(allNotes);
     } catch (err) {
       console.error("Error loading notes", err);
     }
@@ -116,7 +129,22 @@ export default function NoteAIScreen() {
 
   const saveNotes = async (newNotes) => {
     try {
-      await AsyncStorage.setItem(`notes_${today}`, JSON.stringify(newNotes));
+      const notesByDate = {};
+
+      newNotes.forEach((note) => {
+        const noteDate = note.timestamp
+          ? new Date(note.timestamp).toISOString().split("T")[0]
+          : today;
+
+        if (!notesByDate[noteDate]) {
+          notesByDate[noteDate] = [];
+        }
+        notesByDate[noteDate].push(note);
+      });
+
+      for (const [date, dayNotes] of Object.entries(notesByDate)) {
+        await AsyncStorage.setItem(`notes_${date}`, JSON.stringify(dayNotes));
+      }
     } catch (err) {
       console.error("Error saving notes", err);
     }
@@ -155,6 +183,12 @@ export default function NoteAIScreen() {
       setShowEditModal(false);
       setEditingNote(null);
       setEditText("");
+      noteFadeAnim.setValue(0);
+      Animated.timing(noteFadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }).start();
     }
   };
 
@@ -208,7 +242,64 @@ export default function NoteAIScreen() {
     setRecording(null);
     console.log("Recording stopped and stored at", uri);
 
-    // --- Start of New Location Logic ---
+    const locationString = await fetchLocation();
+
+    try {
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString();
+      const newNote = {
+        id: Date.now().toString(),
+        time: timestamp,
+        timestamp: now.toISOString(),
+        audioUri: uri,
+        text: "Voice Note (Tap to play)",
+        location: locationString,
+        isAudio: true,
+      };
+      setNotes((prevNotes) => {
+        const updatedNotes = [...prevNotes, newNote];
+        saveNotes(updatedNotes);
+        return updatedNotes;
+      });
+    } catch (err) {
+      console.error("Error saving note:", err);
+    }
+  };
+
+  const saveManualNote = async () => {
+    if (!manualNoteText.trim()) {
+      Alert.alert("Note is empty", "Please enter some text for your note.");
+      return;
+    }
+
+    const locationString = await fetchLocation();
+
+    try {
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString();
+      const newNote = {
+        id: Date.now().toString(),
+        time: timestamp,
+        timestamp: now.toISOString(),
+        text: manualNoteText,
+        location: locationString,
+        isAudio: false,
+      };
+
+      setNotes((prevNotes) => {
+        const updatedNotes = [...prevNotes, newNote];
+        saveNotes(updatedNotes);
+        return updatedNotes;
+      });
+
+      setManualNoteText("");
+      setShowManualNoteModal(false);
+    } catch (err) {
+      console.error("Error saving manual note:", err);
+    }
+  };
+
+  const fetchLocation = async () => {
     let locationString = "Location not available";
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -239,27 +330,7 @@ export default function NoteAIScreen() {
     } catch (err) {
       console.error("Error fetching location", err);
     }
-    // --- End of New Location Logic ---
-
-    try {
-      const timestamp = new Date().toLocaleTimeString();
-      const newNote = {
-        id: Date.now().toString(),
-        time: timestamp,
-        audioUri: uri,
-        text: "Voice Note (Tap to play)",
-        location: locationString,
-        isAudio: true,
-      };
-      // Update state instantly so note appears immediately
-      setNotes((prevNotes) => {
-        const updatedNotes = [...prevNotes, newNote];
-        saveNotes(updatedNotes); // Async save
-        return updatedNotes;
-      });
-    } catch (err) {
-      console.error("Error saving note:", err);
-    }
+    return locationString;
   };
 
   const playAudio = async (audioUri) => {
@@ -290,97 +361,121 @@ export default function NoteAIScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.title}>Lights Notes</Text>
-            <Text style={styles.subtitle}>{formatDate(today)}</Text>
-            <View style={styles.statsContainer}>
-              <Text style={styles.statsText}>{notes.length} notes today</Text>
-            </View>
-          </View>
-          <MicIcon
-            isRecording={isRecording}
-            onPress={isRecording ? stopRecording : startRecording}
-            pulseAnim={pulseAnim}
-          />
-        </View>
-      </View>
-
-      <View style={styles.notesContainer}>
-        {notes.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Text style={styles.emptyIconText}>🎤</Text>
-            </View>
-            <Text style={styles.emptyTitle}>No notes yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Tap the record button to add your first note
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={[...notes].reverse()}
-            keyExtractor={(item, index) => item.id || index.toString()}
-            ListHeaderComponent={
-              <View style={styles.swipeHint}>
-                <Text style={styles.swipeHintText}>
-                  💡 Swipe left to delete, right to edit
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.title}>Ligths Notes</Text>
+              <Text style={styles.subtitle}>{formatDate(today)}</Text>
+              <View style={styles.statsContainer}>
+                <Text style={styles.statsText}>
+                  {notes.length} notes this week
                 </Text>
               </View>
-            }
-            renderItem={({ item, index }) => (
-              <SwipeableNoteItem
-                item={item}
-                noteCount={notes.length}
-                indexInReversedList={index}
-                onEdit={() => editNote(notes.length - 1 - index)}
-                onDelete={() => deleteNote(notes.length - 1 - index)}
-                onPlayAudio={playAudio}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.notesContainer}>
+          {notes.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <Text style={styles.emptyIconText}>📝</Text>
+              </View>
+              <Text style={styles.emptyTitle}>No notes yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Tap the record or manual note button to add your first note
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={[...notes].reverse()}
+              keyExtractor={(item, index) => item.id || index.toString()}
+              ListHeaderComponent={
+                <View style={styles.swipeHint}>
+                  <Text style={styles.swipeHintText}>
+                    💡 Swipe left to delete, right to edit
+                  </Text>
+                </View>
+              }
+              renderItem={({ item, index }) => (
+                <SwipeableNoteItem
+                  item={item}
+                  noteCount={notes.length}
+                  indexInReversedList={index}
+                  onEdit={() => editNote(notes.length - 1 - index)}
+                  onDelete={() => deleteNote(notes.length - 1 - index)}
+                  onPlayAudio={playAudio}
+                  fadeAnim={noteFadeAnim}
+                />
+              )}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.notesList}
+            />
+          )}
+        </View>
+
+        {/* Floating Action Buttons */}
+        <View style={styles.floatingButtonsContainer}>
+          {!isRecording && (
+            <TouchableOpacity
+              style={styles.floatingManualNoteButton}
+              onPress={() => setShowManualNoteModal(true)}
+            >
+              <LottieView
+                source={notebookAnimation}
+                style={styles.manualNoteLottie}
+                autoPlay={true}
+                loop={false}
+                speed={0.8}
               />
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.notesList}
-          />
-        )}
+            </TouchableOpacity>
+          )}
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity
+              style={[
+                styles.floatingMicButton,
+                isRecording ? styles.micButtonActive : styles.micButtonInactive,
+              ]}
+              onPress={isRecording ? stopRecording : startRecording}
+              activeOpacity={0.8}
+            >
+              <LottieView
+                source={voiceRecordingAnimation}
+                autoPlay={isRecording}
+                loop={isRecording}
+                style={styles.micLottie}
+              />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        <EditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          editText={editText}
+          onEditTextChange={setEditText}
+          onSave={saveEditedNote}
+        />
+
+        <ManualNoteModal
+          visible={showManualNoteModal}
+          onClose={() => setShowManualNoteModal(false)}
+          noteText={manualNoteText}
+          onNoteTextChange={setManualNoteText}
+          onSave={saveManualNote}
+        />
+
+        <IntroGuideModal visible={showIntroGuide} onClose={dismissIntroGuide} />
       </View>
-
-      <EditModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        editText={editText}
-        onEditTextChange={setEditText}
-        onSave={saveEditedNote}
-      />
-
-      <IntroGuideModal visible={showIntroGuide} onClose={dismissIntroGuide} />
-    </View>
+    </SafeAreaView>
   );
 }
 
 // ====================================================================
 //  ✅ COMPONENTS MOVED OUTSIDE THE 'App' COMPONENT
 // ====================================================================
-
-const MicIcon = ({ isRecording, onPress, pulseAnim }) => (
-  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-    <TouchableOpacity
-      style={[
-        styles.micButton,
-        isRecording ? styles.micButtonActive : styles.micButtonInactive,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <Image
-        source={require("./assets/music_10191447.png")}
-        style={[styles.micIconImage, { tintColor: "#ffffff" }]}
-        resizeMode="contain"
-      />
-    </TouchableOpacity>
-  </Animated.View>
-);
 
 const SwipeableNoteItem = ({
   item,
@@ -389,6 +484,7 @@ const SwipeableNoteItem = ({
   onEdit,
   onDelete,
   onPlayAudio,
+  fadeAnim,
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const [isSwipeActive, setIsSwipeActive] = useState(false);
@@ -442,7 +538,6 @@ const SwipeableNoteItem = ({
           Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(vx) > 0.5;
         if (shouldActivateAction) {
           if (dx > 0) {
-            // Swipe Right
             Animated.parallel([
               Animated.spring(translateX, {
                 toValue: ACTION_WIDTH,
@@ -462,7 +557,6 @@ const SwipeableNoteItem = ({
               currentDirection.current = "right";
             }, 0);
           } else {
-            // Swipe Left
             Animated.parallel([
               Animated.spring(translateX, {
                 toValue: -ACTION_WIDTH,
@@ -520,7 +614,17 @@ const SwipeableNoteItem = ({
   };
 
   return (
-    <View style={styles.swipeContainer}>
+    <Animated.View
+      style={[
+        styles.swipeContainer,
+        {
+          opacity: fadeAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+          }),
+        },
+      ]}
+    >
       <Animated.View
         style={[
           styles.actionContainer,
@@ -630,7 +734,7 @@ const SwipeableNoteItem = ({
           </View>
         </TouchableOpacity>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -661,6 +765,54 @@ const EditModal = ({
           onChangeText={onEditTextChange}
           multiline={true}
           placeholder="Edit your note..."
+          autoFocus={true}
+        />
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={[styles.modalButton, styles.cancelButton]}
+            onPress={onClose}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modalButton, styles.saveButton]}
+            onPress={onSave}
+          >
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </Modal>
+);
+
+const ManualNoteModal = ({
+  visible,
+  onClose,
+  noteText,
+  onNoteTextChange,
+  onSave,
+}) => (
+  <Modal
+    visible={visible}
+    transparent={true}
+    animationType="slide"
+    onRequestClose={onClose}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Create New Note</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={styles.editTextInput}
+          value={noteText}
+          onChangeText={onNoteTextChange}
+          multiline={true}
+          placeholder="Type your note here..."
           autoFocus={true}
         />
         <View style={styles.modalActions}>
@@ -747,9 +899,10 @@ const IntroGuideModal = ({ visible, onClose }) => (
 
 // --- Enhanced Stylesheet ---
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#f8fafc" },
   container: { flex: 1, backgroundColor: "#f8fafc" },
   header: {
-    paddingTop: 60,
+    paddingTop: 40,
     paddingHorizontal: 24,
     paddingBottom: 24,
     backgroundColor: "#ffffff",
@@ -771,22 +924,11 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   statsText: { fontSize: 14, color: "#475569", fontWeight: "600" },
-  micButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+  notesContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 16,
   },
-  micButtonInactive: { backgroundColor: "#3b82f6" },
-  micButtonActive: { backgroundColor: "#ef4444" },
-  micIconImage: { width: 24, height: 24 },
-  notesContainer: { flex: 1, paddingHorizontal: 24, paddingTop: 16 },
   swipeHint: {
     backgroundColor: "#e0f2fe",
     paddingHorizontal: 16,
@@ -798,7 +940,7 @@ const styles = StyleSheet.create({
     borderColor: "#b3e5fc",
   },
   swipeHintText: { fontSize: 12, color: "#0277bd", fontWeight: "600" },
-  notesList: { paddingBottom: 24 },
+  notesList: { paddingBottom: 110 },
   swipeContainer: {
     marginBottom: 16,
     position: "relative",
@@ -834,7 +976,7 @@ const styles = StyleSheet.create({
   noteCard: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -847,44 +989,44 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   timeContainer: {
     backgroundColor: "#f8fafc",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 12,
   },
   timeText: { fontSize: 12, color: "#64748b", fontWeight: "600" },
   noteNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "#3b82f6",
     alignItems: "center",
     justifyContent: "center",
   },
-  noteNumberText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  noteNumberText: { color: "#ffffff", fontSize: 11, fontWeight: "700" },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    marginTop: -4,
+    marginBottom: 8,
+    marginTop: -2,
   },
-  locationIcon: { fontSize: 12, marginRight: 6 },
+  locationIcon: { fontSize: 11, marginRight: 4 },
   locationText: { fontSize: 12, color: "#94a3b8", fontWeight: "500" },
-  noteContent: { marginTop: 4 },
+  noteContent: { marginTop: 2 },
   audioNoteContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f1f5f9",
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  audioIcon: { fontSize: 16, marginRight: 8 },
-  noteText: { fontSize: 16, lineHeight: 24, color: "#334155" },
+  audioIcon: { fontSize: 14, marginRight: 6 },
+  noteText: { fontSize: 15, lineHeight: 22, color: "#334155" },
   emptyState: {
     flex: 1,
     alignItems: "center",
@@ -976,7 +1118,6 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: "#3b82f6" },
   saveButtonText: { color: "#ffffff", fontSize: 16, fontWeight: "600" },
 
-  // Intro Guide Modal Styles
   introModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
@@ -1049,4 +1190,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  floatingButtonsContainer: {
+    position: "absolute",
+    bottom: 90,
+    right: 24,
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 20,
+    zIndex: 1000,
+  },
+  floatingManualNoteButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  floatingMicButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  micButtonInactive: { backgroundColor: "#3b82f6" },
+  micButtonActive: { backgroundColor: "transparent" },
+  micLottie: { width: 90, height: 90 },
+  manualNoteLottie: { width: 70, height: 70 },
 });

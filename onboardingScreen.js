@@ -70,8 +70,28 @@ const OnboardingScreen = ({ navigation }) => {
     }
   };
 
+  const handleSkip = async () => {
+    // Mark onboarding as completed
+    try {
+      await AsyncStorage.setItem("hasSeenOnboarding", "true");
+      console.log("✅ Onboarding skipped, flag set to true");
+    } catch (error) {
+      console.error("❌ Error setting onboarding flag:", error);
+    }
+
+    // Navigate to SplashScreen
+    navigation.replace("SplashScreen");
+  };
+
   return (
     <View style={styles.container}>
+      {/* Skip button - only show for first 3 slides */}
+      {currentIndex < 3 && (
+        <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+          <Text style={styles.skipButtonText}>Skip</Text>
+        </TouchableOpacity>
+      )}
+
       <Image
         source={require("./assets/logo.png")}
         style={styles.logo}
@@ -129,6 +149,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  skipButton: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
+    borderRadius: 20,
+  },
+  skipButtonText: {
+    color: "#666",
+    fontSize: 14,
+    fontWeight: "600",
   },
   logo: {
     width: 200,

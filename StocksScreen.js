@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import TechnicalAnalysisService from "./services/technicalAnalysisService";
 import RealStockDataService from "./services/realStockDataService";
+import { API_BASE_URL, ENDPOINTS } from "./config/api";
 
 // Enhanced Company Item Component with technical analysis
 const CompanyItem = memo(({ item, onPress, onAnalyze }) => {
@@ -132,11 +133,15 @@ const StocksScreen = () => {
   const navigation = useNavigation();
   const [companies, setCompanies] = useState([]);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
+  const [displayedCompanies, setDisplayedCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreData, setHasMoreData] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const ITEMS_PER_PAGE = 20; // Load 20 stocks at a time
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTab, setSelectedTab] = useState("INDIA");
-  const [selectedExchange, setSelectedExchange] = useState("ALL");
+  const [selectedExchange, setSelectedExchange] = useState("NSE");
   const [lastUpdated, setLastUpdated] = useState(null);
   const [analysisModal, setAnalysisModal] = useState(false);
   const [currentAnalysis, setCurrentAnalysis] = useState(null);
@@ -150,35 +155,21 @@ const StocksScreen = () => {
   // Real-time update timer
   const refreshTimer = useRef(null);
 
-  // Main tabs - simplified
-  const mainTabs = [
-    { key: "INDIA", label: "India" },
-    { key: "GLOBAL", label: "Global" },
-  ];
-
   // Exchange options based on selected tab
   const getExchangeOptions = () => {
-    if (selectedTab === "INDIA") {
-      return [
-        {
-          key: "ALL",
-          label: "ALL",
-          fullName: "All Indian Exchanges (NSE + BSE)",
-        },
-        { key: "NSE", label: "NSE", fullName: "National Stock Exchange" },
-        { key: "BSE", label: "BSE", fullName: "Bombay Stock Exchange" },
-      ];
-    } else {
-      return [
-        { key: "NASDAQ", label: "NASDAQ", fullName: "NASDAQ Global Market" },
-        { key: "NYSE", label: "NYSE", fullName: "New York Stock Exchange" },
-      ];
-    }
+    // Simplified - only show NSE stocks from CSV
+    return [
+      {
+        key: "NSE",
+        label: "NSE",
+        fullName: "National Stock Exchange",
+      },
+    ];
   };
 
   useEffect(() => {
     fetchCompanies();
-  }, [selectedTab, selectedExchange]);
+  }, [selectedExchange]);
 
   // Real-time data updates
   useEffect(() => {
@@ -216,7 +207,7 @@ const StocksScreen = () => {
     if (exchanges.length > 0) {
       setSelectedExchange(exchanges[0].key);
     }
-  }, [selectedTab]);
+  }, []); // Remove selectedTab dependency since we only have Indian stocks
 
   // Animation for loading icon
   useEffect(() => {
@@ -267,7 +258,7 @@ const StocksScreen = () => {
           setLoading(true);
         }
 
-        console.log("🔄 Fetching real-time stock data...");
+        console.log("🔄 Fetching stock data from backend...");
 
         // If we're refreshing and already have data, use price update for real-time effect
         if (!showLoading && companies.length > 0) {
@@ -279,24 +270,33 @@ const StocksScreen = () => {
           return;
         }
 
-        // Fetch comprehensive Indian stocks (NSE + BSE) with exchange filter
+        // Fetch stocks from our backend CSV endpoint
         const exchangeFilter =
           selectedExchange === "ALL" ? null : selectedExchange;
         console.log(
           `🇮🇳 Loading ${
             selectedExchange === "ALL" ? "all Indian" : selectedExchange
-          } stocks...`
-        );
-        const allStocks = await RealStockDataService.getStocksByCountry(
-          "INDIA",
-          exchangeFilter
+          } stocks from backend...`
         );
 
-        let stocksToUse = allStocks;
+        const response = await fetch(
+          `${API_BASE_URL}${ENDPOINTS.STOCKS}?exchange=${
+            exchangeFilter || "ALL"
+          }`
+        );
 
-        // If no data from APIs, use fallback data
-        if (!allStocks || allStocks.length === 0) {
-          console.log("⚠️ No stock data from APIs, using fallback data...");
+        if (!response.ok) {
+          throw new Error(
+            `Backend responded with ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        let stocksToUse = data.stocks || [];
+
+        // If no data from backend, use fallback data
+        if (!stocksToUse || stocksToUse.length === 0) {
+          console.log("⚠️ No stock data from backend, using fallback data...");
           stocksToUse = RealStockDataService.getFallbackStockData();
         } else {
           const exchangeText =
@@ -304,44 +304,40 @@ const StocksScreen = () => {
               ? "NSE & BSE exchanges"
               : `${selectedExchange} exchange`;
           console.log(
-            `✅ Retrieved ${allStocks.length} stocks from ${exchangeText}`
+            `✅ Retrieved ${stocksToUse.length} stocks from backend (${exchangeText})`
           );
         }
 
-        // Filter stocks based on selected tab and exchange
+        // Filter stocks based on selected exchange if needed
         let filteredStocks = stocksToUse;
-
-        if (selectedTab === "INDIA") {
+        if (selectedExchange !== "ALL") {
           filteredStocks = stocksToUse.filter(
-            (stock) =>
-              (stock.country === "India" ||
-                stock.exchange === "NSE" ||
-                stock.exchange === "BSE") &&
-              (selectedExchange === "ALL" ||
-                stock.exchange === selectedExchange)
-          );
-        } else {
-          filteredStocks = stocksToUse.filter(
-            (stock) =>
-              stock.country === "US" &&
-              (selectedExchange === "NASDAQ"
-                ? stock.exchange === "NASDAQ"
-                : stock.exchange === "NYSE")
+            (stock) => stock.exchange === selectedExchange
           );
         }
 
         console.log(
-          `📊 Loaded ${filteredStocks.length} stocks for ${selectedTab} - ${selectedExchange}`
+          `📊 Loaded ${filteredStocks.length} stocks for ${selectedExchange}`
         );
-        setCompanies(filteredStocks);
+
+        // Map backend fields to frontend expectations
+        const mappedStocks = filteredStocks.map((stock) => ({
+          ...stock,
+          price: stock.currentPrice,
+          change: stock.dayChange,
+          changePercent: stock.dayChangePercent,
+          currency: "INR", // Backend data is all Indian stocks
+        }));
+
+        setCompanies(mappedStocks);
         setLastUpdated(new Date());
       } catch (error) {
         console.error("Error fetching stock companies:", error);
 
-        // Show a user-friendly error message for real data failures
+        // Show a user-friendly error message for backend failures
         Alert.alert(
-          "Unable to Load Real Stock Data",
-          "There was an issue fetching real-time stock data. This could be due to network connectivity or API rate limits. Please try again later.",
+          "Unable to Load Stock Data",
+          "There was an issue fetching stock data from the server. This could be due to network connectivity or server issues. Please try again later.",
           [
             {
               text: "Retry",
@@ -362,7 +358,7 @@ const StocksScreen = () => {
         setRefreshing(false);
       }
     },
-    [selectedTab, selectedExchange]
+    [selectedExchange]
   );
 
   const handleSearch = useCallback(() => {
@@ -476,83 +472,30 @@ const StocksScreen = () => {
       <View style={styles.titleContainer}>
         <Ionicons name="trending-up" size={24} color="#007AFF" />
         <Text style={styles.headerTitle}>Real-Time Stocks & Analysis</Text>
-        <TouchableOpacity
-          style={[
-            styles.realTimeToggle,
-            { backgroundColor: realTimeEnabled ? "#10B981" : "#8E8E93" },
-          ]}
-          onPress={() => setRealTimeEnabled(!realTimeEnabled)}
-        >
-          <Ionicons name="radio" size={12} color="#FFFFFF" />
-          <Text style={styles.realTimeText}>LIVE</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Main Tabs - India vs Global */}
-      <View style={styles.mainTabsContainer}>
-        <View style={styles.mainTabsRow}>
-          {mainTabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.mainTabButton,
-                selectedTab === tab.key && styles.selectedMainTabButton,
-              ]}
-              onPress={() => setSelectedTab(tab.key)}
-            >
-              <Text
-                style={[
-                  styles.mainTabText,
-                  selectedTab === tab.key && styles.selectedMainTabText,
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.portfolioButton}
+            onPress={() => navigation.navigate("StockPortfolioManager")}
+          >
+            <Ionicons name="briefcase" size={16} color="#007AFF" />
+            <Text style={styles.portfolioButtonText}>Portfolio</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.realTimeToggle,
+              { backgroundColor: realTimeEnabled ? "#10B981" : "#8E8E93" },
+            ]}
+            onPress={() => setRealTimeEnabled(!realTimeEnabled)}
+          >
+            <Ionicons name="radio" size={12} color="#FFFFFF" />
+            <Text style={styles.realTimeText}>LIVE</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Exchange Selection */}
-      <View style={styles.exchangeContainer}>
-        <Text style={styles.sectionLabel}>Select Exchange:</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.exchangeScroll}
-        >
-          {getExchangeOptions().map((exchange) => (
-            <TouchableOpacity
-              key={exchange.key}
-              style={[
-                styles.exchangeButton,
-                selectedExchange === exchange.key &&
-                  styles.selectedExchangeButton,
-              ]}
-              onPress={() => setSelectedExchange(exchange.key)}
-            >
-              <Text
-                style={[
-                  styles.exchangeButtonText,
-                  selectedExchange === exchange.key &&
-                    styles.selectedExchangeButtonText,
-                ]}
-              >
-                {exchange.label}
-              </Text>
-              <Text
-                style={[
-                  styles.exchangeSubtext,
-                  selectedExchange === exchange.key &&
-                    styles.selectedExchangeSubtext,
-                ]}
-              >
-                {exchange.fullName}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      {/* Simplified header - removed complex tabs */}
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
@@ -844,14 +787,8 @@ const StocksScreen = () => {
           color="#2563eb"
           style={styles.loadingSpinner}
         />
-        <Text style={styles.loadingText}>
-          Loading {selectedTab === "INDIA" ? "Indian" : "Global"} stocks...
-        </Text>
-        <Text style={styles.loadingSubtext}>
-          {selectedTab === "INDIA"
-            ? "Fetching real data from NSE & BSE"
-            : "Connecting to global markets"}
-        </Text>
+        <Text style={styles.loadingText}>Loading Indian stocks...</Text>
+        <Text style={styles.loadingSubtext}>Fetching data from NSE & BSE</Text>
       </View>
     );
   };
@@ -968,13 +905,33 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
+  headerButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  portfolioButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+  },
+  portfolioButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#007AFF",
+    marginLeft: 4,
+  },
   realTimeToggle: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
   },
   realTimeText: {
     fontSize: 10,

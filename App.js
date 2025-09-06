@@ -45,6 +45,7 @@ import MFCalculator from "./MFCalculator";
 import StocksScreen from "./StocksScreen";
 import StockSearchScreen from "./StockSearchScreen";
 import StockDetailScreen from "./StockDetailScreen";
+import StockPortfolioManager from "./StockPortfolioManager";
 import SavingsScreen from "./SavingsScreen";
 import OnboardingScreen from "./onboardingScreen";
 import NoteAIScreen from "./noteaiscreen";
@@ -153,6 +154,11 @@ const CalendarStackNavigator = () => (
       name="StockDetail"
       component={StockDetailScreen}
       options={headerOptions("Stock Details")}
+    />
+    <CalendarStack.Screen
+      name="StockPortfolioManager"
+      component={StockPortfolioManager}
+      options={headerOptions("My Portfolio")}
     />
     <CalendarStack.Screen name="SavingsScreen" component={SavingsScreen} />
     <CalendarStack.Screen
